@@ -65,20 +65,9 @@ for t = 1:T
     y_nom[t] = x_sol[(t-1)*(n+m) .+ (1:n)][2]
 end
 
-plot(x_ref,y_ref,title="reference trajectory",color=:black,legend=:topleft,label="ref.",xlabel="x",ylabel="y",width=2.0,aspect_ratio=:equal)
-scatter!(x_nom,y_nom,color=:orange,label="nominal")
-
-# optimize controller
-N = 4
-z0 = [[0.1;0.;0.;0.], [0.;0.1;;0.;0.],[-0.1;0.;0.;0.],[0.;-0.1;0.;0.]]
-
-n_nlp_ctrl = n*N*T + (m*n)*(T-1)
-m_nlp_ctrl = n*N*(T-1)
-
-Q = Diagonal(@SVector[1.0,1.0,1.0,1.0])
-Qf = Diagonal(@SVector[1.0,1.0,1.0,1.0])
-R = 1.0*sparse(I,m,m)
-
+plt = plot(x_ref,y_ref,title="reference trajectory",color=:black,legend=:topleft,label="ref.",xlabel="x",ylabel="y",width=2.0,aspect_ratio=:equal)
+plt = scatter!(x_nom,y_nom,color=:orange,label="nominal")
+# tvlqr
 A = []
 B = []
 for t = 1:T-1
@@ -87,13 +76,36 @@ for t = 1:T-1
     push!(A,ForwardDiff.jacobian(fz,z_nom[t]))
     push!(B,ForwardDiff.jacobian(fu,u_nom[t]))
 end
+P = []
+push!(P,Qf)
+K = []
+
+for t = T-1:-1:1
+    println(t)
+    push!(K,(R + B[t]'*P[end]*B[t])\(B[t]'*P[end]*A[t]))
+    push!(P,A[t]'*P[end]*A[t] - (A[t]'*P[end]*B[t])*K[end] + Q)
+end
+
+
+# optimize controller
+N = 4
+z0 = [[0.1;0.;0.;0.], [0.;0.1;;0.;0.],[-0.1;0.;0.;0.],[0.;-0.1;0.;0.]]
+
+n_nlp_ctrl = n*N*T
+m_nlp_ctrl = n*N*T
+
+Q = Diagonal(@SVector[1.0,1.0,1.0,1.0])
+Qf = Diagonal(@SVector[1.0,1.0,1.0,1.0])
+R = 1.0e-1*sparse(I,m,m)
+
+
 
 prob_ctrl = ProblemCtrl(n_nlp_ctrl,m_nlp_ctrl,z_nom,u_nom,T,n,m,Q,Qf,R,A,B,model,Δt,N,z0,false)
 x0_ctrl = zeros(n_nlp_ctrl)
 
 for t = 1:T
     for i = 1:N
-        x0_ctrl[(t-1)*(n*N+m*n)+(i-1)*n .+ (1:n)] = z_nom[t]
+        x0_ctrl[(t-1)*(n*N)+(i-1)*n .+ (1:n)] = z_nom[t] + 0.0*randn(n)*0.001
     end
 end
 
@@ -108,13 +120,21 @@ jac = ones(m_nlp_ctrl*n_nlp_ctrl)
 MOI.eval_constraint_jacobian(prob_ctrl,jac,x0_ctrl)
 
 x_sol = solve_ipopt(x0_ctrl,prob_ctrl)
+g = zeros(m_nlp_ctrl)
+MOI.eval_constraint(prob_ctrl,g,x_sol)
+g
 
-x_ctrl = zeros(T)
-y_ctrl = zeros(T)
-K_ctrl = [reshape(x_sol[(t-1)*(n*N+m*n)+n*N .+ (1:m*n)],m,n) for t = 1:T-1]
+x_ctrl = [zeros(T) for i = 1:N]
+y_ctrl = [zeros(T) for i = 1:N]
+# K_ctrl = [reshape(x_sol[(t-1)*(n*N+m*n)+n*N .+ (1:m*n)],m,n) for t = 1:T-1]
 # K_ctrl
-# for t = 1:T
-#     x_ctrl[t] = x_sol[(t-1)*(n+m*n) .+ (1:n)][1]
-#     y_ctrl[t] = x_sol[(t-1)*(n+m*n) .+ (1:n)][2]
-# end
-# scatter!(x_ctrl,y_ctrl,color=:green,label="ctrl")
+for t = 1:T
+    for i = 1:N
+        x_ctrl[i][t] = x_sol[(t-1)*(n*N) + (i-1)*n .+ (1:n)][1]
+        y_ctrl[i][t] = x_sol[(t-1)*(n*N) + (i-1)*n .+ (1:n)][2]
+    end
+end
+for i = 1:N
+    plt = scatter!(x_ctrl[i],y_ctrl[i],label="z0_$i")
+end
+display(plt)
