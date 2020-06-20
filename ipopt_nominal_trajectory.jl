@@ -175,7 +175,7 @@ function solve_ipopt(x0,prob::MOI.AbstractNLPEvaluator)
 
     solver = Ipopt.Optimizer()
     solver.options["max_iter"] = 1000
-    solver.options["tol"] = 1.0e-3
+    # solver.options["tol"] = 1.0e-3
 
     x = MOI.add_variables(solver,prob.n_nlp)
 

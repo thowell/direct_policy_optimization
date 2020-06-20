@@ -34,13 +34,14 @@ function MOI.eval_objective(prob::ProblemCtrl, x)
     N = prob.N
 
     for t = 1:T
-        z = x[(t-1)*(n*N) .+ (1:n*N)]
+        z = x[(t-1)*(n*N + m*n) .+ (1:n*N)]
         for i = 1:N
             zi = z[(i-1)*n .+ (1:n)]
             if t < T
-                s += (zi - z_nom[t])'*(Q + K[t]'*R*K[t])*(zi - z_nom[t])
+                K = reshape(x[(t-1)*(n*N + m*n) + n*N .+ (1:m*n)],m,n)
+                s += (zi - z_nom[t])'*(Q + K'*R*K)*(zi - z_nom[t])/N
             else
-                s += (zi - z_nom[t])'*Qf*(zi - z_nom[t])
+                s += (zi - z_nom[t])'*Qf*(zi - z_nom[t])/N
             end
         end
     end
@@ -58,13 +59,17 @@ function MOI.eval_objective_gradient(prob::ProblemCtrl, grad_f, x)
     N = prob.N
 
     for t = 1:T
-        z = x[(t-1)*(n*N) .+ (1:n*N)]
+        z = x[(t-1)*(n*N + m*n) .+ (1:n*N)]
         for i = 1:N
             zi = z[(i-1)*n .+ (1:n)]
             if t < T
-                grad_f[(t-1)*(n*N) + (i-1)*n .+ (1:n)] .= 0.0*2.0*(Q + K[t]'*R*K[t])*(zi - z_nom[t])
+                K_vec = x[(t-1)*(n*N + m*n) + n*N .+ (1:m*n)]
+                K = reshape(K_vec,m,n)
+                grad_f[(t-1)*(n*N + m*n) + (i-1)*n .+ (1:n)] .= 2.0*(Q + K'*R*K)*(zi - z_nom[t])./N
+                fk(w) = (zi - z_nom[t])'*(Q + reshape(w,m,n)'*R*reshape(w,m,n))*(zi - z_nom[t])
+                grad_f[(t-1)*(n*N + m*n) + n*N .+ (1:m*n)] .= ForwardDiff.gradient(fk,K_vec)./N
             else
-                grad_f[(t-1)*(n*N) + (i-1)*n .+ (1:n)] .= 0.0*2.0*Qf*(zi - z_nom[t])
+                grad_f[(t-1)*(n*N + m*n) + (i-1)*n .+ (1:n)] .= 2.0*Qf*(zi - z_nom[t])./N
             end
         end
     end
@@ -87,15 +92,16 @@ function MOI.eval_constraint(prob::ProblemCtrl,g,x)
     N = prob.N
 
     for t = 1:T-1
-        z = x[(t-1)*(n*N) .+ (1:n*N)]
-        z⁺ = x[t*(n*N) .+ (1:n*N)]
+        z = x[(t-1)*(n*N + m*n) .+ (1:n*N)]
+        z⁺ = x[t*(n*N + m*n) .+ (1:n*N)]
+        K = reshape(x[(t-1)*(n*N + m*n) + n*N .+ (1:m*n)],m,n)
 
         for i = 1:N
             zi = z[(i-1)*n .+ (1:n)]
             zi⁺ = z⁺[(i-1)*n .+ (1:n)]
             δz = zi - z_nom[t]
             δz⁺ = zi⁺ - z_nom[t+1]
-            g[(t-1)*n*N + (i-1)*n .+ (1:n)] .= δz⁺ - (A[t] - B[t]*K[t])*δz
+            g[(t-1)*n*N + (i-1)*n .+ (1:n)] .= δz⁺ - (A[t] - B[t]*K)*δz
         end
     end
     z = x[1:n*N]
@@ -120,12 +126,16 @@ function MOI.eval_constraint_jacobian(prob::ProblemCtrl, jac, x)
 
     JAC = zeros(prob.m_nlp,prob.n_nlp)
     for t = 1:T-1
-        z = x[(t-1)*(n*N) .+ (1:n*N)]
-        z⁺ = x[t*(n*N) .+ (1:n*N)]
+        z = x[(t-1)*(n*N + m*n) .+ (1:n*N)]
+        z⁺ = x[t*(n*N + m*n) .+ (1:n*N)]
+        K_vec = x[(t-1)*(n*N + m*n) + n*N .+ (1:m*n)]
+        K = reshape(K_vec,m,n)
+
         for i = 1:N
             r_idx = (t-1)*n*N + (i-1)*n .+ (1:n)
-            c1_idx = (t-1)*(n*N) + (i-1)*n .+ (1:n)
-            c2_idx = t*(n*N) + (i-1)*n .+ (1:n)
+            c1_idx = (t-1)*(n*N + m*n) + (i-1)*n .+ (1:n)
+            c2_idx = t*(n*N + m*n) + (i-1)*n .+ (1:n)
+            c3_idx = (t-1)*(n*N + m*n) + n*N .+ (1:m*n)
 
             zi = z[(i-1)*n .+ (1:n)]
             zi⁺ = z⁺[(i-1)*n .+ (1:n)]
@@ -133,11 +143,13 @@ function MOI.eval_constraint_jacobian(prob::ProblemCtrl, jac, x)
             δz = zi - z_nom[t]
             δz⁺ = zi⁺ - z_nom[t+1]
 
-            f1(w) = δz⁺ - (A[t] - B[t]*K[t])*(w - z_nom[t])
-            f2(w) = (w - z_nom[t+1]) - (A[t] - B[t]*K[t])*δz
+            f1(w) = δz⁺ - (A[t] - B[t]*K)*(w - z_nom[t])
+            f2(w) = (w - z_nom[t+1]) - (A[t] - B[t]*K)*δz
+            f3(w) = δz⁺ - (A[t] - B[t]*reshape(w,m,n))*δz
 
-            JAC[r_idx,c1_idx] = -(A[t] - B[t]*K[t])
+            JAC[r_idx,c1_idx] = -(A[t] - B[t]*K)
             JAC[CartesianIndex.(r_idx,c2_idx)] .= 1.0
+            JAC[r_idx,c3_idx] = ForwardDiff.jacobian(f3,K_vec)
         end
     end
 

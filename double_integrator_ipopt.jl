@@ -1,4 +1,4 @@
-using LinearAlgebra, ForwardDiff, Plots, StaticArrays, BenchmarkTools, SparseArrays
+using LinearAlgebra, ForwardDiff, Plots, StaticArrays, BenchmarkTools, SparseArrays, Distributions
 include("ipopt_nominal_trajectory.jl")
 include("ipopt_optimize_controller.jl")
 
@@ -29,7 +29,7 @@ function midpoint(model,z,u,Δt)
 end
 midpoint(model,z0,u0,Δt)
 
-T = 10
+T = 20
 x_ref = sin.(range(0.0,stop=pi,length=T))
 y_ref = range(0.0,stop=pi,length=T)
 z_ref = [[x_ref[t];y_ref[t];0.0;0.0] for t = 1:T]
@@ -65,8 +65,6 @@ for t = 1:T
     y_nom[t] = x_sol[(t-1)*(n+m) .+ (1:n)][2]
 end
 
-plt = plot(x_ref,y_ref,title="reference trajectory",color=:black,legend=:topleft,label="ref.",xlabel="x",ylabel="y",width=2.0,aspect_ratio=:equal)
-plt = scatter!(x_nom,y_nom,color=:orange,label="nominal")
 # tvlqr
 A = []
 B = []
@@ -86,26 +84,23 @@ for t = T-1:-1:1
     push!(P,A[t]'*P[end]*A[t] - (A[t]'*P[end]*B[t])*K[end] + Q)
 end
 
-
 # optimize controller
-N = 4
-z0 = [[0.1;0.;0.;0.], [0.;0.1;;0.;0.],[-0.1;0.;0.;0.],[0.;-0.1;0.;0.]]
+N = 2*n
+mv = Distributions.MvNormal(z_nom[1],0.1*Diagonal(ones(n)))
+Z0 = rand(mv,N)
+#
+z0 = [Z0[:,i] for i = 1:N]
+# z0 = [[0.1;0.;0.;0.], [0.;0.1;;0.;0.],[-0.1;0.;0.;0.],[0.;-0.1;0.;0.]]
 
-n_nlp_ctrl = n*N*T
+n_nlp_ctrl = n*N*T + (m*n)*(T-1)
 m_nlp_ctrl = n*N*T
-
-Q = Diagonal(@SVector[1.0,1.0,1.0,1.0])
-Qf = Diagonal(@SVector[1.0,1.0,1.0,1.0])
-R = 1.0e-1*sparse(I,m,m)
-
-
 
 prob_ctrl = ProblemCtrl(n_nlp_ctrl,m_nlp_ctrl,z_nom,u_nom,T,n,m,Q,Qf,R,A,B,model,Δt,N,z0,false)
 x0_ctrl = zeros(n_nlp_ctrl)
 
 for t = 1:T
     for i = 1:N
-        x0_ctrl[(t-1)*(n*N)+(i-1)*n .+ (1:n)] = z_nom[t] + 0.0*randn(n)*0.001
+        x0_ctrl[(t-1)*(n*N + m*n)+(i-1)*n .+ (1:n)] = z_nom[t] + 1.0*randn(n)*0.001
     end
 end
 
@@ -120,21 +115,84 @@ jac = ones(m_nlp_ctrl*n_nlp_ctrl)
 MOI.eval_constraint_jacobian(prob_ctrl,jac,x0_ctrl)
 
 x_sol = solve_ipopt(x0_ctrl,prob_ctrl)
-g = zeros(m_nlp_ctrl)
-MOI.eval_constraint(prob_ctrl,g,x_sol)
-g
 
 x_ctrl = [zeros(T) for i = 1:N]
 y_ctrl = [zeros(T) for i = 1:N]
-# K_ctrl = [reshape(x_sol[(t-1)*(n*N+m*n)+n*N .+ (1:m*n)],m,n) for t = 1:T-1]
-# K_ctrl
+K_ctrl = [reshape(x_sol[(t-1)*(n*N+m*n)+n*N .+ (1:m*n)],m,n) for t = 1:T-1]
 for t = 1:T
     for i = 1:N
-        x_ctrl[i][t] = x_sol[(t-1)*(n*N) + (i-1)*n .+ (1:n)][1]
-        y_ctrl[i][t] = x_sol[(t-1)*(n*N) + (i-1)*n .+ (1:n)][2]
+        x_ctrl[i][t] = x_sol[(t-1)*(n*N + m*n) + (i-1)*n .+ (1:n)][1]
+        y_ctrl[i][t] = x_sol[(t-1)*(n*N + m*n) + (i-1)*n .+ (1:n)][2]
     end
 end
+
+plt = plot(x_ref,y_ref,title="reference trajectory",color=:black,legend=:topleft,label="ref.",xlabel="x",ylabel="y",width=2.0,aspect_ratio=:equal)
+plt = scatter!(x_nom,y_nom,color=:orange,label="nominal")
 for i = 1:N
     plt = scatter!(x_ctrl[i],y_ctrl[i],label="z0_$i")
 end
 display(plt)
+K
+
+
+
+
+
+
+
+
+
+
+
+
+K_ctrl
+
+# TVLQR
+times = [(t-1)*Δt for t = 1:T-1]
+tf = Δt*T
+T_sim = 1000
+t_sim = range(0,stop=tf,length=T_sim)
+dt_sim = tf/(T_sim-1)
+z_tvlqr_rollout = [z_nom[1]]
+u_tvlqr = []
+for tt = 1:T_sim-1
+    t = t_sim[tt]
+    k = searchsortedlast(times,t)
+    w = randn(n)*1.0e-2
+    z = z_tvlqr_rollout[end] + 1.0*w
+    u = u_nom[k] - K[k]*(z - z_nom[k])
+    push!(z_tvlqr_rollout,midpoint(model,z,u,dt_sim))
+    push!(u_tvlqr,u)
+end
+
+z_tvlqr_rollout
+x_tvlqr_rollout = [z_tvlqr_rollout[t][1] for t = 1:T_sim]
+y_tvlqr_rollout = [z_tvlqr_rollout[t][2] for t = 1:T_sim]
+
+plot(x_ref,y_ref,title="simulation",color=:black,legend=:topleft,label="ref.",xlabel="x",ylabel="y",width=2.0,aspect_ratio=:equal)
+scatter!(x_nom,y_nom,color=:orange,label="nominal")
+plot!(x_tvlqr_rollout,y_tvlqr_rollout,color=:purple,label="TVLQR",width=2.0)
+
+# sampled controller
+times = [(t-1)*Δt for t = 1:T-1]
+tf = Δt*T
+T_sim = 1000
+t_sim = range(0,stop=tf,length=T_sim)
+dt_sim = tf/(T_sim-1)
+z_ctrl_rollout = [z_nom[1]]
+u_ctrl = []
+for tt = 1:T_sim-1
+   t = t_sim[tt]
+   k = searchsortedlast(times,t)
+   w = randn(n)*1.0e-2
+   z = z_ctrl_rollout[end] + 1.0*w
+   u = u_nom[k] - K_ctrl[k]*(z - z_nom[k])
+   push!(z_ctrl_rollout,midpoint(model,z,u,dt_sim))
+   push!(u_ctrl,u)
+end
+
+z_ctrl_rollout
+x_ctrl_rollout = [z_ctrl_rollout[t][1] for t = 1:T_sim]
+y_ctrl_rollout = [z_ctrl_rollout[t][2] for t = 1:T_sim]
+
+plot!(x_ctrl_rollout,y_ctrl_rollout,color=:cyan,label="sample ctrl",width=2.0)
