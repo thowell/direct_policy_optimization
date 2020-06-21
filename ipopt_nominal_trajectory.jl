@@ -146,6 +146,14 @@ function row_col!(row,col,r,c)
     return row, col
 end
 
+function row_col_cartesian!(row,col,r,c)
+    for i = 1:length(r)
+        push!(row,convert(Int,r[i]))
+        push!(col,convert(Int,c[i]))
+    end
+    return row, col
+end
+
 function sparsity(prob::MOI.AbstractNLPEvaluator)
 
     row = []
@@ -174,7 +182,7 @@ function solve_ipopt(x0,prob::MOI.AbstractNLPEvaluator)
     block_data = MOI.NLPBlockData(nlp_bounds,prob,true)
 
     solver = Ipopt.Optimizer()
-    solver.options["max_iter"] = 1000
+    solver.options["max_iter"] = 5000
     # solver.options["tol"] = 1.0e-3
 
     x = MOI.add_variables(solver,prob.n_nlp)

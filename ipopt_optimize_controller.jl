@@ -124,7 +124,10 @@ function MOI.eval_constraint_jacobian(prob::ProblemCtrl, jac, x)
     Δt = prob.Δt
     N = prob.N
 
-    JAC = zeros(prob.m_nlp,prob.n_nlp)
+    # JAC = zeros(prob.m_nlp,prob.n_nlp)
+
+    shift = 0
+
     for t = 1:T-1
         z = x[(t-1)*(n*N + m*n) .+ (1:n*N)]
         z⁺ = x[t*(n*N + m*n) .+ (1:n*N)]
@@ -147,34 +150,88 @@ function MOI.eval_constraint_jacobian(prob::ProblemCtrl, jac, x)
             f2(w) = (w - z_nom[t+1]) - (A[t] - B[t]*K)*δz
             f3(w) = δz⁺ - (A[t] - B[t]*reshape(w,m,n))*δz
 
-            JAC[r_idx,c1_idx] = -(A[t] - B[t]*K)
-            JAC[CartesianIndex.(r_idx,c2_idx)] .= 1.0
-            JAC[r_idx,c3_idx] = ForwardDiff.jacobian(f3,K_vec)
+            # JAC[r_idx,c1_idx] = -(A[t] - B[t]*K)
+            shift1 = n*n
+            jac[shift .+ (1:shift1)] .= vec(-(A[t] - B[t]*K))
+            shift += shift1
+
+            # JAC[CartesianIndex.(r_idx,c2_idx)] .= 1.0
+            shift2 = n
+            jac[shift .+ (1:shift2)] .= 1.0
+            shift += shift2
+
+            # JAC[r_idx,c3_idx] = ForwardDiff.jacobian(f3,K_vec)
+            shift3 = n*m*n
+            jac[shift .+ (1:shift3)] .= vec(ForwardDiff.jacobian(f3,K_vec))
+            shift += shift3
         end
     end
 
     for i = 1:N
         r_idx = (T-1)*n*N + (i-1)*n .+ (1:n)
         c_idx = (i-1)*n .+ (1:n)
-        JAC[CartesianIndex.(r_idx,c_idx)] .= 1.0
+        # JAC[CartesianIndex.(r_idx,c_idx)] .= 1.0
+        shift4 = n
+        jac[shift .+ (1:shift4)] .= 1.0
+        shift += shift4
     end
 
-    jac .= vec(JAC)
+    # jac .= vec(JAC)
     return nothing
 end
 
-# function sparsity(prob::Problem)
-#
-#     row = []
-#     col = []
-#
-#     r = 1:prob.m_nlp
-#     c = 1:prob.n_nlp
-#
-#     row_col!(row,col,r,c)
-#
-#     return collect(zip(row,col))
-# end
+function sparsity(prob::ProblemCtrl)
+
+    row = []
+    col = []
+
+    # r = 1:prob.m_nlp
+    # c = 1:prob.n_nlp
+    #
+    # row_col!(row,col,r,c)
+
+    n = prob.n
+    m = prob.m
+    T = prob.T
+    Q = prob.Q
+    Qf = prob.Qf
+    z_nom = prob.z_nom
+    u_nom = prob.u_nom
+    model = prob.model
+    Δt = prob.Δt
+    N = prob.N
+
+    for t = 1:T-1
+        for i = 1:N
+            r_idx = (t-1)*n*N + (i-1)*n .+ (1:n)
+            c1_idx = (t-1)*(n*N + m*n) + (i-1)*n .+ (1:n)
+            c2_idx = t*(n*N + m*n) + (i-1)*n .+ (1:n)
+            c3_idx = (t-1)*(n*N + m*n) + n*N .+ (1:m*n)
+
+            # JAC[r_idx,c1_idx] = -(A[t] - B[t]*K)
+            row_col!(row,col,r_idx,c1_idx)
+
+            # JAC[CartesianIndex.(r_idx,c2_idx)] .= 1.0
+            row_col_cartesian!(row,col,r_idx,c2_idx)
+
+
+            # JAC[r_idx,c3_idx] = ForwardDiff.jacobian(f3,K_vec)
+            row_col!(row,col,r_idx,c3_idx)
+
+        end
+    end
+
+    for i = 1:N
+        r_idx = (T-1)*n*N + (i-1)*n .+ (1:n)
+        c_idx = (i-1)*n .+ (1:n)
+        # JAC[CartesianIndex.(r_idx,c_idx)] .= 1.0
+        row_col_cartesian!(row,col,r_idx,c_idx)
+
+    end
+
+
+    return collect(zip(row,col))
+end
 
 # MOI.features_available(prob::Problem) = [:Grad, :Jac]
 # MOI.initialize(prob::Problem, features) = nothing
