@@ -28,11 +28,11 @@ function midpoint(model,z,u,Δt)
 end
 
 # horizon
-T = 40
+T = 20
 
 # reference position trajectory
-x_ref = sin.(range(0.0,stop=pi,length=T))
-y_ref = range(0.0,stop=pi,length=T)
+x_ref = range(0.0,stop=0.5,length=T)
+y_ref = range(0.0,stop=0.5,length=T)
 z_ref = [[x_ref[t];y_ref[t];0.0;0.0] for t = 1:T]
 
 # reference control trajectory
@@ -44,7 +44,7 @@ z0 = [x_ref[1];y_ref[1];0.0;0.0]
 # objective
 Q = Diagonal(@SVector[10.0,10.0,1.0e-1,1.0e-1])
 Qf = Diagonal(@SVector[100.0,100.0,1.0,1.0])
-R = 1.0e-1*sparse(I,m,m)
+R = 1.0e-3*sparse(I,m,m)
 
 # NLP dimensions
 n_nlp = n*T + m*(T-1)
@@ -96,14 +96,16 @@ for t = T-1:-1:1
 end
 
 # optimize controller
-N = 2n # number of samples
+N = 10 # number of samples
 
 # initial condition distribution
-r_sample = 0.1 # initial condition sample radius
+r_sample = 0.001 # initial condition sample radius
 
-mv = Distributions.MvNormal(z_nom[1],r_sample*Diagonal(ones(n))) # multi-variate Gaussian
-Z0 = rand(mv,N) # initial condition samples
-z0 = [Z0[:,i] for i = 1:N]
+mv_x0 = Distributions.MvNormal(z_nom[1],r_sample*Diagonal(ones(n))) # multi-variate Gaussian
+mv_noise = Distributions.MvNormal(zeros(n),0.0001*Diagonal(ones(n))) # multi-variate Gaussian
+Z0 = rand(mv_x0,N-1) # initial condition samples
+z0 = [[Z0[:,i] for i = 1:N-1]...,z_nom[1]]
+w = [0.1*rand(mv_noise,T-1) for i = 1:N] #
 
 function plot_circle(x0,r;N=100,label="",plt=plot())
     θ = range(0,stop=2pi,length=N)
@@ -119,7 +121,7 @@ n_nlp_ctrl = n*N*T + (m*n)*(T-1)
 m_nlp_ctrl = n*N*T
 
 # NLP problem
-prob_ctrl = ProblemCtrl(n_nlp_ctrl,m_nlp_ctrl,z_nom,u_nom,T,n,m,Q,Qf,R,A,B,model,Δt,N,z0,false)
+prob_ctrl = ProblemCtrl(n_nlp_ctrl,m_nlp_ctrl,z_nom,u_nom,T,n,m,Q,Qf,R,A,B,model,Δt,N,z0,w,false)
 
 # NLP initialization
 x0_ctrl = zeros(n_nlp_ctrl)
@@ -164,26 +166,26 @@ end
 display(plt)
 
 # test controllers
-N_sim = 1000
-Z0_sim = rand(mv,N_sim)
+N_sim = 50
+Z0_sim = rand(mv_x0,N_sim)
 x0_sim = [Z0_sim[1,k] for k = 1:N_sim]
 y0_sim = [Z0_sim[1,k] for k = 1:N_sim]
 
 # tvlqr test
 times = [(t-1)*Δt for t = 1:T-1]
 tf = Δt*T
-T_sim = 1000
+T_sim = 100
 t_sim = range(0,stop=tf,length=T_sim)
 dt_sim = tf/(T_sim-1)
 plt = plot(title="TVLQR controller",color=:black,legend=:topleft,label="ref.",xlabel="x",ylabel="y",width=2.0,aspect_ratio=:equal)
+
 for k = 1:N_sim
     z_tvlqr_rollout = [Z0_sim[:,k]]
     u_tvlqr = []
     for tt = 1:T_sim-1
         t = t_sim[tt]
         k = searchsortedlast(times,t)
-        w = randn(n)*0.0
-        z = z_tvlqr_rollout[end] + 1.0*w
+        z = z_tvlqr_rollout[end]
         u = u_nom[k] - K[k]*(z - z_nom[k])
         push!(z_tvlqr_rollout,midpoint(model,z,u,dt_sim))
         push!(u_tvlqr,u)
@@ -200,12 +202,12 @@ plt = scatter!(x_nom,y_nom,color=:orange,label="nominal")
 plt = scatter!([x_nom[1]],[y_nom[1]],color=:red,marker=:square,label="start",width=2.0)
 plt = scatter!([x_nom[end]],[y_nom[end]],color=:green,marker=:hex,label="goal",width=2.0)
 # plt = plot_circle(z_nom[1][1:2],r_sample,N=100,label="Σ=0.1",plt=plt)
-savefig(plt,joinpath(pwd(),"results_6_21_2020/tvlqr_ctrl.png"))
+# savefig(plt,joinpath(pwd(),"results_6_21_2020/tvlqr_ctrl.png"))
 
 # sampled controller
 times = [(t-1)*Δt for t = 1:T-1]
 tf = Δt*T
-T_sim = 1000
+T_sim = 100
 t_sim = range(0,stop=tf,length=T_sim)
 dt_sim = tf/(T_sim-1)
 
@@ -217,8 +219,7 @@ for k = 1:N_sim
     for tt = 1:T_sim-1
        t = t_sim[tt]
        k = searchsortedlast(times,t)
-       w = randn(n)*0.0
-       z = z_ctrl_rollout[end] + 1.0*w
+       z = z_ctrl_rollout[end]
        u = u_nom[k] - K_ctrl[k]*(z - z_nom[k])
        push!(z_ctrl_rollout,midpoint(model,z,u,dt_sim))
        push!(u_ctrl,u)
@@ -236,4 +237,8 @@ plt = scatter!()
 plt = scatter!(x_nom,y_nom,color=:orange,label="nominal")
 plt = scatter!([x_nom[1]],[y_nom[1]],color=:red,marker=:square,label="start",width=2.0)
 plt = scatter!([x_nom[end]],[y_nom[end]],color=:green,marker=:hex,label="goal",width=2.0)
-savefig(plt,joinpath(pwd(),"results_6_21_2020/opt_ctrl.png"))
+# savefig(plt,joinpath(pwd(),"results_6_21_2020/opt_ctrl.png"))
+
+K
+
+K_ctrl

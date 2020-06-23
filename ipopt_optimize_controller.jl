@@ -18,6 +18,7 @@ struct ProblemCtrl <: MOI.AbstractNLPEvaluator
     Δt
     N
     z0
+    w
     enable_hessian::Bool
 end
 
@@ -90,6 +91,7 @@ function MOI.eval_constraint(prob::ProblemCtrl,g,x)
     B = prob.B
     z0 = prob.z0
     N = prob.N
+    w = prob.w
 
     for t = 1:T-1
         z = x[(t-1)*(n*N + m*n) .+ (1:n*N)]
@@ -101,7 +103,7 @@ function MOI.eval_constraint(prob::ProblemCtrl,g,x)
             zi⁺ = z⁺[(i-1)*n .+ (1:n)]
             δz = zi - z_nom[t]
             δz⁺ = zi⁺ - z_nom[t+1]
-            g[(t-1)*n*N + (i-1)*n .+ (1:n)] .= δz⁺ - (A[t] - B[t]*K)*δz
+            g[(t-1)*n*N + (i-1)*n .+ (1:n)] .= δz⁺ - (A[t] - B[t]*K)*δz + w[i][:,t]
         end
     end
     z = x[1:n*N]
