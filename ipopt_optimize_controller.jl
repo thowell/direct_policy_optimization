@@ -103,7 +103,7 @@ function MOI.eval_constraint(prob::ProblemCtrl,g,x)
             zi⁺ = z⁺[(i-1)*n .+ (1:n)]
             δz = zi - z_nom[t]
             δz⁺ = zi⁺ - z_nom[t+1]
-            g[(t-1)*n*N + (i-1)*n .+ (1:n)] .= δz⁺ - (A[t] - B[t]*K)*δz + w[i][:,t]
+            g[(t-1)*n*N + (i-1)*n .+ (1:n)] .= δz⁺ - (A[t] - B[t]*K)*δz - w[i][:,t]
         end
     end
     z = x[1:n*N]

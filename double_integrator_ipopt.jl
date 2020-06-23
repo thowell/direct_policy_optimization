@@ -3,48 +3,47 @@ include("ipopt_nominal_trajectory.jl")
 include("ipopt_optimize_controller.jl")
 
 # parameterized model
-mutable struct DoubleIntegrator2D
-    # z = (x,y,ẋ,ẏ)
+mutable struct DoubleIntegrator1D
+    # z = (x,ẋ)
     mx
-    my
 end
 
 # double integrator dynamics (2D)
-function dynamics(model::DoubleIntegrator2D,z,u)
-    @SVector [z[3], z[4], u[1]/model.mx, u[2]/model.my]
+function dynamics(model::DoubleIntegrator1D,z,u)
+    @SVector [z[2], u[1]/model.mx]
 end
 
-n = 4 # number of states
-m = 2 # number of controls
+n = 2 # number of states
+m = 1 # number of controls
 
-model = DoubleIntegrator2D(1.0,1.0) # nominal model
-z0 = zeros(4) # initial condition
-u0 = zeros(2) # initial controls
+model = DoubleIntegrator1D(1.0) # nominal model
+z0 = zeros(2) # initial condition
+u0 = zeros(1) # initial controls
 
 # discrete dynamics (midpoint)
-Δt = 0.05
+Δt = 0.1
 function midpoint(model,z,u,Δt)
     z + Δt*dynamics(model,z + 0.5*Δt*dynamics(model,z,u),u)
 end
 
 # horizon
-T = 20
+T = 2
 
 # reference position trajectory
-x_ref = range(0.0,stop=0.5,length=T)
-y_ref = range(0.0,stop=0.5,length=T)
-z_ref = [[x_ref[t];y_ref[t];0.0;0.0] for t = 1:T]
+x_ref = range(0.0,stop=1.0,length=T)
+ẋ_ref = range(0.0,stop=0.0,length=T)
+z_ref = [[x_ref[t];ẋ_ref[t]] for t = 1:T]
 
 # reference control trajectory
 u_ref = [u0 for t = 1:T-1]
 
 # optimize nominal trajectories
-z0 = [x_ref[1];y_ref[1];0.0;0.0]
+z0 = [x_ref[1];ẋ_ref[1]]
 
 # objective
-Q = Diagonal(@SVector[10.0,10.0,1.0e-1,1.0e-1])
-Qf = Diagonal(@SVector[100.0,100.0,1.0,1.0])
-R = 1.0e-3*sparse(I,m,m)
+Q = Diagonal(@SVector[1.0,5.0])
+Qf = Diagonal(@SVector[100.0,10.0])
+R = 1.0e-1*sparse(I,m,m)
 
 # NLP dimensions
 n_nlp = n*T + m*(T-1)
@@ -65,17 +64,17 @@ x_sol = solve_ipopt(x0,prob)
 
 # get nominal trajectories
 x_nom = zeros(T)
-y_nom = zeros(T)
+ẋ_nom = zeros(T)
 
 z_nom = [x_sol[(t-1)*(n+m) .+ (1:n)] for t = 1:T]
 u_nom = [x_sol[(t-1)*(n+m)+n .+ (1:m)] for t = 1:T-1]
 for t = 1:T
     x_nom[t] = x_sol[(t-1)*(n+m) .+ (1:n)][1]
-    y_nom[t] = x_sol[(t-1)*(n+m) .+ (1:n)][2]
+    ẋ_nom[t] = x_sol[(t-1)*(n+m) .+ (1:n)][2]
 end
 
-plt = plot(x_ref,y_ref,title="reference trajectory",color=:black,legend=:topleft,label="ref.",xlabel="x",ylabel="y",width=2.0,aspect_ratio=:equal)
-plt = scatter!(x_nom,y_nom,color=:orange,label="nominal")
+# plt = plot(x_ref,ẋ_ref,color=:orange,label="nominal")
+plt = plot(x_nom,ẋ_nom,xlabel="x",ylabel="ẋ",color=:orange,label="nominal",width=2.0)
 
 # tvlqr controller
 A = []
@@ -96,26 +95,17 @@ for t = T-1:-1:1
 end
 
 # optimize controller
+K
+plot(vec(hcat(K...)),width=2.0,label="tvlqr")
+
 N = 10 # number of samples
+mv_noise = Distributions.MvNormal(zeros(n),Diagonal([0.01;1.0])) # multi-variate Gaussian
+z0 = [z_nom[1],[z_nom[1] + vec(0.05*rand(mv_noise,1))  for k = 1:N-1]...]
+w = [zeros(n,T-1),[0.005*rand(mv_noise,T-1) for i = 1:N-1]...] #
 
-# initial condition distribution
-r_sample = 0.001 # initial condition sample radius
-
-mv_x0 = Distributions.MvNormal(z_nom[1],r_sample*Diagonal(ones(n))) # multi-variate Gaussian
-mv_noise = Distributions.MvNormal(zeros(n),0.0001*Diagonal(ones(n))) # multi-variate Gaussian
-Z0 = rand(mv_x0,N-1) # initial condition samples
-z0 = [[Z0[:,i] for i = 1:N-1]...,z_nom[1]]
-w = [0.1*rand(mv_noise,T-1) for i = 1:N] #
-
-function plot_circle(x0,r;N=100,label="",plt=plot())
-    θ = range(0,stop=2pi,length=N)
-    x = r.*cos.(θ)
-    y = r.*sin.(θ)
-    plt = plot!(x,y,width=2.0,color=:magenta,label=label)
-    return plt
-end
-
-
+N = 1
+z0 = [z0[2]]
+w = [w[2]]
 # NLP dimensions
 n_nlp_ctrl = n*N*T + (m*n)*(T-1)
 m_nlp_ctrl = n*N*T
@@ -147,6 +137,7 @@ x_sol = solve_ipopt(x0_ctrl,prob_ctrl)
 
 # optimized controller
 K_ctrl = [reshape(x_sol[(t-1)*(n*N+m*n)+n*N .+ (1:m*n)],m,n) for t = 1:T-1]
+plot!(vec(hcat(K_ctrl...)),width=1.0,label="ctrl (N=$N)")
 
 # optimized trajectories
 x_ctrl = [zeros(T) for i = 1:N]
@@ -158,18 +149,14 @@ for t = 1:T
     end
 end
 
-plt = plot(x_ref,y_ref,title="reference trajectory",color=:black,legend=:topleft,label="ref.",xlabel="x",ylabel="y",width=2.0,aspect_ratio=:equal)
-plt = scatter!(x_nom,y_nom,color=:orange,label="nominal")
+plt = plot(x_nom,ẋ_nom,color=:orange,label="nominal")
 for i = 1:N
-    plt = scatter!(x_ctrl[i],y_ctrl[i],label="z0_$i")
+    plt = scatter!(x_ctrl[i],y_ctrl[i],label="")
 end
 display(plt)
 
 # test controllers
-N_sim = 50
-Z0_sim = rand(mv_x0,N_sim)
-x0_sim = [Z0_sim[1,k] for k = 1:N_sim]
-y0_sim = [Z0_sim[1,k] for k = 1:N_sim]
+N_sim = 1
 
 # tvlqr test
 times = [(t-1)*Δt for t = 1:T-1]
@@ -178,14 +165,14 @@ T_sim = 100
 t_sim = range(0,stop=tf,length=T_sim)
 dt_sim = tf/(T_sim-1)
 plt = plot(title="TVLQR controller",color=:black,legend=:topleft,label="ref.",xlabel="x",ylabel="y",width=2.0,aspect_ratio=:equal)
-
+z0
 for k = 1:N_sim
-    z_tvlqr_rollout = [Z0_sim[:,k]]
+    z_tvlqr_rollout = z0
     u_tvlqr = []
     for tt = 1:T_sim-1
         t = t_sim[tt]
         k = searchsortedlast(times,t)
-        z = z_tvlqr_rollout[end]
+        z = z_tvlqr_rollout[end] + vec(rand(mv_noise,1))
         u = u_nom[k] - K[k]*(z - z_nom[k])
         push!(z_tvlqr_rollout,midpoint(model,z,u,dt_sim))
         push!(u_tvlqr,u)
@@ -198,9 +185,9 @@ for k = 1:N_sim
     plt = plot!(x_tvlqr_rollout,y_tvlqr_rollout,color=:purple,label="",width=2.0)
 end
 display(plt)
-plt = scatter!(x_nom,y_nom,color=:orange,label="nominal")
-plt = scatter!([x_nom[1]],[y_nom[1]],color=:red,marker=:square,label="start",width=2.0)
-plt = scatter!([x_nom[end]],[y_nom[end]],color=:green,marker=:hex,label="goal",width=2.0)
+plt = scatter!(x_nom,ẋ_nom,color=:orange,label="nominal")
+plt = scatter!([x_nom[1]],[ẋ_nom[1]],color=:red,marker=:square,label="start",width=2.0)
+plt = scatter!([x_nom[end]],[ẋ_nom[end]],color=:green,marker=:hex,label="goal",width=2.0)
 # plt = plot_circle(z_nom[1][1:2],r_sample,N=100,label="Σ=0.1",plt=plt)
 # savefig(plt,joinpath(pwd(),"results_6_21_2020/tvlqr_ctrl.png"))
 
@@ -213,7 +200,7 @@ dt_sim = tf/(T_sim-1)
 
 plt = plot(title="optimized linear controller",color=:black,legend=:topleft,label="ref.",xlabel="x",ylabel="y",width=2.0,aspect_ratio=:equal)
 for k = 1:N_sim
-    z_ctrl_rollout = [Z0_sim[:,k]]
+    z_ctrl_rollout = [z_nom[1] + vec(rand(mv_noise,1))]
     u_ctrl = []
 
     for tt = 1:T_sim-1
@@ -234,9 +221,9 @@ end
 
 display(plt)
 plt = scatter!()
-plt = scatter!(x_nom,y_nom,color=:orange,label="nominal")
-plt = scatter!([x_nom[1]],[y_nom[1]],color=:red,marker=:square,label="start",width=2.0)
-plt = scatter!([x_nom[end]],[y_nom[end]],color=:green,marker=:hex,label="goal",width=2.0)
+plt = scatter!(x_nom,ẋ_nom,color=:orange,label="nominal")
+plt = scatter!([x_nom[1]],[ẋ_nom[1]],color=:red,marker=:square,label="start",width=2.0)
+plt = scatter!([x_nom[end]],[ẋ_nom[end]],color=:green,marker=:hex,label="goal",width=2.0)
 # savefig(plt,joinpath(pwd(),"results_6_21_2020/opt_ctrl.png"))
 
 K
