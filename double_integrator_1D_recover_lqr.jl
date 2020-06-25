@@ -1,5 +1,5 @@
 using LinearAlgebra, ForwardDiff, Plots, StaticArrays, BenchmarkTools, SparseArrays, Distributions
-include("double_integrator.jl")
+include("double_integrator_1D.jl")
 include("moi.jl")
 include("control.jl")
 
@@ -51,9 +51,9 @@ plt = plot(x_nom,ẋ_nom,xlabel="x",ylabel="ẋ",color=:orange,label="nominal",w
 K_tvlqr, P, A, B = tvlqr(z_nom,u_nom,model,Δt)
 
 ## Sample-based controller
-N = 100
+N = 1000
 
-N_dist = [8]
+N_dist = [1]
 W = [Distributions.MvNormal(zeros(n),Diagonal([10.0^(-i);10.0^(-j)])) for i in N_dist for j in N_dist]
 w = [[zeros(n) for t = 1:T],[[vec(rand(W[rand(1:length(N_dist))],1)) for t = 1:T] for i = 1:N-1]...]
 
@@ -71,7 +71,7 @@ for t = 1:T
         x0_ctrl[(t-1)*(n*N + m*n)+(i-1)*n .+ (1:n)] = z_nom[t]
     end
     if t < T
-        x0_ctrl[(t-1)*(n*N + m*n)+n*N .+ (1:m*n)] = 0.0*vec(K[t]) + 1.0e-3*rand(m*n)
+        x0_ctrl[(t-1)*(n*N + m*n)+n*N .+ (1:m*n)] = 0.0*vec(K_tvlqr[t]) + 0.0e-3*rand(m*n)
     end
 end
 
@@ -81,7 +81,7 @@ x_sol = solve_ipopt(x0_ctrl,prob_ctrl)
 # sample-based K
 K_sample = [x_sol[(t-1)*(n*N + m*n)+n*N .+ (1:m*n)] for t = 1:T-1]
 
-println("K_tvlqr: $(vec(K[1]))")
+println("K_tvlqr: $(vec(K_tvlqr[1]))")
 println("K_sample: $(vec(K_sample[1]))")
 println("norm(K_tvlqr-K_sample): $(norm(vec(K_tvlqr[1])-vec(K_sample[1])))")
 
@@ -89,6 +89,7 @@ K_tvlqr[1]
 K_sample[1]
 eigen(A[1] - B[1]*K_tvlqr[1])
 eigen(A[1] - B[1]*K_sample[1]')
+
 
 ## Simulate controllers
 # z_sim, u_sim = simulate_linear_controller(K,z_nom,u_nom,100,Δt,z_nom[1],w[1])

@@ -27,12 +27,12 @@ function simulate_linear_controller(K,z_nom,u_nom,T_sim,Δt,z0,w)
     t_sim = range(0,stop=tf,length=T_sim)
     dt_sim = tf/(T_sim-1)
 
-    z_rollout = [z0 + w[1]]
+    z_rollout = [z0 + vec(rand(w,1))]
     u_rollout = []
     for tt = 1:T_sim-1
         t = t_sim[tt]
         k = searchsortedlast(times,t)
-        z = z_rollout[end] + w[k+1]
+        z = z_rollout[end] + vec(rand(w,1))
         u = u_nom[k] - K[k]*(z - z_nom[k])
         push!(z_rollout,midpoint(model,z,u,dt_sim))
         push!(u_rollout,u)

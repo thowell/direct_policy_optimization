@@ -252,7 +252,7 @@ function MOI.eval_objective(prob::ProblemCtrl, x)
     return s/N
 end
 
-function MOI.eval_objective_gradient(prob::ProblemCtrl, grad_f, x)
+function MOI.eval_objective_gradient(prob::ProblemCtrl, grad_f, x;output=false)
     n = prob.n
     m = prob.m
     T = prob.T
@@ -277,10 +277,10 @@ function MOI.eval_objective_gradient(prob::ProblemCtrl, grad_f, x)
             end
         end
     end
-    return nothing
+    return (output ? grad_f : nothing)
 end
 
-function MOI.eval_constraint(prob::ProblemCtrl,g,x)
+function MOI.eval_constraint(prob::ProblemCtrl,g,x;output=false)
     n = prob.n
     m = prob.m
     T = prob.T
@@ -313,10 +313,10 @@ function MOI.eval_constraint(prob::ProblemCtrl,g,x)
         zi = z[(i-1)*n .+ (1:n)]
         g[(T-1)*n*N + (i-1)*n .+ (1:n)] .= zi - (z_nom[1] + w[i][1])
     end
-    return nothing
+    return (output ? g : nothing)
 end
 
-function MOI.eval_constraint_jacobian(prob::ProblemCtrl, jac, x)
+function MOI.eval_constraint_jacobian(prob::ProblemCtrl, jac, x;output=false)
     n = prob.n
     m = prob.m
     T = prob.T
@@ -381,7 +381,7 @@ function MOI.eval_constraint_jacobian(prob::ProblemCtrl, jac, x)
     end
 
     # jac .= vec(JAC)
-    return nothing
+    return (output ? jac : nothing)
 end
 
 function sparsity_jacobian(prob::ProblemCtrl)
