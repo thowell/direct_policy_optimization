@@ -16,5 +16,5 @@ function dynamics(model::Cartpole, x, u)
 end
 
 Δt = 0.1
-model = Cartpole(10.0,1.0,0.5,9.81)
+model = Cartpole(1.0,0.2,0.5,9.81)
 n, m = 4,1

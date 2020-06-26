@@ -15,7 +15,15 @@ struct Problem <: MOI.AbstractNLPEvaluator
     model
     integration
     Δt
+    goal_constraint
     enable_hessian::Bool
+end
+
+function problem_goal(n_nlp,m_nlp,z_nom,u_nom,T,n,m,Q,Qf,R,model,integration,Δt,goal_constraint::Bool,enable_hessian::Bool)
+    if goal_constraint
+        m_nlp += n
+    end
+    Problem(n_nlp,m_nlp,z_ref,u_ref,T,n,m,Q,Qf,R,model,integration,Δt,goal_constraint,false)
 end
 
 function primal_bounds(prob::MOI.AbstractNLPEvaluator)
@@ -97,6 +105,11 @@ function MOI.eval_constraint(prob::MOI.AbstractNLPEvaluator,g,x)
 
     z = x[1:n]
     g[(T-1)*n .+ (1:n)] = z - z_nom[1]
+
+    if prob.goal_constraint
+        zT = x[(T-1)*(n + m) .+ (1:n)]
+        g[T*n .+ (1:n)] = zT - z_nom[T]
+    end
     return nothing
 end
 
@@ -134,6 +147,13 @@ function MOI.eval_constraint_jacobian(prob::MOI.AbstractNLPEvaluator, jac, x)
     r_idx = (T-1)*n .+ (1:n)
     c_idx = 1:n
     JAC[CartesianIndex.(r_idx,c_idx)] .= 1.0
+
+    if prob.goal_constraint
+        zT = x[(T-1)*(n + m) .+ (1:n)]
+        r_idx = T*n .+ (1:n)
+        c_idx = (T-1)*(n + m) .+ (1:n)
+        JAC[CartesianIndex.(r_idx,c_idx)] .= 1.0
+    end
 
     jac .= vec(JAC)
     return nothing
