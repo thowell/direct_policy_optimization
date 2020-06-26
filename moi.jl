@@ -13,6 +13,7 @@ struct Problem <: MOI.AbstractNLPEvaluator
     Qf
     R
     model
+    integration
     Δt
     enable_hessian::Bool
 end
@@ -85,12 +86,13 @@ function MOI.eval_constraint(prob::MOI.AbstractNLPEvaluator,g,x)
     u_nom = prob.u_nom
     model = prob.model
     Δt = prob.Δt
+    integration = prob.integration
 
     for t = 1:T-1
         z = x[(t-1)*(n + m) .+ (1:n)]
         z⁺ = x[t*(n + m) .+ (1:n)]
         u = x[(t-1)*(n + m) + n .+ (1:m)]
-        g[(t-1)*n .+ (1:n)] = z⁺ - midpoint(model,z,u,prob.Δt)
+        g[(t-1)*n .+ (1:n)] = z⁺ - integration(model,z,u,prob.Δt)
     end
 
     z = x[1:n]
@@ -108,6 +110,7 @@ function MOI.eval_constraint_jacobian(prob::MOI.AbstractNLPEvaluator, jac, x)
     u_nom = prob.u_nom
     model = prob.model
     Δt = prob.Δt
+    integration = prob.integration
 
     JAC = zeros(prob.m_nlp,prob.n_nlp)
     for t = 1:T-1
@@ -120,9 +123,9 @@ function MOI.eval_constraint_jacobian(prob::MOI.AbstractNLPEvaluator, jac, x)
         z⁺ = x[t*(n + m) .+ (1:n)]
         u = x[(t-1)*(n + m)+n .+ (1:m)]
 
-        f1(w) = z⁺ - midpoint(model,w,u,prob.Δt)
-        # f2(w) = z⁺ - midpoint(model,z,u,prob.Δt)
-        f3(w) = z⁺ - midpoint(model,z,w,prob.Δt)
+        f1(w) = z⁺ - integration(model,w,u,prob.Δt)
+        # f2(w) = z⁺ - integration(model,z,u,prob.Δt)
+        f3(w) = z⁺ - integration(model,z,w,prob.Δt)
 
         JAC[r_idx,c1_idx] = ForwardDiff.jacobian(f1,z)
         JAC[CartesianIndex.(r_idx,c2_idx)] .= 1.0

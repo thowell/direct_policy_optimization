@@ -2,6 +2,7 @@ using LinearAlgebra, ForwardDiff, Plots, StaticArrays, BenchmarkTools, SparseArr
 include("double_integrator_1D.jl")
 include("moi.jl")
 include("control.jl")
+include("integration.jl")
 
 ## Optimize nominal trajectory
 
