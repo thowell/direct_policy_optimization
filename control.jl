@@ -61,7 +61,7 @@ end
 
 
 
-function simulate_linear_controller(K,z_nom,u_nom,T_sim,Δt,z0,w,integration)
+function simulate_linear_controller(K,z_nom,u_nom,T_sim,Δt,z0,w,model,integration)
     T = length(K)+1
     times = [(t-1)*Δt for t = 1:T-1]
     tf = Δt*T

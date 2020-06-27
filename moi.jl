@@ -326,15 +326,15 @@ function MOI.eval_constraint(prob::ProblemCtrl,g,x;output=false)
         for i = 1:N
             zi = z[(i-1)*n .+ (1:n)]
             zi⁺ = z⁺[(i-1)*n .+ (1:n)]
-            δz = zi - z_nom[t]
-            δz⁺ = zi⁺ - z_nom[t+1]
-            g[(t-1)*n*N + (i-1)*n .+ (1:n)] .= δz⁺ - (A[t] - B[t]*K)*δz - w[i][t+1]
+            # δz = zi - z_nom[t]
+            # δz⁺ = zi⁺ - z_nom[t+1]
+            g[(t-1)*n*N + (i-1)*n .+ (1:n)] .= zi⁺ - rk3(model[i],zi,u_nom[t] - K*(zi-z_nom[t]),Δt)
         end
     end
     z = x[1:n*N]
     for i = 1:N
         zi = z[(i-1)*n .+ (1:n)]
-        g[(T-1)*n*N + (i-1)*n .+ (1:n)] .= zi - (z_nom[1] + w[i][1])
+        g[(T-1)*n*N + (i-1)*n .+ (1:n)] .= zi - z_nom[1]
     end
     return (output ? g : nothing)
 end
@@ -350,7 +350,8 @@ function MOI.eval_constraint_jacobian(prob::ProblemCtrl, jac, x;output=false)
     model = prob.model
     Δt = prob.Δt
     N = prob.N
-
+    w = prob.w
+    # integration = prob.integration
     # JAC = zeros(prob.m_nlp,prob.n_nlp)
 
     shift = 0
@@ -373,13 +374,13 @@ function MOI.eval_constraint_jacobian(prob::ProblemCtrl, jac, x;output=false)
             δz = zi - z_nom[t]
             δz⁺ = zi⁺ - z_nom[t+1]
 
-            f1(w) = δz⁺ - (A[t] - B[t]*K)*(w - z_nom[t])
-            f2(w) = (w - z_nom[t+1]) - (A[t] - B[t]*K)*δz
-            f3(w) = δz⁺ - (A[t] - B[t]*reshape(w,m,n))*δz
+            f1(q) = zi⁺ - rk3(model[i],q,u_nom[t] - K*(q-z_nom[t]),Δt)
+            f2(q) = q - rk3(model[i],zi,u_nom[t] - K*(zi-z_nom[t]),Δt)
+            f3(q) = zi⁺ - rk3(model[i],zi,u_nom[t] - reshape(q,m,n)*(zi-z_nom[t]),Δt)
 
             # JAC[r_idx,c1_idx] = -(A[t] - B[t]*K)
             shift1 = n*n
-            jac[shift .+ (1:shift1)] .= vec(-(A[t] - B[t]*K))
+            jac[shift .+ (1:shift1)] .= vec(ForwardDiff.jacobian(f1,zi))
             shift += shift1
 
             # JAC[CartesianIndex.(r_idx,c2_idx)] .= 1.0

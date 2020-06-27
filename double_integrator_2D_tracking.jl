@@ -27,7 +27,7 @@ n_nlp = n*T + m*(T-1)
 m_nlp = n*T
 
 # NLP problem
-prob = Problem(n_nlp,m_nlp,z_ref,u_ref,T,n,m,Q,Qf,R,model,Δt,false)
+prob = Problem(n_nlp,m_nlp,z_ref,u_ref,T,n,m,Q,Qf,R,model,rk3,Δt,false,false)
 
 # NLP initialization
 x0 = zeros(n_nlp)
@@ -49,15 +49,22 @@ plt = plot(x_ref,y_ref,color=:black,label="nominal")
 plt = plot!(x_nom,y_nom,xlabel="x",ylabel="y",color=:orange,label="opt.",width=2.0)
 
 ## TVLQR controller
-K_tvlqr, P, A, B = tvlqr(z_nom,u_nom,model,Δt)
+β = 0.1
+In = Matrix(I,n,n)
+z0 = [z_nom[1] + β*In[:,k] for k = 1:n]
+z0 = [z0...,[z_nom[1] - β*In[:,k] for k = 1:n]...]
+N = length(z0)
 
-# Simulate controller
-N_sim = 100
+K_tvlqr, P, A, B = tvlqr(z_nom,u_nom,model,Q,R,Qf,Δt)
+
+# Simulate controller with initial condition uncertainty
+N_sim = length(z0)
+T_sim = 2T
 W = Distributions.MvNormal(zeros(n),Diagonal(1.0e-5*ones(n)))
 
 plt = plot(title="TVLQR tracking",xlabel="x",ylabel="y")
 for k = 1:N_sim
-    z_sim, u_sim = simulate_linear_controller(K_tvlqr,z_nom,u_nom,1000,Δt,z_nom[1],W)
+    z_sim, u_sim = simulate_linear_controller(K_tvlqr,z_nom,u_nom,T_sim,Δt,z0[k],W,rk3)
     x_sim = [z[1] for z in z_sim]
     y_sim = [z[2] for z in z_sim]
 
@@ -66,18 +73,15 @@ end
 plt = plot!(x_nom,y_nom,color=:orange,label="opt.",width=2.0)
 display(plt)
 
-## Sample-based controller
-N = 2n
 
-N_dist = [8]
-W = [Distributions.MvNormal(zeros(n),Diagonal(10.0^(-i)*ones(n))) for i in N_dist for j in N_dist]
-w = [[vec(rand(W[rand(1:length(N_dist))],1)) for t = 1:T] for i = 1:N]
+
+## Sample-based controller
 
 n_nlp_ctrl = n*N*T + (m*n)*(T-1)
 m_nlp_ctrl = n*N*T
 
 # NLP problem
-prob_ctrl = ProblemCtrl(n_nlp_ctrl,m_nlp_ctrl,z_nom,u_nom,T,n,m,Q,Qf,R,A,B,model,Δt,N,w,false)
+prob_ctrl = ProblemCtrl(n_nlp_ctrl,m_nlp_ctrl,z_nom,u_nom,T,n,m,Q,Qf,R,A,B,model,Δt,N,z0,false)
 
 # NLP initialization
 x0_ctrl = zeros(n_nlp_ctrl)
@@ -86,9 +90,9 @@ for t = 1:T
     for i = 1:N
         x0_ctrl[(t-1)*(n*N + m*n)+(i-1)*n .+ (1:n)] = z_nom[t]
     end
-    # if t < T
-    #     x0_ctrl[(t-1)*(n*N + m*n)+n*N .+ (1:m*n)] = 0.0*vec(K_tvlqr[t]) + 0.0e-3*rand(m*n)
-    # end
+    if t < T
+        x0_ctrl[(t-1)*(n*N + m*n)+n*N .+ (1:m*n)] = 1.0*vec(K_tvlqr[t]) + 0.0e-3*rand(m*n)
+    end
 end
 
 # solve
@@ -97,17 +101,11 @@ x_sol = solve_ipopt(x0_ctrl,prob_ctrl)
 # sample-based K
 K_sample = [reshape(x_sol[(t-1)*(n*N + m*n)+n*N .+ (1:m*n)],m,n) for t = 1:T-1]
 
-println("K_tvlqr: $(vec(K_tvlqr[1]))")
-println("K_sample: $(vec(K_sample[1]))")
-println("norm(K_tvlqr-K_sample): $(norm(vec(K_tvlqr[1])-vec(K_sample[1])))")
-
 # Simulate controller
-N_sim = 100
-W = Distributions.MvNormal(zeros(n),Diagonal(1.0e-8*ones(n)))
 
 plt = plot(title="Sample-based controller tracking",xlabel="x",ylabel="y")
 for k = 1:N_sim
-    z_sim, u_sim = simulate_linear_controller(K_sample,z_nom,u_nom,1000,Δt,z_nom[1],W)
+    z_sim, u_sim = simulate_linear_controller(K_sample,z_nom,u_nom,T_sim,Δt,z0[k],W,rk3)
     x_sim = [z[1] for z in z_sim]
     y_sim = [z[2] for z in z_sim]
 
