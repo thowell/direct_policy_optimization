@@ -67,9 +67,9 @@ z0[11:12] = K[2]
 z0[13:14] = xtraj1[3]
 z0[15:16] = xtraj2[3]
 
-z0_ = copy(z0)
-z0_[3:4] .= 0.0
-z0_[11:12] .= 0.0
+z0_ = zero(z0) #copy(z0)
+# z0_[3:4] .= 0.0
+# z0_[11:12] .= 0.0
 
 function obj(z)
     u11 = z[1:1]
@@ -119,4 +119,4 @@ prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z_sol = solve_ipopt(z0_,prob)
 
-z_sol - z0
+println("solution error: $(norm(z_sol - z0))")

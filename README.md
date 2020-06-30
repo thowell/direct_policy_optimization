@@ -1,1 +1,1 @@
-# robust_parametric_controller
+# sample_controller
