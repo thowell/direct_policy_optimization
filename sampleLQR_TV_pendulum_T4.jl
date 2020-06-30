@@ -113,6 +113,8 @@ for t = 1:T-1
     push!(B,ForwardDiff.jacobian(fu,u))
 end
 
+A
+
 Q = [Matrix((1.0 + 1.0e-1*t)*I,n,n) for t = 1:T]
 R = [Matrix((0.1 + 1.0e-1*t)*I,m,m) for t = 1:T-1]
 
@@ -368,4 +370,8 @@ prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z_sol = solve(z0_nom,prob)
 
-println("solution error: $(norm(z_sol - z0))")
+K_sample = [reshape(z_sol[5:6],m,n),
+            reshape(z_sol[19:20],m,n),
+            reshape(z_sol[33:34],m,n)]
+
+println("K error: $(sum([norm(vec(K_sample[t] - K[t])) for t = 1:T-1])/N)")
