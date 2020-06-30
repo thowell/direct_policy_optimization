@@ -84,19 +84,25 @@ MOI.hessian_lagrangian_structure(prob::MOI.AbstractNLPEvaluator) = sparsity_jaco
 function MOI.eval_hessian_lagrangian(prob::MOI.AbstractNLPEvaluator, H, x, σ, λ)
     tmp(z) = σ*prob.obj(z) + prob.con!(zeros(eltype(z),prob.m_nlp),z)'*λ
     H .= vec(ForwardDiff.hessian(tmp,x))
+    # println("eval hessian lagrangian")
     return nothing
 end
 
-function solve_ipopt(x0,prob::MOI.AbstractNLPEvaluator)
+function solve(x0,prob::MOI.AbstractNLPEvaluator;
+        tol=1.0e-6,nlp=:ipopt,max_iter=1000)
     x_l, x_u = primal_bounds(prob)
     c_l, c_u = constraint_bounds(prob)
 
     nlp_bounds = MOI.NLPBoundsPair.(c_l,c_u)
     block_data = MOI.NLPBlockData(nlp_bounds,prob,true)
 
-    solver = Ipopt.Optimizer()
-    solver.options["max_iter"] = 5000
-    # solver.options["tol"] = 1.0e-3
+    if nlp == :ipopt
+        solver = Ipopt.Optimizer()
+        solver.options["max_iter"] = max_iter
+        solver.options["tol"] = tol
+    elseif nlp == :snopt
+        solver = SNOPT7.Optimizer()
+    end
 
     x = MOI.add_variables(solver,prob.n_nlp)
 

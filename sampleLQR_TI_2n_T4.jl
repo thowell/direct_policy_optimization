@@ -14,7 +14,7 @@ A = D[1:n,1:n]
 B = D[1:n,n .+ (1:m)]
 
 # TVLQR solution
-T = 3
+T = 4
 Q = Matrix(1.0*I,n,n)
 R = Matrix(0.1*I,m,m)
 
@@ -96,6 +96,18 @@ z0[23:24] = xtraj2[3]
 z0[25:26] = xtraj3[3]
 z0[27:28] = xtraj4[3]
 
+z0[29:29] = utraj1[3]
+z0[30:30] = utraj2[3]
+z0[31:31] = utraj3[3]
+z0[32:32] = utraj4[3]
+
+z0[33:34] = K[3]
+
+z0[35:36] = xtraj1[4]
+z0[37:38] = xtraj2[4]
+z0[39:40] = xtraj3[4]
+z0[41:42] = xtraj4[4]
+
 z0_nom = zeros(n_nlp)
 
 z0_nom[1:1] = utraj_nom[1]
@@ -122,6 +134,17 @@ z0_nom[23:24] = xtraj_nom[3]
 z0_nom[25:26] = xtraj_nom[3]
 z0_nom[27:28] = xtraj_nom[3]
 
+z0_nom[29:29] = utraj_nom[3]
+z0_nom[30:30] = utraj_nom[3]
+z0_nom[31:31] = utraj_nom[3]
+z0_nom[32:32] = utraj_nom[3]
+
+z0_nom[33:34] .= 0.0#K[3]
+
+z0_nom[35:36] = xtraj_nom[4]
+z0_nom[37:38] = xtraj_nom[4]
+z0_nom[39:40] = xtraj_nom[4]
+z0_nom[41:42] = xtraj_nom[4]
 
 function obj(z)
     u11 = z[1:1]
@@ -148,10 +171,24 @@ function obj(z)
     x33 = z[25:26]
     x34 = z[27:28]
 
+    u31 = z[29:29]
+    u32 = z[30:30]
+    u33 = z[31:31]
+    u34 = z[32:32]
+
+    # k3 = z[33:34]
+
+    x41 = z[35:36]
+    x42 = z[37:38]
+    x43 = z[39:40]
+    x44 = z[41:42]
+
     return (u11'*R*u11 + u12'*R*u12 + u13'*R*u13 + u14'*R*u14
             + u21'*R*u21 + u22'*R*u22 + u23'*R*u23 + u24'*R*u24
+            + u31'*R*u31 + u32'*R*u32 + u33'*R*u33 + u34'*R*u34
             + x21'*Q*x21 + x22'*Q*x22 + x23'*Q*x23 + x24'*Q*x24
-            + x31'*Q*x31 + x32'*Q*x32 + x33'*Q*x33 + x34'*Q*x34)
+            + x31'*Q*x31 + x32'*Q*x32 + x33'*Q*x33 + x34'*Q*x34
+            + x41'*Q*x41 + x42'*Q*x42 + x43'*Q*x43 + x44'*Q*x44)
 end
 
 obj(z0)
@@ -181,6 +218,18 @@ function con!(c,z)
     x33 = z[25:26]
     x34 = z[27:28]
 
+    u31 = z[29]
+    u32 = z[30]
+    u33 = z[31]
+    u34 = z[32]
+
+    k3 = z[33:34]
+
+    x41 = z[35:36]
+    x42 = z[37:38]
+    x43 = z[39:40]
+    x44 = z[41:42]
+
     c[1:2] = A*x11 + B*u11 - x21
     c[3:4] = A*x12 + B*u12 - x22
     c[5:6] = A*x13 + B*u13 - x23
@@ -191,21 +240,31 @@ function con!(c,z)
     c[13:14] = A*x23 + B*u23 - x33
     c[15:16] = A*x24 + B*u24 - x34
 
-    c[17] = u11 + k1'*x11
-    c[18] = u12 + k1'*x12
-    c[19] = u13 + k1'*x13
-    c[20] = u14 + k1'*x14
+    c[17:18] = A*x31 + B*u31 - x41
+    c[19:20] = A*x32 + B*u32 - x42
+    c[21:22] = A*x33 + B*u33 - x43
+    c[23:24] = A*x34 + B*u34 - x44
 
-    c[21] = u21 + k2'*x21
-    c[22] = u22 + k2'*x22
-    c[23] = u23 + k2'*x23
-    c[24] = u24 + k2'*x24
+    c[25] = u11 + k1'*x11
+    c[26] = u12 + k1'*x12
+    c[27] = u13 + k1'*x13
+    c[28] = u14 + k1'*x14
+
+    c[29] = u21 + k2'*x21
+    c[30] = u22 + k2'*x22
+    c[31] = u23 + k2'*x23
+    c[32] = u24 + k2'*x24
+
+    c[33] = u31 + k3'*x31
+    c[34] = u32 + k3'*x32
+    c[35] = u33 + k3'*x33
+    c[36] = u34 + k3'*x34
 
     return c
 end
 
-c0 = ones(m_nlp)
-con!(c0,ones(n_nlp))
+c0 = zeros(m_nlp)
+con!(c0,z0_nom)
 
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 

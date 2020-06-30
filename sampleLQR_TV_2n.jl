@@ -41,7 +41,7 @@ for t = T-1:-1:1
 end
 
 # number of samples
-N = 4
+N = 2*n
 
 # initial state
 x11 = [1.0; 0.0]
@@ -81,9 +81,11 @@ for t = 1:T-1
     xtraj_nom[t+1] = A[t]*xtraj_nom[t] + B[t]*utraj_nom[t]
 end
 
+# NLP problem dimensions
 n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
 m_nlp = N*(n*(T-1)) + N*(m*(T-1))
 
+# TVLQR solution
 z0 = zeros(n_nlp)
 
 z0[1:1] = utraj1[1]
@@ -110,6 +112,7 @@ z0[23:24] = xtraj2[3]
 z0[25:26] = xtraj3[3]
 z0[27:28] = xtraj4[3]
 
+# Nominal trajectory initialization
 z0_nom = zeros(n_nlp)
 
 z0_nom[1:1] = utraj_nom[1]
@@ -136,6 +139,7 @@ z0_nom[23:24] = xtraj_nom[3]
 z0_nom[25:26] = xtraj_nom[3]
 z0_nom[27:28] = xtraj_nom[3]
 
+# Objective
 function obj(z)
     u11 = z[1:1]
     u12 = z[2:2]
@@ -170,6 +174,7 @@ end
 
 obj(z0)
 
+# Constraints
 function con!(c,z)
     u11 = z[1]
     u12 = z[2]
@@ -221,8 +226,11 @@ end
 c0 = ones(m_nlp)
 con!(c0,ones(n_nlp))
 
+# NLP problem
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
-z_sol = solve_ipopt(z0_nom,prob)
+# Solve
+z_sol = solve(z0_nom,prob)
 
+# Check solution
 println("solution error: $(norm(z_sol - z0))")

@@ -117,6 +117,6 @@ con!(c0,ones(n_nlp))
 
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
-z_sol = solve_ipopt(z0_,prob)
+z_sol = solve(z0_,prob)
 
 println("solution error: $(norm(z_sol - z0))")
