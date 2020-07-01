@@ -200,7 +200,7 @@ z0_nom[2:2] = utraj_nom[1]
 z0_nom[3:3] = utraj_nom[1]
 z0_nom[4:4] = utraj_nom[1]
 
-z0_nom[5:6] .= 0.0 #K[1]
+z0_nom[5:6] = vec(K[1])
 
 z0_nom[7:8] = xtraj_nom[2]
 z0_nom[9:10] = xtraj_nom[2]
@@ -212,7 +212,7 @@ z0_nom[16:16] = utraj_nom[2]
 z0_nom[17:17] = utraj_nom[2]
 z0_nom[18:18] = utraj_nom[2]
 
-z0_nom[19:20] .= 0.0#K[2]
+z0_nom[19:20] = vec(K[2])
 
 z0_nom[21:22] = xtraj_nom[3]
 z0_nom[23:24] = xtraj_nom[3]
@@ -302,20 +302,20 @@ function con!(c,z)
     c[5:6] = dyn_d(x13,u13,Δt) - x23
     c[7:8] = dyn_d(x14,u14,Δt) - x24
 
-    c[9:10] = dyn_d(x21s,u21,Δt) - x31
-    c[11:12] = dyn_d(x22s,u22,Δt) - x32
-    c[13:14] = dyn_d(x23s,u23,Δt) - x33
-    c[15:16] = dyn_d(x24s,u24,Δt) - x34
+    c[9:10] = dyn_d(x21,u21,Δt) - x31
+    c[11:12] = dyn_d(x22,u22,Δt) - x32
+    c[13:14] = dyn_d(x23,u23,Δt) - x33
+    c[15:16] = dyn_d(x24,u24,Δt) - x34
 
     c[17] = u11 + k1'*(x11 - x_sol[1]) - u_sol[1][1]
     c[18] = u12 + k1'*(x12 - x_sol[1]) - u_sol[1][1]
     c[19] = u13 + k1'*(x13 - x_sol[1]) - u_sol[1][1]
     c[20] = u14 + k1'*(x14 - x_sol[1]) - u_sol[1][1]
 
-    c[21] = u21 + k2'*(x21s - x_sol[2]) - u_sol[2][1]
-    c[22] = u22 + k2'*(x22s - x_sol[2]) - u_sol[2][1]
-    c[23] = u23 + k2'*(x23s - x_sol[2]) - u_sol[2][1]
-    c[24] = u24 + k2'*(x24s - x_sol[2]) - u_sol[2][1]
+    c[21] = u21 + k2'*(x21 - x_sol[2]) - u_sol[2][1]
+    c[22] = u22 + k2'*(x22 - x_sol[2]) - u_sol[2][1]
+    c[23] = u23 + k2'*(x23 - x_sol[2]) - u_sol[2][1]
+    c[24] = u24 + k2'*(x24 - x_sol[2]) - u_sol[2][1]
 
     return c
 end
@@ -323,7 +323,7 @@ c0 = zeros(m_nlp)
 con!(c0,z0)
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
-z_sol = solve(z0_nom,prob)
+z_sol = solve(copy(z0_nom),prob)
 
 K_sample = [reshape(z_sol[5:6],m,n),
             reshape(z_sol[19:20],m,n)]

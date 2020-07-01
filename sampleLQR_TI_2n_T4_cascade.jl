@@ -132,7 +132,7 @@ function obj(z)
             + xc41'*Q*xc41 + xc42'*Q*xc42 + xc43'*Q*xc43 + xc44'*Q*xc44)
 end
 
-obj(z0)
+obj(rand(n_nlp))
 
 function con!(c,z)
     k1 = z[1:2]
@@ -228,10 +228,10 @@ function con!(c,z)
     c[21:22] = A*xa33 + B*ua33 - xa43
     c[23:24] = A*xa34 + B*ua34 - xa44
 
-    c[25] = ua11 + k1'*xa11
-    c[26] = ua12 + k1'*xa12
-    c[27] = ua13 + k1'*xa13
-    c[28] = ua14 + k1'*xa14
+    c[25] = ua11 + k1'*x11
+    c[26] = ua12 + k1'*x12
+    c[27] = ua13 + k1'*x13
+    c[28] = ua14 + k1'*x14
 
     c[29] = ua21 + k2'*xa21
     c[30] = ua22 + k2'*xa22
@@ -303,11 +303,11 @@ function con!(c,z)
 end
 
 c0 = zeros(m_nlp)
-con!(c0,z0_nom)
+con!(c0,rand(n_nlp))
 
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
-z_sol = solve(z0_nom,prob)
+z_sol = solve(rand(n_nlp),prob)
 K_sample = [reshape(z_sol[1:2],m,n),
             reshape(z_sol[3:4],m,n),
             reshape(z_sol[5:6],m,n)]
