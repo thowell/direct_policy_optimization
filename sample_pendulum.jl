@@ -277,32 +277,50 @@ function con!(c,z)
     x33 = z[25:26]
     x34 = z[27:28]
 
+    # resampling
+    β = 0.1
+    x̂2 = (x21+x22+x23+x24)./N
+    Σ2 = (x21-x̂2)*(x21-x̂2)' + (x22-x̂2)*(x22-x̂2)' + (x23-x̂2)*(x23-x̂2)' + (x24-x̂2)*(x24-x̂2)' + 1.0e-8*I
+    cols2 = cholesky(Σ2).U
+
+    x21s = x̂2 + β*cols2[:,1]
+    x22s = x̂2 - β*cols2[:,1]
+    x23s = x̂2 + β*cols2[:,2]
+    x24s = x̂2 - β*cols2[:,2]
+
+    if eltype(z) == Float64
+        println("x̂2: $(x̂2), x̄2: $(x_sol[2])")
+        println("x21: $(x21), x21s: $(x21s)")
+        println("x22: $(x22), x22s: $(x22s)")
+        println("x23: $(x23), x23s: $(x23s)")
+        println("x24: $(x24), x24s: $(x24s)")
+        println("\n")
+    end
+
     c[1:2] = dyn_d(x11,u11,Δt) - x21
     c[3:4] = dyn_d(x12,u12,Δt) - x22
     c[5:6] = dyn_d(x13,u13,Δt) - x23
     c[7:8] = dyn_d(x14,u14,Δt) - x24
 
-    c[9:10] = dyn_d(x21,u21,Δt) - x31
-    c[11:12] = dyn_d(x22,u22,Δt) - x32
-    c[13:14] = dyn_d(x23,u23,Δt) - x33
-    c[15:16] = dyn_d(x24,u24,Δt) - x34
+    c[9:10] = dyn_d(x21s,u21,Δt) - x31
+    c[11:12] = dyn_d(x22s,u22,Δt) - x32
+    c[13:14] = dyn_d(x23s,u23,Δt) - x33
+    c[15:16] = dyn_d(x24s,u24,Δt) - x34
 
     c[17] = u11 + k1'*(x11 - x_sol[1]) - u_sol[1][1]
     c[18] = u12 + k1'*(x12 - x_sol[1]) - u_sol[1][1]
     c[19] = u13 + k1'*(x13 - x_sol[1]) - u_sol[1][1]
     c[20] = u14 + k1'*(x14 - x_sol[1]) - u_sol[1][1]
 
-    c[21] = u21 + k2'*(x21 - x_sol[2]) - u_sol[2][1]
-    c[22] = u22 + k2'*(x22 - x_sol[2]) - u_sol[2][1]
-    c[23] = u23 + k2'*(x23 - x_sol[2]) - u_sol[2][1]
-    c[24] = u24 + k2'*(x24 - x_sol[2]) - u_sol[2][1]
+    c[21] = u21 + k2'*(x21s - x_sol[2]) - u_sol[2][1]
+    c[22] = u22 + k2'*(x22s - x_sol[2]) - u_sol[2][1]
+    c[23] = u23 + k2'*(x23s - x_sol[2]) - u_sol[2][1]
+    c[24] = u24 + k2'*(x24s - x_sol[2]) - u_sol[2][1]
 
     return c
 end
-
 c0 = zeros(m_nlp)
-con!(c0,z0_nom)
-
+con!(c0,z0)
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z_sol = solve(z0_nom,prob)
