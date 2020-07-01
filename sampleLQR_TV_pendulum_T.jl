@@ -24,7 +24,7 @@ dyn_c(rand(n),rand(m))
 dyn_d(rand(n),rand(m),0.2)
 
 # Trajectory optimization
-T = 8
+T = 3
 x1 = [0.0; 0.0]
 xT = [π; 0.0]
 
@@ -125,7 +125,7 @@ for t = T-1:-1:1
 end
 
 # number of samples
-N = 12
+N = 4
 # N = 4
 
 # initial state

@@ -30,10 +30,11 @@ end
 N = 4
 
 # initial state
-x11 = [1.0; 0.0]
-x12 = [-1.0; 0.0]
-x13 = [0.0; 1.0]
-x14 = [0.0; -1.0]
+β0 = 1.0
+x11 = β0*[1.0; 0.0]
+x12 = β0*[-1.0; 0.0]
+x13 = β0*[0.0; 1.0]
+x14 = β0*[0.0; -1.0]
 
 # simulate
 xtraj1 = [zeros(n) for t = 1:T]
@@ -65,6 +66,30 @@ for t = 1:T-1
     xtraj3[t+1] = A*xtraj3[t] + B*utraj3[t]
     xtraj4[t+1] = A*xtraj4[t] + B*utraj4[t]
     xtraj_nom[t+1] = A*xtraj_nom[t] + B*utraj_nom[t]
+
+
+    # # unscented resample
+    # x̂2 = (xtraj1[t]+xtraj2[t]+xtraj3[t]+xtraj4[t])./N
+    # Σ2 = (xtraj1[t]-x̂2)*(xtraj1[t]-x̂2)' + (xtraj2[t]-x̂2)*(xtraj2[t]-x̂2)' + (xtraj3[t]-x̂2)*(xtraj3[t]-x̂2)' + (xtraj4[t]-x̂2)*(xtraj4[t]-x̂2)' + 1.0e-8*I
+    # cols = Array(cholesky(Σ2).U)
+    # β = 0.75
+    #
+    # x21s = x̂2 + β*cols[:,1]
+    # x22s = x̂2 - β*cols[:,1]
+    # x23s = x̂2 + β*cols[:,2]
+    # x24s = x̂2 - β*cols[:,2]
+    #
+    # println("t = $t")
+    # println("x̂2: $(x̂2)")
+    # println("x21: $(xtraj1[t])")
+    # println("x21s: $(x21s)")
+    # println("x22: $(xtraj2[t])")
+    # println("x22s: $(x22s)")
+    # println("x23: $(xtraj3[t])")
+    # println("x23s: $(x23s)")
+    # println("x24: $(xtraj4[t])")
+    # println("x24s: $(x24s)")
+    # println("\n")
 end
 
 n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
@@ -96,31 +121,31 @@ z0[23:24] = xtraj2[3]
 z0[25:26] = xtraj3[3]
 z0[27:28] = xtraj4[3]
 
-z0_nom = zeros(n_nlp)
-
-z0_nom[1:1] = utraj_nom[1]
-z0_nom[2:2] = utraj_nom[1]
-z0_nom[3:3] = utraj_nom[1]
-z0_nom[4:4] = utraj_nom[1]
+# z0_nom = zeros(n_nlp)
+z0_nom = copy(z0)
+# z0_nom[1:1] = utraj_nom[1]
+# z0_nom[2:2] = utraj_nom[1]
+# z0_nom[3:3] = utraj_nom[1]
+# z0_nom[4:4] = utraj_nom[1]
 
 z0_nom[5:6] .= 0.0#K[1]
 
-z0_nom[7:8] = xtraj_nom[2]
-z0_nom[9:10] = xtraj_nom[2]
-z0_nom[11:12] = xtraj_nom[2]
-z0_nom[13:14] = xtraj_nom[2]
+# z0_nom[7:8] = xtraj_nom[2]
+# z0_nom[9:10] = xtraj_nom[2]
+# z0_nom[11:12] = xtraj_nom[2]
+# z0_nom[13:14] = xtraj_nom[2]
 
-z0_nom[15:15] = utraj_nom[2]
-z0_nom[16:16] = utraj_nom[2]
-z0_nom[17:17] = utraj_nom[2]
-z0_nom[18:18] = utraj_nom[2]
+# z0_nom[15:15] = utraj_nom[2]
+# z0_nom[16:16] = utraj_nom[2]
+# z0_nom[17:17] = utraj_nom[2]
+# z0_nom[18:18] = utraj_nom[2]
 
 z0_nom[19:20] .= 0.0#K[2]
 
-z0_nom[21:22] = xtraj_nom[3]
-z0_nom[23:24] = xtraj_nom[3]
-z0_nom[25:26] = xtraj_nom[3]
-z0_nom[27:28] = xtraj_nom[3]
+# z0_nom[21:22] = xtraj_nom[3]
+# z0_nom[23:24] = xtraj_nom[3]
+# z0_nom[25:26] = xtraj_nom[3]
+# z0_nom[27:28] = xtraj_nom[3]
 
 
 function obj(z)
@@ -155,6 +180,10 @@ function obj(z)
 end
 
 obj(z0)
+function matrix_sqrt(A)
+    e = eigen(A)
+    return e.vectors*Diagonal(sqrt.(e.values))*inv(e.vectors)
+end
 
 function con!(c,z)
     u11 = z[1]
@@ -181,6 +210,26 @@ function con!(c,z)
     x33 = z[25:26]
     x34 = z[27:28]
 
+    # # unscented resample
+    # x̂2 = (x21+x22+x23+x24)./N
+    # Σ2 = (x21-x̂2)*(x21-x̂2)' + (x22-x̂2)*(x22-x̂2)' + (x23-x̂2)*(x23-x̂2)' + (x24-x̂2)*(x24-x̂2)' + 1.0e-8*I
+    # cols = cholesky(Σ2).U
+    # β = 0.75
+    #
+    # x21s = x̂2 + β*cols[:,1]
+    # x22s = x̂2 - β*cols[:,1]
+    # x23s = x̂2 + β*cols[:,2]
+    # x24s = x̂2 - β*cols[:,2]
+    #
+    # if eltype(x21s) == Float64
+    #     println("x̂2: $(x̂2)")
+    #     println("x21: $(x21), x21s: $(x21s)")
+    #     println("x22: $(x22), x22s: $(x22s)")
+    #     println("x23: $(x23), x23s: $(x23s)")
+    #     println("x24: $(x24), x24s: $(x24s)")
+    #     println("\n")
+    # end
+
     c[1:2] = A*x11 + B*u11 - x21
     c[3:4] = A*x12 + B*u12 - x22
     c[5:6] = A*x13 + B*u13 - x23
@@ -190,6 +239,11 @@ function con!(c,z)
     c[11:12] = A*x22 + B*u22 - x32
     c[13:14] = A*x23 + B*u23 - x33
     c[15:16] = A*x24 + B*u24 - x34
+
+    # c[9:10] = A*x21s + B*u21 - x31
+    # c[11:12] = A*x22s + B*u22 - x32
+    # c[13:14] = A*x23s + B*u23 - x33
+    # c[15:16] = A*x24s + B*u24 - x34
 
     c[17] = u11 + k1'*x11
     c[18] = u12 + k1'*x12
@@ -201,6 +255,11 @@ function con!(c,z)
     c[23] = u23 + k2'*x23
     c[24] = u24 + k2'*x24
 
+    # c[21] = u21 + k2'*x21s
+    # c[22] = u22 + k2'*x22s
+    # c[23] = u23 + k2'*x23s
+    # c[24] = u24 + k2'*x24s
+
     return c
 end
 
@@ -210,5 +269,5 @@ con!(c0,ones(n_nlp))
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z_sol = solve(z0_nom,prob)
-
-println("solution error: $(norm(z_sol - z0))")
+K_sample = [reshape(z_sol[5:6],m,n),reshape(z_sol[19:20],m,n)]
+println("solution error: $([norm(vec(K_sample[t]-K[t])) for t = 1:T-1])")
