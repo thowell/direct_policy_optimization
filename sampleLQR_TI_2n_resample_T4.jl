@@ -14,7 +14,7 @@ A = D[1:n,1:n]
 B = D[1:n,n .+ (1:m)]
 
 # TVLQR solution
-T = 3
+T = 4
 Q = Matrix(1.0*I,n,n)
 R = Matrix(0.1*I,m,m)
 
@@ -70,31 +70,32 @@ end
 n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1) + N*(n*(T-1) + m*(T-2))
 m_nlp = N*(n*(T-1)) + N*(m*(T-1)) + N*(n*(T-1)) + N*(m*(T-2))
 
-z0 = zeros(n_nlp)
-
-z0[1:1] = utraj1[1]
-z0[2:2] = utraj2[1]
-z0[3:3] = utraj3[1]
-z0[4:4] = utraj4[1]
-
-z0[5:6] = K[1]
-
-z0[7:8] = xtraj1[2]
-z0[9:10] = xtraj2[2]
-z0[11:12] = xtraj3[2]
-z0[13:14] = xtraj4[2]
-
-z0[15:15] = utraj1[2]
-z0[16:16] = utraj2[2]
-z0[17:17] = utraj3[2]
-z0[18:18] = utraj4[2]
-
-z0[19:20] = K[2]
-
-z0[21:22] = xtraj1[3]
-z0[23:24] = xtraj2[3]
-z0[25:26] = xtraj3[3]
-z0[27:28] = xtraj4[3]
+# z0 = zeros(n_nlp)
+#
+# z0[1:1] = utraj1[1]
+# z0[2:2] = utraj2[1]
+# z0[3:3] = utraj3[1]
+# z0[4:4] = utraj4[1]
+#
+# z0[5:6] = K[1]
+#
+# z0[7:8] = xtraj1[2]
+# z0[9:10] = xtraj2[2]
+# z0[11:12] = xtraj3[2]
+# z0[13:14] = xtraj4[2]
+#
+# z0[15:15] = utraj1[2]
+# z0[16:16] = utraj2[2]
+# z0[17:17] = utraj3[2]
+# z0[18:18] = utraj4[2]
+#
+# z0[19:20] = K[2]
+#
+# z0[21:22] = xtraj1[3]
+# z0[23:24] = xtraj2[3]
+# z0[25:26] = xtraj3[3]
+# z0[27:28] = xtraj4[3]
+#
 
 z0_nom = 0.1*rand(n_nlp)
 
@@ -139,13 +140,43 @@ function obj(z)
     x̃33 = z[45:46]
     x̃34 = z[47:48]
 
+    ##
+    u31 = z[49:49]
+    u32 = z[50:50]
+    u33 = z[51:51]
+    u34 = z[52:52]
+
+    k3 = z[53:54]
+
+    x41 = z[55:56]
+    x42 = z[57:58]
+    x43 = z[59:60]
+    x44 = z[61:62]
+
+    # resampled points
+
+    ũ31 = z[63:63]
+    ũ32 = z[64:64]
+    ũ33 = z[65:65]
+    ũ34 = z[66:66]
+
+    x̃41 = z[67:68]
+    x̃42 = z[69:70]
+    x̃43 = z[71:72]
+    x̃44 = z[73:74]
+
     return (u11'*R*u11 + u12'*R*u12 + u13'*R*u13 + u14'*R*u14
             + u21'*R*u21 + u22'*R*u22 + u23'*R*u23 + u24'*R*u24
+            + u31'*R*u31 + u32'*R*u32 + u33'*R*u33 + u34'*R*u34
             + x21'*Q*x21 + x22'*Q*x22 + x23'*Q*x23 + x24'*Q*x24
             + x31'*Q*x31 + x32'*Q*x32 + x33'*Q*x33 + x34'*Q*x34
+            + x41'*Q*x41 + x42'*Q*x42 + x43'*Q*x43 + x44'*Q*x44
             + ũ21'*R*ũ21 + ũ22'*R*ũ22 + ũ23'*R*ũ23 + ũ24'*R*ũ24
+            + ũ31'*R*ũ31 + ũ32'*R*ũ32 + ũ33'*R*ũ33 + ũ34'*R*ũ34
             + x̃21'*Q*x̃21 + x̃22'*Q*x̃22 + x̃23'*Q*x̃23 + x̃24'*Q*x̃24
-            + x̃31'*Q*x̃31 + x̃32'*Q*x̃32 + x̃33'*Q*x̃33 + x̃34'*Q*x̃34)
+            + x̃31'*Q*x̃31 + x̃32'*Q*x̃32 + x̃33'*Q*x̃33 + x̃34'*Q*x̃34
+            + x̃41'*Q*x̃41 + x̃42'*Q*x̃42 + x̃43'*Q*x̃43 + x̃44'*Q*x̃44)
+
 end
 
 obj(z0)
@@ -191,6 +222,30 @@ function con!(c,z)
     x̃33 = z[45:46]
     x̃34 = z[47:48]
 
+    u31 = z[49]
+    u32 = z[50]
+    u33 = z[51]
+    u34 = z[52]
+
+    k3 = z[53:54]
+
+    x41 = z[55:56]
+    x42 = z[57:58]
+    x43 = z[59:60]
+    x44 = z[61:62]
+
+    # resampled points
+
+    ũ31 = z[63]
+    ũ32 = z[64]
+    ũ33 = z[65]
+    ũ34 = z[66]
+
+    x̃41 = z[67:68]
+    x̃42 = z[69:70]
+    x̃43 = z[71:72]
+    x̃44 = z[73:74]
+
     c[1:2] = A*x11 + B*u11 - x21
     c[3:4] = A*x12 + B*u12 - x22
     c[5:6] = A*x13 + B*u13 - x23
@@ -231,6 +286,27 @@ function con!(c,z)
     c[43] = ũ23 + k2'*x̃23
     c[44] = ũ24 + k2'*x̃24
 
+    ##
+    c[45:46] = A*x31 + B*u31 - x41
+    c[47:48] = A*x32 + B*u32 - x42
+    c[49:50] = A*x33 + B*u33 - x43
+    c[51:52] = A*x34 + B*u34 - x44
+
+    c[53] = u31 + k3'*x31
+    c[54] = u32 + k3'*x32
+    c[55] = u33 + k3'*x33
+    c[56] = u34 + k3'*x34
+
+    c[57:58] = A*x̃31 + B*ũ31 - x̃41
+    c[59:60] = A*x̃32 + B*ũ32 - x̃42
+    c[61:62] = A*x̃33 + B*ũ33 - x̃43
+    c[63:64] = A*x̃34 + B*ũ34 - x̃44
+
+    c[65] = ũ31 + k3'*x̃31
+    c[66] = ũ32 + k3'*x̃32
+    c[67] = ũ33 + k3'*x̃33
+    c[68] = ũ34 + k3'*x̃34
+
     return c
 end
 
@@ -240,5 +316,5 @@ con!(c0,rand(n_nlp))
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z_sol = solve(z0_nom,prob)
-K_sample = [reshape(z_sol[5:6],m,n), reshape(z_sol[19:20],m,n)]
+K_sample = [reshape(z_sol[5:6],m,n), reshape(z_sol[19:20],m,n),reshape(z_sol[53:54],m,n)]
 println("solution error: $(sum([norm(vec(K_sample[t] - K[t])) for t = 1:T-1]))")

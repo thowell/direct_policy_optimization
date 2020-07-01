@@ -67,8 +67,8 @@ for t = 1:T-1
     xtraj_nom[t+1] = A*xtraj_nom[t] + B*utraj_nom[t]
 end
 
-n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1) + N*(n*(T-1) + m*(T-2))
-m_nlp = N*(n*(T-1)) + N*(m*(T-1)) + N*(n*(T-1)) + N*(m*(T-2))
+n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
+m_nlp = N*(n*(T-1)) + N*(m*(T-1))
 
 z0 = zeros(n_nlp)
 
@@ -96,7 +96,32 @@ z0[23:24] = xtraj2[3]
 z0[25:26] = xtraj3[3]
 z0[27:28] = xtraj4[3]
 
-z0_nom = 0.1*rand(n_nlp)
+z0_nom = zeros(n_nlp)
+
+z0_nom[1:1] = utraj_nom[1]
+z0_nom[2:2] = utraj_nom[1]
+z0_nom[3:3] = utraj_nom[1]
+z0_nom[4:4] = utraj_nom[1]
+
+z0_nom[5:6] .= 0.0#K[1]
+
+z0_nom[7:8] = xtraj_nom[2]
+z0_nom[9:10] = xtraj_nom[2]
+z0_nom[11:12] = xtraj_nom[2]
+z0_nom[13:14] = xtraj_nom[2]
+
+z0_nom[15:15] = utraj_nom[2]
+z0_nom[16:16] = utraj_nom[2]
+z0_nom[17:17] = utraj_nom[2]
+z0_nom[18:18] = utraj_nom[2]
+
+z0_nom[19:20] .= 0.0#K[2]
+
+z0_nom[21:22] = xtraj_nom[3]
+z0_nom[23:24] = xtraj_nom[3]
+z0_nom[25:26] = xtraj_nom[3]
+z0_nom[27:28] = xtraj_nom[3]
+
 
 function obj(z)
     u11 = z[1:1]
@@ -123,29 +148,10 @@ function obj(z)
     x33 = z[25:26]
     x34 = z[27:28]
 
-    # # resampled points
-    x̃21 = z[29:30]
-    x̃22 = z[31:32]
-    x̃23 = z[33:34]
-    x̃24 = z[35:36]
-
-    ũ21 = z[37:37]
-    ũ22 = z[38:38]
-    ũ23 = z[39:39]
-    ũ24 = z[40:40]
-
-    x̃31 = z[41:42]
-    x̃32 = z[43:44]
-    x̃33 = z[45:46]
-    x̃34 = z[47:48]
-
     return (u11'*R*u11 + u12'*R*u12 + u13'*R*u13 + u14'*R*u14
             + u21'*R*u21 + u22'*R*u22 + u23'*R*u23 + u24'*R*u24
             + x21'*Q*x21 + x22'*Q*x22 + x23'*Q*x23 + x24'*Q*x24
-            + x31'*Q*x31 + x32'*Q*x32 + x33'*Q*x33 + x34'*Q*x34
-            + ũ21'*R*ũ21 + ũ22'*R*ũ22 + ũ23'*R*ũ23 + ũ24'*R*ũ24
-            + x̃21'*Q*x̃21 + x̃22'*Q*x̃22 + x̃23'*Q*x̃23 + x̃24'*Q*x̃24
-            + x̃31'*Q*x̃31 + x̃32'*Q*x̃32 + x̃33'*Q*x̃33 + x̃34'*Q*x̃34)
+            + x31'*Q*x31 + x32'*Q*x32 + x33'*Q*x33 + x34'*Q*x34)
 end
 
 obj(z0)
@@ -175,21 +181,17 @@ function con!(c,z)
     x33 = z[25:26]
     x34 = z[27:28]
 
-    # resampled points
-    x̃21 = z[29:30]
-    x̃22 = z[31:32]
-    x̃23 = z[33:34]
-    x̃24 = z[35:36]
+    # resample
+    x̃2 = (x21 + x22 + x23 + x24)./N
+    Σ = x21*x21' + x22*x22' + x23*x23' + x24*x24' + 1.0e-8*I
 
-    ũ21 = z[37]
-    ũ22 = z[38]
-    ũ23 = z[39]
-    ũ24 = z[40]
+    cols = Array(cholesky(Σ).U)
+    β = 0.001
 
-    x̃31 = z[41:42]
-    x̃32 = z[43:44]
-    x̃33 = z[45:46]
-    x̃34 = z[47:48]
+    x̃21 = β*cols[:,1]
+    x̃22 = β*cols[:,1]
+    x̃23 = β*cols[:,2]
+    x̃24 = β*cols[:,2]
 
     c[1:2] = A*x11 + B*u11 - x21
     c[3:4] = A*x12 + B*u12 - x22
@@ -211,26 +213,6 @@ function con!(c,z)
     c[23] = u23 + k2'*x23
     c[24] = u24 + k2'*x24
 
-    # resampled constraints
-    Σ = x21*x21' + x22*x22' + x23*x23' + x24*x24' + 1.0e-8*I
-    cols = Array(cholesky(Σ).U)
-    β = 0.001
-
-    c[25:26] = β*cols[:,1] - x̃21
-    c[27:28] = β*cols[:,1] - x̃22
-    c[29:30] = β*cols[:,2] - x̃23
-    c[31:32] = β*cols[:,2] - x̃24
-
-    c[33:34] = A*x̃21 + B*ũ21 - x̃31
-    c[35:36] = A*x̃22 + B*ũ22 - x̃32
-    c[37:38] = A*x̃23 + B*ũ23 - x̃33
-    c[39:40] = A*x̃24 + B*ũ24 - x̃34
-
-    c[41] = ũ21 + k2'*x̃21
-    c[42] = ũ22 + k2'*x̃22
-    c[43] = ũ23 + k2'*x̃23
-    c[44] = ũ24 + k2'*x̃24
-
     return c
 end
 
@@ -240,5 +222,6 @@ con!(c0,rand(n_nlp))
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z_sol = solve(z0_nom,prob)
+
 K_sample = [reshape(z_sol[5:6],m,n), reshape(z_sol[19:20],m,n)]
 println("solution error: $(sum([norm(vec(K_sample[t] - K[t])) for t = 1:T-1]))")

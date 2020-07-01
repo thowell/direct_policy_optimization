@@ -24,7 +24,7 @@ dyn_c(rand(n),rand(m))
 dyn_d(rand(n),rand(m),0.2)
 
 # Trajectory optimization
-T = 5
+T = 8
 x1 = [0.0; 0.0]
 xT = [π; 0.0]
 
@@ -125,19 +125,23 @@ for t = T-1:-1:1
 end
 
 # number of samples
-# N = 8
-N = 4
+N = 12
+# N = 4
 
 # initial state
 x11 = [1.0; 0.0]
 x12 = [-1.0; 0.0]
 x13 = [0.0; 1.0]
 x14 = [0.0; -1.0]
-x15 = [1.0; 1.0]
-x16 = [1.0; -1.0]
-x17 = [-1.0; 1.0]
-x18 = [-1.0; -1.0]
-x1 = [x11,x12,x13,x14]#,x15,x16,x17,x18]
+# x15 = [1.0; 1.0]
+# x16 = [1.0; -1.0]
+# x17 = [-1.0; 1.0]
+# x18 = [-1.0; -1.0]
+# x19 = 2.0*[1.0; 1.0]
+# x110 = 2.0*[1.0; -1.0]
+# x111 = 2.0*[-1.0; 1.0]
+# x112 = 2.0*[-1.0; -1.0]
+x1 = [x11,x12,x13,x14]#,x15,x16,x17,x18,x19,x110,x111,x112]
 
 # simulate
 xtraj = [[zeros(n) for t = 1:T] for i = 1:N]
@@ -232,5 +236,3 @@ z_sol = solve(z0_nom,prob)
 K_sample = [reshape(z_sol[K_idx[t]],m,n) for t = 1:T-1]
 
 println("K error: $(sum([norm(vec(K_sample[t] - K[t])) for t = 1:T-1])/N)")
-
-K_sample
