@@ -167,7 +167,7 @@ for i = 1:N
 end
 
 n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
-m_nlp = N*(n*(T-1) + m*(T-1))
+m_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
 x_idx = [[(i-1)*(n*(T-1) + m*(T-1)) + (t-1)*(n+m) .+ (1:n) for t = 1:T-1] for i = 1:N]
 u_idx = [[(i-1)*(n*(T-1) + m*(T-1)) + (t-1)*(n+m) + n .+ (1:m) for t = 1:T-1] for i = 1:N]
 K_idx = [N*(n*(T-1) + m*(T-1)) + (t-1)*(m*n) .+ (1:m*n) for t = 1:T-1]
@@ -208,8 +208,19 @@ obj(z0)
 function con!(c,z)
     shift1 = 0
     shift2 = 0
-    for i = 1:N
-        for t = 1:T-1
+    shift3 = 0
+
+    K = [zeros(eltype(z),m,n) for t = 1:T-1]
+
+    P = Q[T]
+    for t = T-1:-1:1
+        K[t] = (R[t] + B[t]'*P*B[t])\(B[t]'*P*A[t])
+        P = Q[t] + K[t]'*R[t]*K[t] + (A[t] - B[t]*K[t])'*P*(A[t] - B[t]*K[t])
+    end
+
+     for t = 1:T-1
+         for i = 1:N
+
             x = (t==1 ? xtraj[i][1] : z[x_idx[i][t-1]])
             u = z[u_idx[i][t]]
             x⁺ = z[x_idx[i][t]]
@@ -220,12 +231,16 @@ function con!(c,z)
 
             c[N*(n*(T-1)) + shift2 .+ (1:m)] = u + k*x
             shift2 += m
+
         end
+        c[N*(n*(T-1) + m*(T-1)) + shift3 .+ (1:m*n)] = z[K_idx[t]] - vec(K[t])
+        shift3 += m*n
     end
 
     return c
 end
-
+shift3 = m*n
+N*(n*(T-1) + m*(T-1)) + shift3 .+ (1:m*n)
 c0 = zeros(m_nlp)
 con!(c0,z0)
 

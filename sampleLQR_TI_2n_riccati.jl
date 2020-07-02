@@ -93,7 +93,7 @@ for t = 1:T-1
 end
 
 n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
-m_nlp = N*(n*(T-1)) + N*(m*(T-1))
+m_nlp = N*(n*(T-1)) + N*(m*(T-1))# + (T-1)*(m*n)
 
 z0 = zeros(n_nlp)
 
@@ -180,10 +180,7 @@ function obj(z)
 end
 
 obj(z0)
-function matrix_sqrt(A)
-    e = eigen(A)
-    return e.vectors*Diagonal(sqrt.(e.values))*inv(e.vectors)
-end
+
 
 function con!(c,z)
     u11 = z[1]
@@ -260,6 +257,18 @@ function con!(c,z)
     # c[23] = u23 + k2'*x23s
     # c[24] = u24 + k2'*x24s
 
+    # riccati constraint
+    # K = [zeros(eltype(z),m,n) for t = 1:T-1]
+
+    # P = Q[T]
+    # for t = T-1:-1:1
+    #     K[t] = (R + B'*P*B)\(B'*P*A)
+    #     P = Q + K[t]'*R*K[t] + (A - B*K[t])'*P*(A - B*K[t])
+    # end
+    #
+    # c[25:26] = k1 - vec(K[1])
+    # c[27:28] = k2 - vec(K[2])
+
     return c
 end
 
@@ -271,3 +280,14 @@ prob = Problem(n_nlp,m_nlp,obj,con!,true)
 z_sol = solve(z0_nom,prob)
 K_sample = [reshape(z_sol[5:6],m,n),reshape(z_sol[19:20],m,n)]
 println("solution error: $([norm(vec(K_sample[t]-K[t])) for t = 1:T-1])")
+
+K1 = [zeros(m,n) for t = 1:T-1]
+P = Q[T]
+let P=P,K=K1
+    for t = T-1:-1:1
+        K[t] = (R + B'*P*B)\(B'*P*A)
+        P = Q + K[t]'*R*K[t] + (A - B*K[t])'*P*(A - B*K[t])
+    end
+end
+K
+K1

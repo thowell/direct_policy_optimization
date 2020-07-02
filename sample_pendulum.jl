@@ -320,7 +320,8 @@ function con!(c,z)
     return c
 end
 c0 = zeros(m_nlp)
-con!(c0,z0)
+con!(c0,ones(n_nlp))
+c0
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z_sol = solve(copy(z0_nom),prob)
@@ -335,3 +336,31 @@ eigen(A[1] - B[1]*K_sample[1])
 eigen(A[2] - B[2]*K_sample[2])
 eigen(A[1] - B[1]*K[1])
 eigen(A[2] - B[2]*K[2])
+
+using Plots
+
+function simulate_linear_controller(K,T_sim,Δt,z0)
+    T = length(K)+1
+    times = [(t-1)*Δt for t = 1:T-1]
+    tf = Δt*T
+    t_sim = range(0,stop=tf,length=T_sim)
+    dt_sim = tf/(T_sim-1)
+
+    z_rollout = [z0]
+    u_rollout = []
+    for tt = 1:T_sim-1
+        t = t_sim[tt]
+        k = searchsortedlast(times,t)
+        z = z_rollout[end]
+        u = u_sol[k] -K[k]*(z - x_sol[k])
+        push!(z_rollout,dyn_d(z,u,Δt) + 0.0*randn(n))
+        push!(u_rollout,u)
+    end
+    return z_rollout, u_rollout
+end
+
+x_sol_tvlqr, u_sol_tvlqr = simulate_linear_controller(K,4*T,Δt,[0.0;0.0])
+x_sol_sample, u_sol_sample = simulate_linear_controller(K_sample,4*T,Δt,[0.0;0.0])
+
+plot(hcat(x_sol_tvlqr...)',color=:purple,xlabel="time step",width=2.0,label=["tvlqr" ""])
+plot!(hcat(x_sol_sample...)',color=:orange,xlabel="time step",width=1.0,label=["sample" ""])
