@@ -220,12 +220,12 @@ con!(c0,ones(n_nlp))
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 # z_sol = solve(z0_nom,prob)
-
-obj(z_sol)
-obj(z0)
-K_sample = [reshape(z_sol[K_idx[t]],m,n) for t = 1:T-1]
-
-println("K error: $(sum([norm(vec(K_sample[t] - K[t])) for t = 1:T-1])/N)")
+#
+# obj(z_sol)
+# obj(z0)
+# K_sample = [reshape(z_sol[K_idx[t]],m,n) for t = 1:T-1]
+#
+# println("K error: $(sum([norm(vec(K_sample[t] - K[t])) for t = 1:T-1])/N)")
 
 
 using Plots
@@ -243,7 +243,7 @@ function simulate_linear_controller(K,T_sim,Δt,z0)
         t = t_sim[tt]
         k = searchsortedlast(times,t)
         z = z_rollout[end]
-        u = u_sol[k] -K[k]*(z - x_sol[k])
+        u = u_sol[k] -K[k]*(z - z_sol[k])
         push!(z_rollout,dyn_d(z,u,dt_sim) + 0.05*randn(n))
         push!(u_rollout,u)
     end
@@ -301,9 +301,9 @@ end
 #     println("K_tvlqr[$t] = $(K[t])")
 # end
 
-x_sol_tvlqr, u_sol_tvlqr, t_sim = simulate_linear_controller(K,10*T,Δt,[0.0;0.0])
-# x_sol_sample, u_sol_sample = simulate_linear_controller(K_sample,2*T,Δt,[0.0;0.0])
-x_sol_ukf, u_sol_ukf, t_sim = simulate_linear_controller(K_ukf,10*T,Δt,[0.0;0.0])
+x_sol_tvlqr, u_sol_tvlqr, t_sim = simulate_linear_controller(K,T,Δt,[0.0;0.0])
+# x_sol_sample, u_sol_sample = simulate_linear_controller(K_sample,T,Δt,[0.0;0.0])
+x_sol_ukf, u_sol_ukf, t_sim = simulate_linear_controller(K_ukf,1T,Δt,[0.0;0.0])
 
 plot(t_nominal,hcat(x_sol...)[1,:],color=:orange,xlabel="time step",width=2.0,label=["nominal" ""])
 plot!(t_nominal,hcat(x_sol...)[2,:],color=:orange,width=2.0,label="")

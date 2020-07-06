@@ -25,7 +25,7 @@ function dynamics(x,u,Δt)
 end
 
 # TVLQR solution
-T = 20
+T = 3
 Q = Matrix(1.0*I,n,n)
 R = Matrix(0.1*I,m,m)
 
@@ -47,16 +47,18 @@ x1 = [x11,x12,x13,x14]
 
 N = length(x1)
 
-n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
-m_nlp = N*(n*(T-1) + m*(T-1)) #+ N*(n*(T-1))
+n_nlp = m*n*(T-1) + N*(n*(T-1) + m*(T-1)) + N*(n*T)
+m_nlp = N*(n*(T-1) + 0*m*(T-1)) + N*(n*T) + N*(m*(T-1))
 
 idx_k = [(t-1)*(m*n) .+ (1:m*n) for t = 1:T-1]
 idx_x = [[(T-1)*(m*n) + (i-1)*(n*(T-1) + m*(T-1)) + (t-1)*(n+m) .+ (1:n) for t = 1:T-1] for i = 1:N]
 idx_u = [[(T-1)*(m*n) + (i-1)*(n*(T-1) + m*(T-1)) + (t-1)*(n+m) + n .+ (1:m) for t = 1:T-1] for i = 1:N]
+idx_λ = [[(T-1)*(m*n) + N*(n*(T-1) + m*(T-1)) + (i-1)*(n*T) + (t-1)*n .+ (1:n) for t = 1:T] for i = 1:N]
 
 idx_con_dyn = [[(i-1)*(n*(T-1)) + (t-1)*n .+ (1:n) for t = 1:T-1] for i = 1:N]
 idx_con_ctrl = [[(i-1)*(m*(T-1)) + N*(n*(T-1)) + (t-1)*m .+ (1:m) for t = 1:T-1] for i = 1:N]
-# idx_con_k = [[N*(m*(T-1)) + N*(n*(T-1)) + (i-1)*(n*(T-1)) + (t-1)*n .+ (1:n) for t = 1:T-1] for i = 1:N]
+idx_con_λ = [[N*(n*(T-1) + 0*m*(T-1)) + (i-1)*(n*T) + (t-1)*n .+ (1:n) for t = 1:T] for i = 1:N]
+idx_con_ctrl_λ = [[N*(n*(T-1) + 0*m*(T-1)) + (N)*(n*T) + (i-1)*(m*(T-1)) + (t-1)*m .+ (1:m) for t = 1:T] for i = 1:N]
 
 function obj(z)
     s = 0
@@ -77,9 +79,22 @@ function con!(c,z)
             x⁺ = view(z,idx_x[i][t])
             u = view(z,idx_u[i][t])
             k = reshape(view(z,idx_k[t]),m,n)
+            λ = view(z,idx_λ[i][t])
+            λ⁺ = view(z,idx_λ[i][t])
             c[idx_con_dyn[i][t]] = A*x + B*u - x⁺
-            c[idx_con_ctrl[i][t]] = u + k*x
+            # c[idx_con_ctrl[i][t]] = u + k*x
+
+            # adjoint contraints
+            c[idx_con_λ[i][t]] = A'*λ⁺ + Q*x - λ
+            c[idx_con_ctrl_λ[i][t]] = u + R\(B'*λ⁺)
         end
+    end
+    # adjoint constraints
+    t = T
+    for i = 1:N
+        x⁺ = view(z,idx_x[i][t-1])
+        λ⁺ = view(z,idx_λ[i][t])
+        c[idx_con_λ[i][t]] = Q*x⁺ - λ⁺
     end
     return c
 end
