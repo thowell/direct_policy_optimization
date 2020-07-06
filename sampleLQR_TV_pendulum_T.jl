@@ -24,7 +24,7 @@ dyn_c(rand(n),rand(m))
 dyn_d(rand(n),rand(m),0.2)
 
 # Trajectory optimization
-T = 3
+T = 10
 x1 = [0.0; 0.0]
 xT = [π; 0.0]
 
@@ -167,7 +167,7 @@ for i = 1:N
 end
 
 n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
-m_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
+m_nlp = N*(n*(T-1) + m*(T-1)) + n*(T-1)
 x_idx = [[(i-1)*(n*(T-1) + m*(T-1)) + (t-1)*(n+m) .+ (1:n) for t = 1:T-1] for i = 1:N]
 u_idx = [[(i-1)*(n*(T-1) + m*(T-1)) + (t-1)*(n+m) + n .+ (1:m) for t = 1:T-1] for i = 1:N]
 K_idx = [N*(n*(T-1) + m*(T-1)) + (t-1)*(m*n) .+ (1:m*n) for t = 1:T-1]
@@ -210,13 +210,13 @@ function con!(c,z)
     shift2 = 0
     shift3 = 0
 
-    K = [zeros(eltype(z),m,n) for t = 1:T-1]
+    # K = [zeros(eltype(z),m,n) for t = 1:T-1]
 
-    P = Q[T]
-    for t = T-1:-1:1
-        K[t] = (R[t] + B[t]'*P*B[t])\(B[t]'*P*A[t])
-        P = Q[t] + K[t]'*R[t]*K[t] + (A[t] - B[t]*K[t])'*P*(A[t] - B[t]*K[t])
-    end
+    # P = Q[T]
+    # for t = T-1:-1:1
+    #     K[t] = (R[t] + B[t]'*P*B[t])\(B[t]'*P*A[t])
+    #     P = Q[t] + K[t]'*R[t]*K[t] + (A[t] - B[t]*K[t])'*P*(A[t] - B[t]*K[t])
+    # end
 
      for t = 1:T-1
          for i = 1:N
@@ -233,21 +233,27 @@ function con!(c,z)
             shift2 += m
 
         end
-        c[N*(n*(T-1) + m*(T-1)) + shift3 .+ (1:m*n)] = z[K_idx[t]] - vec(K[t])
-        shift3 += m*n
+        s = svd(A[t] - B[t]*reshape(z[K_idx[t]],m,n)).S
+        c[N*(n*(T-1) + m*(T-1)) + shift3 .+ (1:n)] = -1.0*s
+        shift3 += n
     end
 
     return c
 end
-shift3 = m*n
-N*(n*(T-1) + m*(T-1)) + shift3 .+ (1:m*n)
 c0 = zeros(m_nlp)
-con!(c0,z0)
-
-prob = Problem(n_nlp,m_nlp,obj,con!,true)
+con!(c0,rand(n_nlp))
+idx_ineq = vcat([N*(n*(T-1) + m*(T-1)) + (t-1)*(n) .+ (1:n) for t=1:T-1]...)
+c0[idx_ineq]
+prob = Problem(n_nlp,m_nlp,obj,con!,true,idx_ineq=idx_ineq)
 
 z_sol = solve(z0_nom,prob)
 
 K_sample = [reshape(z_sol[K_idx[t]],m,n) for t = 1:T-1]
 
 println("K error: $(sum([norm(vec(K_sample[t] - K[t])) for t = 1:T-1])/N)")
+
+A = rand(n,n)
+
+s = svd(A)
+s.S
+s.U*Diagonal(s.S)*s.V

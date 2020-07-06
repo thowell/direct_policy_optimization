@@ -6,7 +6,12 @@ struct Problem <: MOI.AbstractNLPEvaluator
     m_nlp
     obj
     con!
+    idx_ineq
     enable_hessian::Bool
+end
+
+function Problem(n_nlp,m_nlp,obj,con!,enable_hessian;idx_ineq=(1:0))
+    Problem(n_nlp,m_nlp,obj,con!,idx_ineq,enable_hessian)
 end
 
 function primal_bounds(prob::MOI.AbstractNLPEvaluator)
@@ -17,7 +22,7 @@ end
 
 function constraint_bounds(prob::MOI.AbstractNLPEvaluator)
     c_l = zeros(prob.m_nlp)
-    # c_l = -Inf*ones(prob.m_nlp)
+    c_l[prob.idx_ineq] .= -Inf
     c_u = zeros(prob.m_nlp)
     return c_l, c_u
 end
