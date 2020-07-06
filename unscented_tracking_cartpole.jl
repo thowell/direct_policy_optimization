@@ -20,7 +20,6 @@ function dyn_c(model::Cartpole, x, u)
     return @SVector [x[3],x[4],qdd[1],qdd[2]]
 end
 
-Δt = 0.1
 model = Cartpole(1.0,0.2,0.5,9.81)
 n, m = 4,1
 
@@ -30,7 +29,7 @@ function dynamics(x,u,Δt)
 end
 
 # horizon
-T = 100
+T = 101
 Δt = 0.01
 
 # objective
@@ -105,7 +104,7 @@ for t = 1:T-1
     push!(B,ForwardDiff.jacobian(fu,u))
 end
 
-Q = [t < T ? Diagonal(1.0*@SVector [10.0,10.0,10.0,10.0]) : Diagonal([100.0;100.0;100.0;100.0]) for t = 1:T]
+Q = [t < T ? Diagonal(1.0*@SVector [10.0,10.0,1.0,1.0]) : Diagonal([100.0;100.0;100.0;100.0]) for t = 1:T]
 R = [Diagonal(1.0*@SVector ones(m)) for t = 1:T-1]
 
 P = [zeros(n,n) for t = 1:T]
@@ -148,7 +147,7 @@ let K_ukf=K_ukf, H=Q[T]
         C = P[n .+ (1:m),1:n]
         B = P[n .+ (1:m), n .+ (1:m)]
 
-        K = -(B + 1.0e-16*I)\C
+        K = -(B + 0.0*I)\C
 
         push!(K_ukf,-K)
 
@@ -161,7 +160,7 @@ end
 # simulate controllers
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-12*rand(n))
+Σ = Diagonal(1.0e-16*rand(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x1)
@@ -172,3 +171,7 @@ z_tvlqr, u_tvlqr = simulate_linear_controller(K,z_nom,u_nom,T_sim,Δt,z0_sim,w)
 plt = plot!(hcat(z_tvlqr...)',color=:purple,label=["tvlqr" "" "" ""],width=2.0)
 z_sample, u_sample = simulate_linear_controller(K_ukf,z_nom,u_nom,T_sim,Δt,z0_sim,w)
 plt = plot!(hcat(z_sample...)',color=:orange,label=["unscented" "" "" ""],width=2.0)
+
+plot(hcat(u_nom_sim...)',linetype=:steppost)
+plot!(hcat(u_tvlqr...)',linetype=:steppost)
+plot!(hcat(u_sample...)',linetype=:steppost)
