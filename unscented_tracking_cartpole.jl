@@ -105,7 +105,7 @@ for t = 1:T-1
     push!(B,ForwardDiff.jacobian(fu,u))
 end
 
-Q = [t < T ? Diagonal(1.0*@SVector [10.0,10.0,1.0,1.0]) : Diagonal([100.0;100.0;100.0;100.0]) for t = 1:T]
+Q = [t < T ? Diagonal(1.0*@SVector [10.0,10.0,10.0,10.0]) : Diagonal([100.0;100.0;100.0;100.0]) for t = 1:T]
 R = [Diagonal(1.0*@SVector ones(m)) for t = 1:T-1]
 
 P = [zeros(n,n) for t = 1:T]
@@ -153,7 +153,7 @@ let K_ukf=K_ukf, H=Q[T]
         push!(K_ukf,-K)
 
         H = A + K'*B*K + K'*C + C'*K
-        H = Hermitian(0.5*(H + H'))
+        # H = Hermitian(0.5*(H + H'))
         # println(H)
     end
 end
@@ -166,8 +166,9 @@ W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x1)
 
-plt = plot()
+z_nom_sim, u_nom_sim = nominal_trajectories(z_nom,u_nom,T_sim,Δt)
+plt = plot(hcat(z_nom_sim...)',color=:red,label=["ref." "" "" ""],width=2.0)
 z_tvlqr, u_tvlqr = simulate_linear_controller(K,z_nom,u_nom,T_sim,Δt,z0_sim,w)
-plt = plot!(hcat(z_tvlqr...)',color=:purple,label="",width=2.0)
+plt = plot!(hcat(z_tvlqr...)',color=:purple,label=["tvlqr" "" "" ""],width=2.0)
 z_sample, u_sample = simulate_linear_controller(K_ukf,z_nom,u_nom,T_sim,Δt,z0_sim,w)
-plt = plot!(hcat(z_sample...)',color=:orange,label="",width=2.0)
+plt = plot!(hcat(z_sample...)',color=:orange,label=["unscented" "" "" ""],width=2.0)

@@ -17,3 +17,22 @@ function simulate_linear_controller(Kc,z_nom,u_nom,T_sim,Δt,z0,w)
     end
     return z_rollout, u_rollout
 end
+
+function nominal_trajectories(z_nom,u_nom,T_sim,Δt)
+    T = length(z_nom)
+    times = [(t-1)*Δt for t = 1:T-1]
+    tf = Δt*T
+    t_sim = range(0,stop=tf,length=T_sim)
+    dt_sim = tf/(T_sim-1)
+
+    _z_nom = [z_nom[1]]
+    _u_nom = []
+    for tt = 1:T_sim-1
+        t = t_sim[tt]
+        k = searchsortedlast(times,t)
+
+        push!(_z_nom,z_nom[k])
+        push!(_u_nom,u_nom[k])
+    end
+    return _z_nom, _u_nom
+end
