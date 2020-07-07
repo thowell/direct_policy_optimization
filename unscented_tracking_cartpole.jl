@@ -152,7 +152,7 @@ let K_ukf=K_ukf, H=Q[T]
         push!(K_ukf,-K)
 
         H = A + K'*B*K + K'*C + C'*K
-        # H = Hermitian(0.5*(H + H'))
+        H = Hermitian(0.5*(H + H'))
         # println(H)
     end
 end
