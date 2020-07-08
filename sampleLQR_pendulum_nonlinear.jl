@@ -17,7 +17,7 @@ function dyn_c(x,u)
 end
 
 # Pendulum discrete-time dynamics (midpoint)
-Δt = 0.01
+Δt = 0.05
 function dynamics(x,u,Δt)
     x + Δt*dyn_c(x + 0.5*Δt*dyn_c(x,u),u)
 end
@@ -94,21 +94,21 @@ prob = Problem(n_nlp,m_nlp,obj,con!,true)
 # Solve
 z_sol = solve(z0,prob)
 
-x_sol = [z_sol[x_idx[t]] for t = 1:T]
-u_sol = [z_sol[u_idx[t]] for t = 1:T-1]
-θ_sol = vec([x_sol[t][1] for t = 1:T])
-dθ_sol = vec([x_sol[t][2] for t = 1:T])
+x_nom = [z_sol[x_idx[t]] for t = 1:T]
+u_nom = [z_sol[u_idx[t]] for t = 1:T-1]
+θ_sol = vec([x_nom[t][1] for t = 1:T])
+dθ_sol = vec([x_nom[t][2] for t = 1:T])
 
-plot(hcat(x_sol...)',xlabel="time step",ylabel="state",label=["θ" "dθ"],width=2.0,legend=:topleft)
-plot(hcat(u_sol...)',xlabel="time step",ylabel="control",label="",width=2.0)
+plot(hcat(x_nom...)',xlabel="time step",ylabel="state",label=["θ" "dθ"],width=2.0,legend=:topleft)
+plot(hcat(u_nom...)',xlabel="time step",ylabel="control",label="",width=2.0)
 plot(θ_sol,dθ_sol,xlabel="θ",ylabel="dθ",width=2.0)
 
 # TVLQR solution
 A = []
 B = []
 for t = 1:T-1
-    x = x_sol[t]
-    u = u_sol[t]
+    x = x_nom[t]
+    u = u_nom[t]
     fx(z) = dynamics(z,u,Δt)
     fu(z) = dynamics(x,z,Δt)
 
@@ -117,7 +117,7 @@ for t = 1:T-1
 end
 
 Q = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0;100.0]) for t = 1:T]
-R = [Diagonal(ones(m)) for t = 1:T-1]
+R = [Diagonal(1.0*ones(m)) for t = 1:T-1]
 
 P = [zeros(n,n) for t = 1:T]
 K = [zeros(m,n) for t = 1:T-1]
@@ -128,11 +128,11 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-β = 1000.0
-x11 = β*[1.0; 0.0]
-x12 = β*[-1.0; 0.0]
-x13 = β*[0.0; 1.0]
-x14 = β*[0.0; -1.0]
+β = 100.0
+x11 = β*[1.0; 0.0] + x_nom[1]
+x12 = β*[-1.0; 0.0] + x_nom[1]
+x13 = β*[0.0; 1.0] + x_nom[1]
+x14 = β*[0.0; -1.0] + x_nom[1]
 
 x1 = [x11,x12,x13,x14]
 
@@ -154,7 +154,7 @@ function obj(z)
         for i = 1:N
             x = view(z,idx_x[i][t])
             u = view(z,idx_u[i][t])
-            s += x'*Q[t+1]*x + u'*R[t]*u
+            s += (x - x_nom[t+1])'*Q[t+1]*(x - x_nom[t+1]) + (u - u_nom[t])'*R[t]*(u - u_nom[t])
         end
     end
     return s
@@ -162,13 +162,22 @@ end
 
 function con!(c,z)
     for t = 1:T-1
+        β = 100.0
+        if t > 1
+            xμ = sum([view(z,idx_x[i][t-1]) for i = 1:N])./N
+            Σμ = (0.5/(β^2))*sum([(view(z,idx_x[i][t-1]) - xμ)*(view(z,idx_x[i][t-1]) - xμ)' for i = 1:N]) + 1.0e-8*I
+            cols = cholesky(Σμ).U
+            # cols = fastsqrt(Σμ)
+            xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
+        end
         for i = 1:N
-            x = (t==1 ? x1[i] : view(z,idx_x[i][t-1]))
+            # x = (t==1 ? x1[i] : view(z,idx_x[i][t-1]))
+            x = (t==1 ? x1[i] : xs[i])
             x⁺ = view(z,idx_x[i][t])
             u = view(z,idx_u[i][t])
             k = reshape(view(z,idx_k[t]),m,n)
-            c[idx_con_dyn[i][t]] = A[t]*x + B[t]*u - x⁺
-            c[idx_con_ctrl[i][t]] = u + k*x
+            c[idx_con_dyn[i][t]] = dynamics(x,u,Δt) - x⁺
+            c[idx_con_ctrl[i][t]] = u + k*(x - x_nom[t]) - u_nom[t]
         end
     end
     return c
@@ -178,7 +187,7 @@ c0 = rand(m_nlp)
 con!(c0,ones(n_nlp))
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
-z0 = rand(n_nlp)
+z0 = 1.0e-1*randn(n_nlp)
 z_sol = solve(z0,prob)
 
 K_sample = [reshape(z_sol[idx_k[t]],m,n) for t = 1:T-1]
@@ -186,3 +195,30 @@ K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("solution error: $(sum(K_error)/N)")
 
 plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
+
+# simulate controllers
+T_sim = 10*T
+μ = zeros(n)
+Σ = Diagonal(1.0e-2*rand(n))
+W = Distributions.MvNormal(μ,Σ)
+w = rand(W,T_sim)
+z0_sim = copy(x_nom[1])
+
+z_nom_sim, u_nom_sim = nominal_trajectories(x_nom,u_nom,T_sim,Δt)
+t_nom = range(0,stop=Δt*T,length=T)
+t_sim = range(0,stop=Δt*T,length=T_sim)
+
+plt = plot(t_nom,hcat(x_nom...)[1,:],color=:red,label="ref.",width=2.0,xlabel="time (s)")
+plt = plot!(t_nom,hcat(x_nom...)[2,:],color=:red,label="",width=2.0)
+
+z_tvlqr, u_tvlqr = simulate_linear_controller(K,x_nom,u_nom,T_sim,Δt,z0_sim,w)
+plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
+plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
+
+z_sample, u_sample = simulate_linear_controller(K_sample,x_nom,u_nom,T_sim,Δt,z0_sim,w)
+plt = plot!(t_sim,hcat(z_sample...)[1,:],color=:orange,label="sample",width=2.0)
+plt = plot!(t_sim,hcat(z_sample...)[2,:],color=:orange,label="",width=2.0)
+#
+# plot(hcat(u_nom_sim...)',linetype=:steppost)
+# plot!(hcat(u_tvlqr...)',linetype=:steppost)
+# plot!(hcat(u_sample...)',linetype=:steppost)

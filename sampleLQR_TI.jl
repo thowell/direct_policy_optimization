@@ -1,7 +1,5 @@
 using LinearAlgebra, ForwardDiff, Distributions, Plots
 include("ipopt.jl")
-include("integration.jl")
-include("control.jl")
 
 # continuous-time dynamics
 n = 2
@@ -95,4 +93,4 @@ K_sample = [reshape(z_sol[idx_k[t]],m,n) for t = 1:T-1]
 K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("solution error: $(sum(K_error)/N)")
 
-plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
+plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",legend=:bottom,title="Gain matrix error")
