@@ -128,7 +128,7 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-β = 100.0
+β = 1.0
 x11 = β*[1.0; 0.0] + x_nom[1]
 x12 = β*[-1.0; 0.0] + x_nom[1]
 x13 = β*[0.0; 1.0] + x_nom[1]
@@ -162,7 +162,7 @@ end
 
 function con!(c,z)
     for t = 1:T-1
-        β = 100.0
+        β = 1.0
         if t > 1
             xμ = sum([view(z,idx_x[i][t-1]) for i = 1:N])./N
             Σμ = (0.5/(β^2))*sum([(view(z,idx_x[i][t-1]) - xμ)*(view(z,idx_x[i][t-1]) - xμ)' for i = 1:N]) + 1.0e-8*I
@@ -187,7 +187,7 @@ c0 = rand(m_nlp)
 con!(c0,ones(n_nlp))
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
-z0 = 1.0e-1*randn(n_nlp)
+z0 = rand(n_nlp)
 z_sol = solve(z0,prob)
 
 K_sample = [reshape(z_sol[idx_k[t]],m,n) for t = 1:T-1]
@@ -199,7 +199,7 @@ plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0
 # simulate controllers
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-2*rand(n))
+Σ = Diagonal(1.0e-5*rand(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x_nom[1])
@@ -218,7 +218,13 @@ plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
 z_sample, u_sample = simulate_linear_controller(K_sample,x_nom,u_nom,T_sim,Δt,z0_sim,w)
 plt = plot!(t_sim,hcat(z_sample...)[1,:],color=:orange,label="sample",width=2.0)
 plt = plot!(t_sim,hcat(z_sample...)[2,:],color=:orange,label="",width=2.0)
-#
+
+plot(t_nom[1:end-1],vcat(K...)[:,1],xlabel="time (s)",title="Gains",label="tvlqr",width=2.0,color=:purple,linetype=:steppost)
+plot!(t_nom[1:end-1],vcat(K...)[:,2],label="",width=2.0,color=:purple,linetype=:steppost)
+
+plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],label="sample",color=:orange,width=2.0,linetype=:steppost)
+plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
+
 # plot(hcat(u_nom_sim...)',linetype=:steppost)
 # plot!(hcat(u_tvlqr...)',linetype=:steppost)
 # plot!(hcat(u_sample...)',linetype=:steppost)

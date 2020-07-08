@@ -17,7 +17,7 @@ function dyn_c(x,u)
 end
 
 # Pendulum discrete-time dynamics (midpoint)
-Δt = 0.01
+Δt = 0.05
 function dynamics(x,u,Δt)
     x + Δt*dyn_c(x + 0.5*Δt*dyn_c(x,u),u)
 end
@@ -128,7 +128,7 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-β = 1000.0
+β = 10.0
 x11 = β*[1.0; 0.0]
 x12 = β*[-1.0; 0.0]
 x13 = β*[0.0; 1.0]
