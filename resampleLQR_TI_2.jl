@@ -1,6 +1,31 @@
 using LinearAlgebra, ForwardDiff, Distributions, Plots
 include("ipopt.jl")
 
+function fastsqrt(A)
+    #FASTSQRT computes the square root of a matrix A with Denman-Beavers iteration
+
+    #S = sqrtm(A);
+    Ep = 1e-8*Matrix(I,size(A))
+
+    if count(diag(A) .> 0.0) != size(A,1)
+        S = diagm(sqrt.(diag(A)));
+        return S
+    end
+
+    In = Matrix(1.0*I,size(A));
+    S = A;
+    T = Matrix(1.0*I,size(A));
+
+    T = .5*(T + inv(S+Ep));
+    S = .5*(S+In);
+    for k = 1:4
+        Snew = .5*(S + inv(T+Ep));
+        T = .5*(T + inv(S+Ep));
+        S = Snew;
+    end
+    return S
+end
+
 # continuous-time dynamics
 n = 2
 m = 1
@@ -69,8 +94,8 @@ function resample(X; β=1.0,w=1.0)
 
     xμ = sum(X)./N
     Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + w*I
-    cols = cholesky(Σμ).U
-
+    # cols = cholesky(Σμ).U
+    cols = fastsqrt(Σμ)
     Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
 
     return Xs
@@ -107,9 +132,9 @@ function sample_dynamics(X,U; β=1.0,w=1.0e-16)
     for i = 1:N
         push!(X⁺,A*X[i] + B*U[i])
     end
-    return X⁺
-    # Xs⁺ = resample(X⁺,β=β,w=w)
-    # return Xs⁺
+    # return X⁺
+    Xs⁺ = resample(X⁺,β=β,w=w)
+    return Xs⁺
 end
 
 function obj(z)
@@ -158,6 +183,9 @@ plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0
 x2 = [z_sol[idx_x[i][1]] for i = 1:N]
 x3 = [z_sol[idx_x[i][2]] for i = 1:N]
 
+x1s = resample(x1,β=1.0,w=1.0e-16)
+x2s = resample(x2,β=1.0,w=1.0e-16)
+x3s = resample(x3,β=1.0,w=1.0e-16)
 plt = plot()
 for i = 1:N
     x = x1[i]
@@ -165,10 +193,23 @@ for i = 1:N
 end
 for i = 1:N
     x = x2[i]
-    plt = scatter!([x[1]],[x[2]],label="",color=:blue,marker=:star)
+    plt = scatter!([x[1]],[x[2]],label="",color=:blue)
 end
 for i = 1:N
     x = x3[i]
+    plt = scatter!([x[1]],[x[2]],label="",color=:green)
+end
+
+for i = 1:N
+    x = x1s[i]
+    plt = scatter!([x[1]],[x[2]],label="",color=:red,marker=:square)
+end
+for i = 1:N
+    x = x2s[i]
+    plt = scatter!([x[1]],[x[2]],label="",color=:blue,marker=:square)
+end
+for i = 1:N
+    x = x3s[i]
     plt = scatter!([x[1]],[x[2]],label="",color=:green,marker=:square)
 end
 
