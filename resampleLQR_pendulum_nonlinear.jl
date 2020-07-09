@@ -3,6 +3,31 @@ include("ipopt.jl")
 include("integration.jl")
 include("control.jl")
 
+function fastsqrt(A)
+    #FASTSQRT computes the square root of a matrix A with Denman-Beavers iteration
+
+    #S = sqrtm(A);
+    Ep = 1e-8*Matrix(I,size(A))
+
+    if count(diag(A) .> 0.0) != size(A,1)
+        S = diagm(sqrt.(diag(A)));
+        return S
+    end
+
+    In = Matrix(1.0*I,size(A));
+    S = A;
+    T = Matrix(1.0*I,size(A));
+
+    T = .5*(T + inv(S+Ep));
+    S = .5*(S+In);
+    for k = 1:4
+        Snew = .5*(S + inv(T+Ep));
+        T = .5*(T + inv(S+Ep));
+        S = Snew;
+    end
+    return S
+end
+
 # Pendulum continuous-time dynamics
 n = 2
 m = 1
@@ -21,9 +46,6 @@ end
 function dynamics(x,u,Δt)
     x + Δt*dyn_c(x + 0.5*Δt*dyn_c(x,u),u)
 end
-
-dyn_c(rand(n),rand(m))
-dynamics(rand(n),rand(m),0.2)
 
 # Trajectory optimization
 T = 20
@@ -107,8 +129,8 @@ plot(θ_sol,dθ_sol,xlabel="θ",ylabel="dθ",width=2.0)
 A = []
 B = []
 for t = 1:T-1
-    x = x_sol[t]
-    u = u_sol[t]
+    x = x_nom[t]
+    u = u_nom[t]
     fx(z) = dynamics(z,u,Δt)
     fu(z) = dynamics(x,z,Δt)
 
@@ -128,11 +150,11 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-β = 10.0
-x11 = β*[1.0; 0.0] + x_nom[1]
-x12 = β*[-1.0; 0.0] + x_nom[1]
-x13 = β*[0.0; 1.0] + x_nom[1]
-x14 = β*[0.0; -1.0] + x_nom[1]
+β = 1.0
+x11 = β*[1.0; 0.0]
+x12 = β*[-1.0; 0.0]
+x13 = β*[0.0; 1.0]
+x14 = β*[0.0; -1.0]
 
 x1 = [x11,x12,x13,x14]
 
@@ -148,6 +170,30 @@ idx_u = [[(T-1)*(m*n) + (i-1)*(n*(T-1) + m*(T-1)) + (t-1)*(n+m) + n .+ (1:m) for
 idx_con_dyn = [[(i-1)*(n*(T-1)) + (t-1)*n .+ (1:n) for t = 1:T-1] for i = 1:N]
 idx_con_ctrl = [[(i-1)*(m*(T-1)) + N*(n*(T-1)) + (t-1)*m .+ (1:m) for t = 1:T-1] for i = 1:N]
 
+function resample(X; β=1.0,w=1.0)
+    N = length(X)
+    n = length(X[1])
+
+    xμ = sum(X)./N
+    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + w*I
+    # cols = cholesky(Σμ).U
+    cols = fastsqrt(Σμ)
+    Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
+
+    return Xs
+end
+
+function sample_nonlinear_dynamics(X,U; β=1.0,w=1.0)
+    N = length(X)
+    X⁺ = []
+    for i = 1:N
+        push!(X⁺,dynamics(X[i],U[i],Δt))
+    end
+    # return X⁺
+    Xs⁺ = resample(X⁺,β=β,w=w)
+    return Xs⁺
+end
+
 function obj(z)
     s = 0
     for t = 1:T-1
@@ -161,24 +207,18 @@ function obj(z)
 end
 
 function con!(c,z)
+    β = 1.0
+    w = 1.0e-1
     for t = 1:T-1
-        # resample
-        β = 1.0
-        if t > 1
-            xμ = sum([view(z,idx_x[i][t-1]) for i = 1:N])./N
-            Σμ = (0.5/(β^2))*sum([(view(z,idx_x[i][t-1]) - xμ)*(view(z,idx_x[i][t-1]) - xμ)' for i = 1:N]) + 1.0e-8*I
-            cols = cholesky(Σμ).U
-            # cols = fastsqrt(Σμ)
-            xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
-        end
+        xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
+        u = [view(z,idx_u[i][t]) for i = 1:N]
+        xs⁺ = sample_nonlinear_dynamics(xs,u,β=β,w=w)
+        x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
+        k = reshape(view(z,idx_k[t]),m,n)
+
         for i = 1:N
-            x = (t==1 ? x1[i] : view(z,idx_x[i][t-1]))
-            # x = (t==1 ? x1[i] : xs[i])
-            x⁺ = view(z,idx_x[i][t])
-            u = view(z,idx_u[i][t])
-            k = reshape(view(z,idx_k[t]),m,n)
-            c[idx_con_dyn[i][t]] = dynamics(x,u,Δt) - x⁺
-            c[idx_con_ctrl[i][t]] = u + k*(x - x_nom[t]) - u_nom[t]
+            c[idx_con_dyn[i][t]] = xs⁺[i] - x⁺[i]
+            c[idx_con_ctrl[i][t]] = u[i] + k*(xs[i] - x_nom[t]) - u_nom[t]
         end
     end
     return c
@@ -189,9 +229,9 @@ con!(c0,ones(n_nlp))
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z0 = rand(n_nlp)
-z_sol_nl = solve(z0,prob)
+z_sol_s = solve(z0,prob)
 
-K_sample = [reshape(z_sol_nl[idx_k[t]],m,n) for t = 1:T-1]
+K_sample = [reshape(z_sol_s[idx_k[t]],m,n) for t = 1:T-1]
 K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("solution error: $(sum(K_error)/N)")
 
@@ -200,7 +240,7 @@ plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0
 # simulate controllers
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-5*rand(n))
+Σ = Diagonal(1.0e-3*rand(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x_nom[1])
@@ -225,7 +265,3 @@ plot!(t_nom[1:end-1],vcat(K...)[:,2],label="",width=2.0,color=:purple,linetype=:
 
 plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],label="sample",color=:orange,width=2.0,linetype=:steppost)
 plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
-
-# plot(hcat(u_nom_sim...)',linetype=:steppost)
-# plot!(hcat(u_tvlqr...)',linetype=:steppost)
-# plot!(hcat(u_sample...)',linetype=:steppost)
