@@ -87,7 +87,6 @@ idx_con_ctrl = [[(i-1)*(m*(T-1)) + N*(n*(T-1)) + (t-1)*m .+ (1:m) for t = 1:T-1]
 # idx_con_dyn_s = [N*(n*(T-1) + m*(T-1)) + (t-1)*n .+ (1:n) for t = 1:T-2]
 # idx_con_ctrl_s = [N*(n*(T-1) + m*(T-1)) + (T-2)*n + (t-1)*m .+ (1:m) for t = 1:T-2]
 
-
 function resample(X; β=1.0,w=1.0)
     N = length(X)
     n = length(X[1])
@@ -126,7 +125,7 @@ end
 display(plt)
 
 
-function sample_dynamics(X,U; β=1.0,w=1.0e-16)
+function sample_dynamics(X,U; β=1.0,w=1.0)
     N = length(X)
     X⁺ = []
     for i = 1:N
@@ -199,18 +198,18 @@ for i = 1:N
     x = x3[i]
     plt = scatter!([x[1]],[x[2]],label="",color=:green)
 end
-
-for i = 1:N
-    x = x1s[i]
-    plt = scatter!([x[1]],[x[2]],label="",color=:red,marker=:square)
-end
-for i = 1:N
-    x = x2s[i]
-    plt = scatter!([x[1]],[x[2]],label="",color=:blue,marker=:square)
-end
-for i = 1:N
-    x = x3s[i]
-    plt = scatter!([x[1]],[x[2]],label="",color=:green,marker=:square)
-end
+#
+# for i = 1:N
+#     x = x1s[i]
+#     plt = scatter!([x[1]],[x[2]],label="",color=:red,marker=:square)
+# end
+# for i = 1:N
+#     x = x2s[i]
+#     plt = scatter!([x[1]],[x[2]],label="",color=:blue,marker=:square)
+# end
+# for i = 1:N
+#     x = x3s[i]
+#     plt = scatter!([x[1]],[x[2]],label="",color=:green,marker=:square)
+# end
 
 display(plt)
