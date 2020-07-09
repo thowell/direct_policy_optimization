@@ -36,7 +36,7 @@ for t = T-1:-1:1
 end
 
 # number of samples
-β = 100.0
+β = 1.0
 x11 = β*[1.0; 1.0]
 x12 = β*[1.0; -1.0]
 x13 = β*[-1.0; 1.0]
@@ -62,6 +62,56 @@ idx_con_ctrl = [[(i-1)*(m*(T-1)) + N*(n*(T-1)) + (t-1)*m .+ (1:m) for t = 1:T-1]
 # idx_con_dyn_s = [N*(n*(T-1) + m*(T-1)) + (t-1)*n .+ (1:n) for t = 1:T-2]
 # idx_con_ctrl_s = [N*(n*(T-1) + m*(T-1)) + (T-2)*n + (t-1)*m .+ (1:m) for t = 1:T-2]
 
+
+function resample(X; β=1.0,w=1.0)
+    N = length(X)
+    n = length(X[1])
+
+    xμ = sum(X)./N
+    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + w*I
+    cols = cholesky(Σμ).U
+
+    Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
+
+    return Xs
+end
+
+x1s = resample(x1)
+
+x2 = [A*x1[i] - B*K[1]*x1[i] for i = 1:N]
+x2s = resample(x2)
+
+plt = plot()
+for i = 1:N
+    x = x1[i]
+    plt = scatter!([x[1]],[x[2]],label="",color=:red)
+end
+for i = 1:N
+    x = x1s[i]
+    plt = scatter!([x[1]],[x[2]],label="",color=:blue)
+end
+for i = 1:N
+    x = x2[i]
+    plt = scatter!([x[1]],[x[2]],label="",color=:red,marker=:square)
+end
+for i = 1:N
+    x = x2s[i]
+    plt = scatter!([x[1]],[x[2]],label="",color=:blue,marker=:square)
+end
+display(plt)
+
+
+function sample_dynamics(X,U; β=1.0,w=1.0e-16)
+    N = length(X)
+    X⁺ = []
+    for i = 1:N
+        push!(X⁺,A*X[i] + B*U[i])
+    end
+    return X⁺
+    # Xs⁺ = resample(X⁺,β=β,w=w)
+    # return Xs⁺
+end
+
 function obj(z)
     s = 0
     for t = 1:T-1
@@ -75,32 +125,19 @@ function obj(z)
 end
 
 function con!(c,z)
+    β = 1.0
+    w = 1.0e-16
     for t = 1:T-1
-        # resample
-        β = 1.0
-        if t > 1
-            xμ = sum([view(z,idx_x[i][t-1]) for i = 1:N])./N
-            Σμ = (0.5/(β^2))*sum([(view(z,idx_x[i][t-1]) - xμ)*(view(z,idx_x[i][t-1]) - xμ)' for i = 1:N]) + 1.0e-8*I
-            cols = cholesky(Σμ).U
-            # cols = fastsqrt(Σμ)
-            xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
-        end
-        for i = 1:N
-            if t > 1 && eltype(z) == Float64
-                i==1 && println("t: $t")
-                println("xi: $(view(z,idx_x[i][t-1]))")
-                println("xs: $(xs[i])")
-            end
-            x = (t==1 ? x1[i] : view(z,idx_x[i][t-1]))
-            # x = (t==1 ? x1[i] : xs[i])
-            x⁺ = view(z,idx_x[i][t])
-            u = view(z,idx_u[i][t])
-            k = reshape(view(z,idx_k[t]),m,n)
-            c[idx_con_dyn[i][t]] = A*x + B*u - x⁺
-            c[idx_con_ctrl[i][t]] = u + k*x
-        end
+        xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
+        u = [view(z,idx_u[i][t]) for i = 1:N]
+        xs⁺ = sample_dynamics(xs,u,β=β,w=w)
+        x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
+        k = reshape(view(z,idx_k[t]),m,n)
 
-        println("\n")
+        for i = 1:N
+            c[idx_con_dyn[i][t]] = xs⁺[i] - x⁺[i]
+            c[idx_con_ctrl[i][t]] = u[i] + k*xs[i]
+        end
     end
     return c
 end

@@ -107,8 +107,8 @@ plot(θ_sol,dθ_sol,xlabel="θ",ylabel="dθ",width=2.0)
 A = []
 B = []
 for t = 1:T-1
-    x = x_nom[t]
-    u = u_nom[t]
+    x = x_sol[t]
+    u = u_sol[t]
     fx(z) = dynamics(z,u,Δt)
     fu(z) = dynamics(x,z,Δt)
 
@@ -117,7 +117,7 @@ for t = 1:T-1
 end
 
 Q = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0;100.0]) for t = 1:T]
-R = [Diagonal(1.0*ones(m)) for t = 1:T-1]
+R = [Diagonal(ones(m)) for t = 1:T-1]
 
 P = [zeros(n,n) for t = 1:T]
 K = [zeros(m,n) for t = 1:T-1]
@@ -128,7 +128,7 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-β = 1.0
+β = 10.0
 x11 = β*[1.0; 0.0] + x_nom[1]
 x12 = β*[-1.0; 0.0] + x_nom[1]
 x13 = β*[0.0; 1.0] + x_nom[1]
@@ -162,6 +162,7 @@ end
 
 function con!(c,z)
     for t = 1:T-1
+        # resample
         β = 1.0
         if t > 1
             xμ = sum([view(z,idx_x[i][t-1]) for i = 1:N])./N
@@ -171,8 +172,9 @@ function con!(c,z)
             xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
         end
         for i = 1:N
-            # x = (t==1 ? x1[i] : view(z,idx_x[i][t-1]))
-            x = (t==1 ? x1[i] : xs[i])
+            x = (t==1 ? x1[i] : view(z,idx_x[i][t-1]))
+            # x = (t==1 ? x1[i] : xs[i])
+
             x⁺ = view(z,idx_x[i][t])
             u = view(z,idx_u[i][t])
             k = reshape(view(z,idx_k[t]),m,n)
@@ -188,9 +190,9 @@ con!(c0,ones(n_nlp))
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z0 = rand(n_nlp)
-z_sol = solve(z0,prob)
+z_sol_nl = solve(z0,prob)
 
-K_sample = [reshape(z_sol[idx_k[t]],m,n) for t = 1:T-1]
+K_sample = [reshape(z_sol_nl[idx_k[t]],m,n) for t = 1:T-1]
 K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("solution error: $(sum(K_error)/N)")
 
