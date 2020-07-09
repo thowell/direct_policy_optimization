@@ -151,10 +151,10 @@ for t = T-1:-1:1
 end
 
 β = 1.0
-x11 = β*[1.0; 0.0]
-x12 = β*[-1.0; 0.0]
-x13 = β*[0.0; 1.0]
-x14 = β*[0.0; -1.0]
+x11 = β*[1.0; 0.0] + x_nom[1]
+x12 = β*[-1.0; 0.0] + x_nom[1]
+x13 = β*[0.0; 1.0] + x_nom[1]
+x14 = β*[0.0; -1.0] + x_nom[1]
 
 x1 = [x11,x12,x13,x14]
 
@@ -240,7 +240,7 @@ plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0
 # simulate controllers
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-3*rand(n))
+Σ = Diagonal(1.0e-2*rand(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x_nom[1])
@@ -249,19 +249,30 @@ z_nom_sim, u_nom_sim = nominal_trajectories(x_nom,u_nom,T_sim,Δt)
 t_nom = range(0,stop=Δt*T,length=T)
 t_sim = range(0,stop=Δt*T,length=T_sim)
 
-plt = plot(t_nom,hcat(x_nom...)[1,:],color=:red,label="ref.",width=2.0,xlabel="time (s)")
-plt = plot!(t_nom,hcat(x_nom...)[2,:],color=:red,label="",width=2.0)
+plt = plot(t_nom,hcat(x_nom...)[1,:],linetype=:steppost,color=:red,label="ref.",width=2.0,xlabel="time (s)")
+plt = plot!(t_nom,hcat(x_nom...)[2,:],linetype=:steppost,color=:red,label="",width=2.0)
 
-z_tvlqr, u_tvlqr = simulate_linear_controller(K,x_nom,u_nom,T_sim,Δt,z0_sim,w)
-plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
-plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
+z_tvlqr, u_tvlqr, J_tvlqr = simulate_linear_controller(K,x_nom,u_nom,Q,R,T_sim,Δt,z0_sim,w)
+plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],linetype=:steppost,color=:purple,label="tvlqr",width=2.0)
+plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],linetype=:steppost,color=:purple,label="",width=2.0)
 
-z_sample, u_sample = simulate_linear_controller(K_sample,x_nom,u_nom,T_sim,Δt,z0_sim,w)
-plt = plot!(t_sim,hcat(z_sample...)[1,:],color=:orange,label="sample",width=2.0)
-plt = plot!(t_sim,hcat(z_sample...)[2,:],color=:orange,label="",width=2.0)
+z_sample, u_sample, J_sample = simulate_linear_controller(K_sample,x_nom,u_nom,Q,R,T_sim,Δt,z0_sim,w)
+plt = plot!(t_sim,hcat(z_sample...)[1,:],linetype=:steppost,color=:orange,label="sample",width=2.0)
+plt = plot!(t_sim,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label="",width=2.0)
 
 plot(t_nom[1:end-1],vcat(K...)[:,1],xlabel="time (s)",title="Gains",label="tvlqr",width=2.0,color=:purple,linetype=:steppost)
 plot!(t_nom[1:end-1],vcat(K...)[:,2],label="",width=2.0,color=:purple,linetype=:steppost)
 
 plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],label="sample",color=:orange,width=2.0,linetype=:steppost)
 plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
+
+# objective value
+J_tvlqr
+J_sample
+
+# gain error
+# K_sample = [reshape(z_sol_s[idx_k[t]],m,n) for t = 1:T-1]
+# K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
+# println("solution error: $(sum(K_error)/N)")
+
+# plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
