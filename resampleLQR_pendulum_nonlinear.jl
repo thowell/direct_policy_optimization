@@ -150,7 +150,7 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-β = 1.0
+β = 1.0e-1
 x11 = β*[1.0; 0.0] + x_nom[1]
 x12 = β*[-1.0; 0.0] + x_nom[1]
 x13 = β*[0.0; 1.0] + x_nom[1]
@@ -249,7 +249,7 @@ z_nom_sim, u_nom_sim = nominal_trajectories(x_nom,u_nom,T_sim,Δt)
 t_nom = range(0,stop=Δt*T,length=T)
 t_sim = range(0,stop=Δt*T,length=T_sim)
 
-plt = plot(t_nom,hcat(x_nom...)[1,:],linetype=:steppost,color=:red,label="ref.",width=2.0,xlabel="time (s)")
+plt = plot(t_nom,hcat(x_nom...)[1,:],legend=:bottom,linetype=:steppost,color=:red,label="ref.",width=2.0,xlabel="time (s)")
 plt = plot!(t_nom,hcat(x_nom...)[2,:],linetype=:steppost,color=:red,label="",width=2.0)
 
 z_tvlqr, u_tvlqr, J_tvlqr = simulate_linear_controller(K,x_nom,u_nom,Q,R,T_sim,Δt,z0_sim,w)
@@ -263,7 +263,7 @@ plt = plot!(t_sim,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label=
 plot(t_nom[1:end-1],vcat(K...)[:,1],xlabel="time (s)",title="Gains",label="tvlqr",width=2.0,color=:purple,linetype=:steppost)
 plot!(t_nom[1:end-1],vcat(K...)[:,2],label="",width=2.0,color=:purple,linetype=:steppost)
 
-plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],label="sample",color=:orange,width=2.0,linetype=:steppost)
+plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],legend=:bottom,label="sample",color=:orange,width=2.0,linetype=:steppost)
 plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
 
 # objective value

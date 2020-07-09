@@ -18,7 +18,7 @@ function simulate_linear_controller(Kc,z_nom,u_nom,Q,R,T_sim,Δt,z0,w)
         push!(u_rollout,u)
         J += (z-z_nom[k])'*Q[k]*(z-z_nom[k]) + (u-u_nom[k])'*R[k]*(u-u_nom[k])
     end
-    return z_rollout, u_rollout, J
+    return z_rollout, u_rollout, J/(T_sim-1)
 end
 
 function nominal_trajectories(z_nom,u_nom,T_sim,Δt)
