@@ -3,6 +3,31 @@ include("ipopt.jl")
 include("control.jl")
 include("integration.jl")
 
+function fastsqrt(A)
+    #FASTSQRT computes the square root of a matrix A with Denman-Beavers iteration
+
+    #S = sqrtm(A);
+    Ep = 1e-8*Matrix(I,size(A))
+
+    if count(diag(A) .> 0.0) != size(A,1)
+        S = diagm(sqrt.(diag(A)));
+        return S
+    end
+
+    In = Matrix(1.0*I,size(A));
+    S = A;
+    T = Matrix(1.0*I,size(A));
+
+    T = .5*(T + inv(S+Ep));
+    S = .5*(S+In);
+    for k = 1:4
+        Snew = .5*(S + inv(T+Ep));
+        T = .5*(T + inv(S+Ep));
+        S = Snew;
+    end
+    return S
+end
+
 mutable struct Cartpole{T}
     mc::T # mass of the cart in kg (10)
     mp::T # mass of the pole (point mass at the end) in kg
@@ -24,7 +49,7 @@ model = Cartpole(1.0,0.2,0.5,9.81)
 n, m = 4,1
 
 # Pendulum discrete-time dynamics (midpoint)
-function dynamics(x,u,Δt)
+function dynamics(model,x,u,Δt)
     x + Δt*dyn_c(model,x + 0.5*Δt*dyn_c(model,x,u),u)
 end
 
@@ -127,7 +152,7 @@ let K_ukf=K_ukf, H=Q[T]
         println("t: $t")
         tmp[1:n,1:n] = H
         tmp[n .+ (1:m),n .+ (1:m)] = R[t-1]
-        L = cholesky(Hermitian(inv(tmp))).U
+        L = fastsqrt(inv(tmp))
 
         z_tmp[1:n] = z_nom[t]
         z_tmp[n .+ (1:m)] = u_nom[t-1]
@@ -160,18 +185,21 @@ end
 # simulate controllers
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-16*rand(n))
+Σ = Diagonal(1.0e-3*rand(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x1)
 
 z_nom_sim, u_nom_sim = nominal_trajectories(z_nom,u_nom,T_sim,Δt)
 plt = plot(hcat(z_nom_sim...)',color=:red,label=["ref." "" "" ""],width=2.0)
-z_tvlqr, u_tvlqr = simulate_linear_controller(K,z_nom,u_nom,T_sim,Δt,z0_sim,w)
+z_tvlqr, u_tvlqr, J_tvlqr = simulate_linear_controller(K,z_nom,u_nom,model,Q,R,T_sim,Δt,z0_sim,w)
 plt = plot!(hcat(z_tvlqr...)',color=:purple,label=["tvlqr" "" "" ""],width=2.0)
-z_sample, u_sample = simulate_linear_controller(K_ukf,z_nom,u_nom,T_sim,Δt,z0_sim,w)
+z_sample, u_sample, J_sample = simulate_linear_controller(K_ukf,z_nom,u_nom,model,Q,R,T_sim,Δt,z0_sim,w)
 plt = plot!(hcat(z_sample...)',color=:orange,label=["unscented" "" "" ""],width=2.0)
 
 plot(hcat(u_nom_sim...)',linetype=:steppost)
 plot!(hcat(u_tvlqr...)',linetype=:steppost)
 plot!(hcat(u_sample...)',linetype=:steppost)
+
+J_tvlqr
+J_sample

@@ -28,6 +28,7 @@ function fastsqrt(A)
     return S
 end
 
+# Pendulum continuous-time dynamics
 n = 2
 m = 1
 
@@ -91,7 +92,7 @@ for t = 1:T
     z0[x_idx[t]] = x_ref[t]
 end
 
-function obj_traj(z)
+function obj(z)
     s = 0.0
     for t = 1:T-1
         x = z[x_idx[t]]
@@ -104,10 +105,10 @@ function obj_traj(z)
     return s
 end
 
-obj_traj(z0)
+obj(z0)
 
 # Constraints
-function con_traj!(c,z)
+function con!(c,z)
     for t = 1:T-1
         x = z[x_idx[t]]
         u = z[u_idx[t]]
@@ -120,10 +121,10 @@ function con_traj!(c,z)
 end
 
 c0 = zeros(m_nlp)
-con_traj!(c0,z0)
+con!(c0,z0)
 
 # NLP problem
-prob = Problem(n_nlp,m_nlp,obj_traj,con_traj!,true)
+prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 # Solve
 z_sol = solve(z0,prob)
@@ -162,13 +163,20 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-β = 1.0e-1
+β = 100.0e-1
 x11 = β*[1.0; 0.0] + x_nom[1]
 x12 = β*[-1.0; 0.0] + x_nom[1]
 x13 = β*[0.0; 1.0] + x_nom[1]
 x14 = β*[0.0; -1.0] + x_nom[1]
-
 x1 = [x11,x12,x13,x14]
+
+model1 = Pendulum(1.0,0.5,0.1,0.5,0.25,9.81)
+model2 = Pendulum(1.0,0.5,0.1,0.5,0.25,9.81)
+model3 = Pendulum(1.0,0.5,0.1,0.5,0.25,9.81)
+model4 = Pendulum(1.0,0.5,0.1,0.5,0.25,9.81)
+models = [model1,model2,model3,model4]
+
+models = [model for i = 1:N]
 
 N = length(x1)
 
@@ -195,11 +203,11 @@ function resample(X; β=1.0,w=1.0)
     return Xs
 end
 
-function sample_nonlinear_dynamics(model,X,U; β=1.0,w=1.0)
+function sample_nonlinear_dynamics(models,X,U; β=1.0,w=1.0)
     N = length(X)
     X⁺ = []
     for i = 1:N
-        push!(X⁺,dynamics(model,X[i],U[i],Δt))
+        push!(X⁺,dynamics(models[i],X[i],U[i],Δt))
     end
     # return X⁺
     Xs⁺ = resample(X⁺,β=β,w=w)
@@ -224,7 +232,7 @@ function con!(c,z)
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_nonlinear_dynamics(model,xs,u,β=β,w=w)
+        xs⁺ = sample_nonlinear_dynamics(models,xs,u,β=β,w=w)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         k = reshape(view(z,idx_k[t]),m,n)
 
@@ -250,10 +258,12 @@ println("solution error: $(sum(K_error)/N)")
 plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
 
 # simulate controllers
-model_sim = model
+model_unc = Pendulum(1.0,0.5,0.1,0.5,0.25,9.81)
+
+model_sim = model_unc
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-3*rand(n))
+Σ = Diagonal(1.0e-8*rand(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x_nom[1])
@@ -273,11 +283,11 @@ z_sample, u_sample, J_sample = simulate_linear_controller(K_sample,x_nom,u_nom,m
 plt = plot!(t_sim,hcat(z_sample...)[1,:],linetype=:steppost,color=:orange,label="sample",width=2.0)
 plt = plot!(t_sim,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label="",width=2.0)
 
-plot(t_nom[1:end-1],vcat(K...)[:,1],xlabel="time (s)",title="Gains",label="tvlqr",width=2.0,color=:purple,linetype=:steppost)
-plot!(t_nom[1:end-1],vcat(K...)[:,2],label="",width=2.0,color=:purple,linetype=:steppost)
-
-plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],legend=:bottom,label="sample",color=:orange,width=2.0,linetype=:steppost)
-plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
+# plot(t_nom[1:end-1],vcat(K...)[:,1],xlabel="time (s)",title="Gains",label="tvlqr",width=2.0,color=:purple,linetype=:steppost)
+# plot!(t_nom[1:end-1],vcat(K...)[:,2],label="",width=2.0,color=:purple,linetype=:steppost)
+#
+# plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],legend=:bottom,label="sample",color=:orange,width=2.0,linetype=:steppost)
+# plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
 
 plot(hcat(u_nom_sim...)',color=:red,label="ref.",linetype=:steppost)
 plot!(hcat(u_tvlqr...)',color=:purple,label="tvlqr",linetype=:steppost)
@@ -286,6 +296,7 @@ plot!(hcat(u_sample...)',color=:orange,label="sample",linetype=:steppost)
 # objective value
 J_tvlqr
 J_sample
+
 
 # gain error
 # K_sample = [reshape(z_sol_s[idx_k[t]],m,n) for t = 1:T-1]

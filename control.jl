@@ -1,4 +1,4 @@
-function simulate_linear_controller(Kc,z_nom,u_nom,Q,R,T_sim,Δt,z0,w)
+function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w)
     T = length(Kc)+1
     times = [(t-1)*Δt for t = 1:T-1]
     tf = Δt*T
@@ -14,7 +14,7 @@ function simulate_linear_controller(Kc,z_nom,u_nom,Q,R,T_sim,Δt,z0,w)
         z = z_rollout[end] + w[:,tt]
         u = u_nom[k] - Kc[k]*(z - z_nom[k])
 
-        push!(z_rollout,dynamics(z,u,dt_sim))
+        push!(z_rollout,dynamics(model,z,u,dt_sim))
         push!(u_rollout,u)
         J += (z-z_nom[k])'*Q[k]*(z-z_nom[k]) + (u-u_nom[k])'*R[k]*(u-u_nom[k])
     end
