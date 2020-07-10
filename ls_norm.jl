@@ -3,28 +3,10 @@ using StaticArrays, BenchmarkTools, SparseArrays, Distributions
 include("ipopt.jl")
 
 n = 100
-m = 20
+m = 10
 
 A = randn(m,n)
 b = randn(m)
-
-# ℓ2-norm (squared)
-function obj_l2(z)
-	return z'*z
-end
-
-function con_l2!(c,z)
-	c[1:m] = A*z - b
-	return c
-end
-
-n_nlp_l2 = n
-m_nlp_l2 = m
-
-prob_l2 = Problem(n_nlp_l2,m_nlp_l2,obj_l2,con_l2!,true)
-z0_l2 = rand(n_nlp_l2)
-z_l2 = solve(z0_l2,prob_l2)
-norm(A*z_l2 - b)
 
 # ℓ1-norm (slack reformulation)
 function obj_l1(z)
@@ -50,6 +32,24 @@ z0_l1 = rand(n_nlp_l1)
 z_l1 = solve(z0_l1,prob_l1)
 norm(A*z_l1[1:n] - b)
 
+# ℓ2-norm (squared)
+function obj_l2(z)
+	return z'*z
+end
+
+function con_l2!(c,z)
+	c[1:m] = A*z - b
+	return c
+end
+
+n_nlp_l2 = n
+m_nlp_l2 = m
+
+prob_l2 = Problem(n_nlp_l2,m_nlp_l2,obj_l2,con_l2!,true)
+z0_l2 = rand(n_nlp_l2)
+z_l2 = solve(z0_l2,prob_l2)
+norm(A*z_l2 - b)
+
 # l∞-norm (slack reformulation)
 function obj_l∞(z)
 	t = z[n + 1]
@@ -74,6 +74,6 @@ z0_l∞ = rand(n_nlp_l∞)
 z_l∞ = solve(z0_l∞,prob_l∞)
 norm(A*z_l∞[1:n] - b)
 
-scatter(z_l2,width=2.0,label="l2")
-scatter!(z_l1[1:n],width=2.0,label="l1")
+scatter(z_l1[1:n],legend=:bottom,width=2.0,label="l1",xlabel="element i",ylabel="x_i")
+scatter!(z_l2,width=2.0,label="l2")
 scatter!(z_l∞[1:n],width=2.0,label="l∞")
