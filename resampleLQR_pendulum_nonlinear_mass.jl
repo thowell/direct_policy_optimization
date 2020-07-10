@@ -163,17 +163,17 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-β = 1.0e-1
+β = 1.0##0.0#1.0e-1
 x11 = β*[1.0; 0.0] + x_nom[1]
 x12 = β*[-1.0; 0.0] + x_nom[1]
 x13 = β*[0.0; 1.0] + x_nom[1]
 x14 = β*[0.0; -1.0] + x_nom[1]
 x1 = [x11,x12,x13,x14]
 
-model1 = Pendulum(1.0,0.5,0.1,0.5,0.25,9.81)
-model2 = Pendulum(1.0,0.5,0.1,0.5,0.25,9.81)
-model3 = Pendulum(1.0,0.5,0.1,0.5,0.25,9.81)
-model4 = Pendulum(1.0,0.5,0.1,0.5,0.25,9.81)
+model1 = Pendulum(0.8,0.5,0.1,0.5,0.25,9.81)
+model2 = Pendulum(0.9,0.5,0.1,0.5,0.25,9.81)
+model3 = Pendulum(1.1,0.5,0.1,0.5,0.25,9.81)
+model4 = Pendulum(1.2,0.5,0.1,0.5,0.25,9.81)
 models = [model1,model2,model3,model4]
 
 models = [model for i = 1:N]
@@ -228,7 +228,7 @@ end
 
 function con!(c,z)
     β = 1.0
-    w = 1.0e-1
+    w = 1.0e-1#1.0
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
@@ -249,6 +249,12 @@ con!(c0,ones(n_nlp))
 prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z0 = rand(n_nlp)
+for t = 1:T-1
+    for i = 1:N
+        z0[idx_x[i][t]] = copy(x_nom[t+1])
+        z0[idx_u[i][t]] = copy(u_nom[t])
+    end
+end
 z_sol_s = solve(z0,prob)
 
 K_sample = [reshape(z_sol_s[idx_k[t]],m,n) for t = 1:T-1]
@@ -258,14 +264,14 @@ println("solution error: $(sum(K_error)/N)")
 plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
 
 # simulate controllers
-model_unc = Pendulum(1.0,0.5,0.1,0.5,0.25,9.81)
+model_unc = Pendulum(0.85,0.5,0.1,0.5,0.25,9.81)
 
 model_sim = model_unc
-T_sim = 10*T
+T_sim = T
 μ = zeros(n)
-Σ = Diagonal(0.5e-1*rand(n))
-W = Distributions.MvNormal(μ,Σ)
-w = rand(W,T_sim)
+Σ = Diagonal(1.0e-32*rand(n))
+# W = Distributions.MvNormal(μ,Σ)
+# w = rand(W,T_sim)
 z0_sim = copy(x_nom[1])
 
 z_nom_sim, u_nom_sim = nominal_trajectories(x_nom,u_nom,T_sim,Δt)
@@ -289,17 +295,13 @@ plt = plot!(t_sim,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label=
 # plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],legend=:bottom,label="sample",color=:orange,width=2.0,linetype=:steppost)
 # plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
 
-plot(hcat(u_nom_sim...)',color=:red,label="ref.",linetype=:steppost)
-plot!(hcat(u_tvlqr...)',color=:purple,label="tvlqr",linetype=:steppost)
-plot!(hcat(u_sample...)',color=:orange,label="sample",linetype=:steppost)
+plot(t_sim[1:end-1],hcat(u_nom_sim...)[:],color=:red,label="ref.",linetype=:steppost)
+plot!(t_sim[1:end-1],hcat(u_tvlqr...)[:],color=:purple,label="tvlqr",linetype=:steppost)
+plot!(t_sim[1:end-1],hcat(u_sample...)[:],color=:orange,label="sample",linetype=:steppost)
 
 # objective value
 J_tvlqr
 J_sample
 
-# gain error
-# K_sample = [reshape(z_sol_s[idx_k[t]],m,n) for t = 1:T-1]
-# K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-# println("solution error: $(sum(K_error)/N)")
-
-# plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
+J_tvlqr
+J_sample
