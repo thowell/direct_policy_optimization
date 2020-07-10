@@ -16,7 +16,12 @@ function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;_nor
 
         push!(z_rollout,dynamics(model,z,u,dt_sim))
         push!(u_rollout,u)
-        J += norm(sqrt(Q[k])*(z-z_nom[k]),_norm) + norm(sqrt(R[k])*(u-u_nom[k]),_norm)
+        if _norm == 2
+            J += (z_rollout[end]-z_nom[k+1])'*Q[k+1]*(z_rollout[end]-z_nom[k+1])
+            J += (u_rollout[end]-u_nom[k])'*R[k]*(u_rollout[end]-u_nom[k])
+        else
+            J += norm(sqrt(Q[k+1])*(z_rollout[end]-z_nom[k+1]),_norm) + norm(sqrt(R[k])*(u-u_nom[k]),_norm)
+        end
     end
     return z_rollout, u_rollout, J/(T_sim-1)
 end

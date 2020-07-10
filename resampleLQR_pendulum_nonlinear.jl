@@ -48,7 +48,7 @@ function dyn_c(model,x,u)
     I = model.I
     g = model.g
     return [x[2];
-        u[1]/(model.m*model.lc*model.lc) - model.g*sin(x[1])/model.lc - model.b*x[2]/(model.m*model.lc*model.lc)]
+        u[1]/(m*lc*lc) - g*sin(x[1])/lc - b*x[2]/(m*lc*lc)]
 end
 
 # Pendulum discrete-time dynamics (midpoint)
@@ -162,7 +162,7 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-β = 1.0e-1
+β = 1.0
 x11 = β*[1.0; 0.0] + x_nom[1]
 x12 = β*[-1.0; 0.0] + x_nom[1]
 x13 = β*[0.0; 1.0] + x_nom[1]
@@ -265,11 +265,11 @@ t_sim = range(0,stop=Δt*T,length=T_sim)
 plt = plot(t_nom,hcat(x_nom...)[1,:],legend=:bottom,linetype=:steppost,color=:red,label="ref.",width=2.0,xlabel="time (s)")
 plt = plot!(t_nom,hcat(x_nom...)[2,:],linetype=:steppost,color=:red,label="",width=2.0)
 
-z_tvlqr, u_tvlqr, J_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)
+z_tvlqr, u_tvlqr, J_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,_norm=2)
 plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],linetype=:steppost,color=:purple,label="tvlqr",width=2.0)
 plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],linetype=:steppost,color=:purple,label="",width=2.0)
 
-z_sample, u_sample, J_sample = simulate_linear_controller(K_sample,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)
+z_sample, u_sample, J_sample = simulate_linear_controller(K_sample,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,_norm=2)
 plt = plot!(t_sim,hcat(z_sample...)[1,:],linetype=:steppost,color=:orange,label="sample",width=2.0)
 plt = plot!(t_sim,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label="",width=2.0)
 
@@ -286,10 +286,3 @@ plot!(hcat(u_sample...)',color=:orange,label="sample",linetype=:steppost)
 # objective value
 J_tvlqr
 J_sample
-
-# gain error
-# K_sample = [reshape(z_sol_s[idx_k[t]],m,n) for t = 1:T-1]
-# K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-# println("solution error: $(sum(K_error)/N)")
-
-# plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")

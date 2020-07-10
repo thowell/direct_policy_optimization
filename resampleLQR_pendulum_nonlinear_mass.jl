@@ -49,7 +49,7 @@ function dyn_c(model,x,u)
     I = model.I
     g = model.g
     return [x[2];
-        u[1]/(model.m*model.lc*model.lc) - model.g*sin(x[1])/model.lc - model.b*x[2]/(model.m*model.lc*model.lc)]
+        u[1]/(m*lc*lc) - g*sin(x[1])/lc - b*x[2]/(m*lc*lc)]
 end
 
 # Pendulum discrete-time dynamics (midpoint)

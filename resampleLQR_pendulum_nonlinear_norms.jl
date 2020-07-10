@@ -164,10 +164,10 @@ for t = T-1:-1:1
 end
 
 β = 1.0
-x11 = β*[1.0; 0.0]
-x12 = β*[-1.0; 0.0]
-x13 = β*[0.0; 1.0]
-x14 = β*[0.0; -1.0]
+x11 = β*[1.0; 0.0] + x_nom[1]
+x12 = β*[-1.0; 0.0] + x_nom[1]
+x13 = β*[0.0; 1.0] + x_nom[1]
+x14 = β*[0.0; -1.0] + x_nom[1]
 
 x1 = [x11,x12,x13,x14]
 
@@ -186,11 +186,11 @@ function resample(X; β=1.0,w=1.0)
     return Xs
 end
 
-function sample_dynamics(X,U,A,B; β=1.0,w=1.0)
+function sample_dynamics(model,X,U; β=1.0,w=1.0)
     N = length(X)
     X⁺ = []
     for i = 1:N
-        push!(X⁺,A*X[i] + B*U[i])
+        push!(X⁺,dynamics(model,X[i],U[i],Δt))
     end
     # return X⁺
     Xs⁺ = resample(X⁺,β=β,w=w)
@@ -214,7 +214,7 @@ function obj_l2(z)
         for i = 1:N
             x = view(z,idx_x[i][t])
             u = view(z,idx_u[i][t])
-            s += x'*Q[t+1]*x + u'*R[t]*u
+            s += (x - x_nom[t+1])'*Q[t+1]*(x - x_nom[t+1]) + (u - u_nom[t])'*R[t]*(u - u_nom[t])
         end
     end
     return s
@@ -226,13 +226,13 @@ function con_l2!(c,z)
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_dynamics(xs,u,A[t],B[t],β=β,w=w)
+        xs⁺ = sample_dynamics(model,xs,u,β=β,w=w)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         k = reshape(view(z,idx_k[t]),m,n)
 
         for i = 1:N
             c[idx_con_dyn[i][t]] = xs⁺[i] - x⁺[i]
-            c[idx_con_ctrl[i][t]] = u[i] + k*xs[i]
+            c[idx_con_ctrl[i][t]] = u[i] + k*(xs[i] - x_nom[t]) - u_nom[t]
         end
     end
     return c
@@ -243,13 +243,19 @@ con_l2!(c0_l2,ones(n_nlp_l2))
 prob_l2 = Problem(n_nlp_l2,m_nlp_l2,obj_l2,con_l2!,true)
 
 z0_l2 = rand(n_nlp_l2)
+for t = 1:T-1
+    for i = 1:N
+        z0_l2[idx_x[i][t]] = copy(x_nom[t+1])
+        z0_l2[idx_u[i][t]] = copy(u_nom[t])
+    end
+end
 z_sol_l2 = solve(z0_l2,prob_l2)
 
 K_sample_l2 = [reshape(z_sol_l2[idx_k[t]],m,n) for t = 1:T-1]
 K_error = [norm(vec(K_sample_l2[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-println("solution error: $(sum(K_error)/N)")
+# println("solution error: $(sum(K_error)/N)")
 
-plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
+# plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
 
 # l1-norm controller
 n_nlp_l1 = m*n*(T-1) + N*(n*(T-1) + m*(T-1)) + N*(n*(T-1) + m*(T-1))
@@ -282,7 +288,7 @@ function con_l1!(c,z)
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_dynamics(xs,u,A[t],B[t],β=β,w=w)
+        xs⁺ = sample_dynamics(model,xs,u,β=β,w=w)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         k = reshape(view(z,idx_k[t]),m,n)
         sx = [view(z,idx_sx[i][t]) for i = 1:N]
@@ -290,23 +296,30 @@ function con_l1!(c,z)
 
         for i = 1:N
             c[idx_con_dyn[i][t]] = xs⁺[i] - x⁺[i]
-            c[idx_con_ctrl[i][t]] = u[i] + k*xs[i]
-            c[idx_con_sxp[i][t]] = sqrt(Q[t+1])*xs⁺[i] - sx[i]
-            c[idx_con_sxn[i][t]] = -sqrt(Q[t+1])*xs⁺[i] - sx[i]
-            c[idx_con_sup[i][t]] = sqrt(R[t])*u[i] - su[i]
-            c[idx_con_sun[i][t]] = -sqrt(R[t])*u[i] - su[i]
+            c[idx_con_ctrl[i][t]] = u[i] + k*(xs[i] - x_nom[t]) - u_nom[t]
+            c[idx_con_sxp[i][t]] = sqrt(Q[t+1])*(xs⁺[i] - x_nom[t+1]) - sx[i]
+            c[idx_con_sxn[i][t]] = -sqrt(Q[t+1])*(xs⁺[i] - x_nom[t+1]) - sx[i]
+            c[idx_con_sup[i][t]] = sqrt(R[t])*(u[i] - u_nom[t]) - su[i]
+            c[idx_con_sun[i][t]] = -sqrt(R[t])*(u[i] - u_nom[t]) - su[i]
         end
     end
     return c
 end
 
-c0 = rand(m_nlp_l1)
-con_l1!(c0,ones(n_nlp_l1))
+c0_l1 = rand(m_nlp_l1)
+con_l1!(c0_l1,ones(n_nlp_l1))
 idx_ineq = vcat(vcat(idx_con_sxp...,idx_con_sxn...,idx_con_sup...,idx_con_sun...)...)
 
 prob_l1 = Problem(n_nlp_l1,m_nlp_l1,obj_l1,con_l1!,true,idx_ineq=idx_ineq)
 
 z0_l1 = rand(n_nlp_l1)
+z0_l∞ = rand(n_nlp_l∞)
+for t = 1:T-1
+    for i = 1:N
+        z0_l1[idx_x[i][t]] = copy(x_nom[t+1])
+        z0_l1[idx_u[i][t]] = copy(u_nom[t])
+    end
+end
 z_sol_l1 = solve(z0_l1,prob_l1)
 
 K_sample_l1 = [reshape(z_sol_l1[idx_k[t]],m,n) for t = 1:T-1]
@@ -336,7 +349,7 @@ function con_l∞!(c,z)
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_dynamics(xs,u,A[t],B[t],β=β,w=w)
+        xs⁺ = sample_dynamics(model,xs,u,β=β,w=w)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         k = reshape(view(z,idx_k[t]),m,n)
         sx = [view(z,idx_sx_l∞[i][t])[1] for i = 1:N]
@@ -344,11 +357,11 @@ function con_l∞!(c,z)
 
         for i = 1:N
             c[idx_con_dyn[i][t]] = xs⁺[i] - x⁺[i]
-            c[idx_con_ctrl[i][t]] = u[i] + k*xs[i]
-            c[idx_con_sxp[i][t]] = sqrt(Q[t+1])*xs⁺[i] - sx[i]*ones(n)
-            c[idx_con_sxn[i][t]] = -sqrt(Q[t+1])*xs⁺[i] - sx[i]*ones(n)
-            c[idx_con_sup[i][t]] = sqrt(R[t])*u[i] - su[i]*ones(m)
-            c[idx_con_sun[i][t]] = -sqrt(R[t])*u[i] - su[i]*ones(m)
+            c[idx_con_ctrl[i][t]] = u[i] + k*(xs[i] - x_nom[t]) - u_nom[t]
+            c[idx_con_sxp[i][t]] = sqrt(Q[t+1])*(xs⁺[i] - x_nom[t+1]) - sx[i]*ones(n)
+            c[idx_con_sxn[i][t]] = -sqrt(Q[t+1])*(xs⁺[i] - x_nom[t+1]) - sx[i]*ones(n)
+            c[idx_con_sup[i][t]] = sqrt(R[t])*(u[i] - u_nom[t]) - su[i]*ones(m)
+            c[idx_con_sun[i][t]] = -sqrt(R[t])*(u[i] - u_nom[t]) - su[i]*ones(m)
         end
     end
     return c
@@ -361,6 +374,12 @@ idx_ineq = vcat(vcat(idx_con_sxp...,idx_con_sxn...,idx_con_sup...,idx_con_sun...
 prob_l∞ = Problem(n_nlp_l∞,m_nlp_l∞,obj_l∞,con_l∞!,true,idx_ineq=idx_ineq)
 
 z0_l∞ = rand(n_nlp_l∞)
+for t = 1:T-1
+    for i = 1:N
+        z0_l∞[idx_x[i][t]] = copy(x_nom[t+1])
+        z0_l∞[idx_u[i][t]] = copy(u_nom[t])
+    end
+end
 z_sol_l∞ = solve(z0_l∞,prob_l∞)
 
 K_sample_l∞ = [reshape(z_sol_l∞[idx_k[t]],m,n) for t = 1:T-1]
@@ -369,7 +388,7 @@ K_sample_l∞ = [reshape(z_sol_l∞[idx_k[t]],m,n) for t = 1:T-1]
 model_sim = model
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-2*rand(n))
+Σ = Diagonal(1.0e-5*rand(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x_nom[1])

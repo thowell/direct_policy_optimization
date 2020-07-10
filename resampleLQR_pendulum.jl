@@ -38,7 +38,7 @@ function dyn_c(x,u)
     lc = 0.5
     I = 0.25
     g = 9.81
-    return [x[2];(u[1] - m*g*lc*sin(x[1]) - b*x[2])/I]
+    return [x[2];u[1]/(m*lc*lc) - g*sin(x[1])/lc - b*x[2]/(m*lc*lc)]
 end
 
 # Pendulum discrete-time dynamics (midpoint)
