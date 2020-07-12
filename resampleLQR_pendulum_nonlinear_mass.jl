@@ -162,23 +162,32 @@ for t = T-1:-1:1
     K[t] = (R[t] + B[t]'*P[t+1]*B[t])\(B[t]'*P[t+1]*A[t])
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
+α_noise = 1.0
+α_mass = 0.0
 
-β = 1.0##0.0#1.0e-1
-x11 = β*[1.0; 0.0] + x_nom[1]
-x12 = β*[-1.0; 0.0] + x_nom[1]
-x13 = β*[0.0; 1.0] + x_nom[1]
-x14 = β*[0.0; -1.0] + x_nom[1]
-x1 = [x11,x12,x13,x14]
+x11_noise = α_noise*[1.0; 0.0] + x_nom[1]
+x12_noise = α_noise*[-1.0; 0.0] + x_nom[1]
+x13_noise = α_noise*[0.0; 1.0] + x_nom[1]
+x14_noise = α_noise*[0.0; -1.0] + x_nom[1]
+x1_noise = [x11_noise,x12_noise,x13_noise,x14_noise]
+
+x11_mass = α_mass*[1.0; 0.0] + x_nom[1]
+x12_mass = α_mass*[-1.0; 0.0] + x_nom[1]
+x13_mass = α_mass*[0.0; 1.0] + x_nom[1]
+x14_mass = α_mass*[0.0; -1.0] + x_nom[1]
+x1_mass = [x11_mass,x12_mass,x13_mass,x14_mass]
+
+N = length(x1_noise)
+
+models_noise = [model for i = 1:N]
 
 model1 = Pendulum(0.8,0.5,0.1,0.5,0.25,9.81)
 model2 = Pendulum(0.9,0.5,0.1,0.5,0.25,9.81)
 model3 = Pendulum(1.1,0.5,0.1,0.5,0.25,9.81)
 model4 = Pendulum(1.2,0.5,0.1,0.5,0.25,9.81)
-models = [model1,model2,model3,model4]
+models_mass = [model1,model2,model3,model4]
 
-models = [model for i = 1:N]
 
-N = length(x1)
 
 n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
 m_nlp = N*(n*(T-1) + m*(T-1))
@@ -226,13 +235,31 @@ function obj(z)
     return s
 end
 
-function con!(c,z)
+function con_noise!(c,z)
     β = 1.0
     w = 1.0e-1#1.0
     for t = 1:T-1
-        xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
+        xs = (t==1 ? [x1_noise[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_nonlinear_dynamics(models,xs,u,β=β,w=w)
+        xs⁺ = sample_nonlinear_dynamics(models_noise,xs,u,β=β,w=w)
+        x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
+        k = reshape(view(z,idx_k[t]),m,n)
+
+        for i = 1:N
+            c[idx_con_dyn[i][t]] = xs⁺[i] - x⁺[i]
+            c[idx_con_ctrl[i][t]] = u[i] + k*(xs[i] - x_nom[t]) - u_nom[t]
+        end
+    end
+    return c
+end
+
+function con_mass!(c,z)
+    β = 1.0
+    w = 1.0
+    for t = 1:T-1
+        xs = (t==1 ? [x1_mass[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
+        u = [view(z,idx_u[i][t]) for i = 1:N]
+        xs⁺ = sample_nonlinear_dynamics(models_mass,xs,u,β=β,w=w)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         k = reshape(view(z,idx_k[t]),m,n)
 
@@ -245,33 +272,38 @@ function con!(c,z)
 end
 
 c0 = rand(m_nlp)
-con!(c0,ones(n_nlp))
-prob = Problem(n_nlp,m_nlp,obj,con!,true)
+con_noise!(c0,ones(n_nlp))
+con_mass!(c0,ones(n_nlp))
 
-z0 = rand(n_nlp)
+prob_noise = Problem(n_nlp,m_nlp,obj,con_noise!,true)
+prob_mass = Problem(n_nlp,m_nlp,obj,con_mass!,true)
+
+z0_noise = rand(n_nlp)
+z0_mass = rand(n_nlp)
+
 for t = 1:T-1
     for i = 1:N
-        z0[idx_x[i][t]] = copy(x_nom[t+1])
-        z0[idx_u[i][t]] = copy(u_nom[t])
+        z0_noise[idx_x[i][t]] = copy(x_nom[t+1])
+        z0_noise[idx_u[i][t]] = copy(u_nom[t])
+        z0_mass[idx_x[i][t]] = copy(x_nom[t+1])
+        z0_mass[idx_u[i][t]] = copy(u_nom[t])
     end
 end
-z_sol_s = solve(z0,prob)
+z_sol_noise = solve(z0_noise,prob_noise)
+z_sol_mass = solve(z0_mass,prob_mass)
 
-K_sample = [reshape(z_sol_s[idx_k[t]],m,n) for t = 1:T-1]
-K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-println("solution error: $(sum(K_error)/N)")
-
-plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
+K_sample_noise = [reshape(z_sol_noise[idx_k[t]],m,n) for t = 1:T-1]
+K_sample_mass = [reshape(z_sol_mass[idx_k[t]],m,n) for t = 1:T-1]
 
 # simulate controllers
-model_unc = Pendulum(0.85,0.5,0.1,0.5,0.25,9.81)
+model_unc = Pendulum(1.15,0.5,0.1,0.5,0.25,9.81)
 
 model_sim = model_unc
 T_sim = T
 μ = zeros(n)
-Σ = Diagonal(1.0e-32*rand(n))
-# W = Distributions.MvNormal(μ,Σ)
-# w = rand(W,T_sim)
+Σ = Diagonal(1.0e-3*rand(n))
+W = Distributions.MvNormal(μ,Σ)
+w = rand(W,T_sim)
 z0_sim = copy(x_nom[1])
 
 z_nom_sim, u_nom_sim = nominal_trajectories(x_nom,u_nom,T_sim,Δt)
@@ -285,23 +317,20 @@ z_tvlqr, u_tvlqr, J_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q
 plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],linetype=:steppost,color=:purple,label="tvlqr",width=2.0)
 plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],linetype=:steppost,color=:purple,label="",width=2.0)
 
-z_sample, u_sample, J_sample = simulate_linear_controller(K_sample,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)
-plt = plot!(t_sim,hcat(z_sample...)[1,:],linetype=:steppost,color=:orange,label="sample",width=2.0)
-plt = plot!(t_sim,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label="",width=2.0)
+z_sample_noise, u_sample_noise, J_sample_noise = simulate_linear_controller(K_sample_noise,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)
+plt = plot!(t_sim,hcat(z_sample_noise...)[1,:],linetype=:steppost,color=:orange,label="sample (noise)",width=2.0)
+plt = plot!(t_sim,hcat(z_sample_noise...)[2,:],linetype=:steppost,color=:orange,label="",width=2.0)
 
-# plot(t_nom[1:end-1],vcat(K...)[:,1],xlabel="time (s)",title="Gains",label="tvlqr",width=2.0,color=:purple,linetype=:steppost)
-# plot!(t_nom[1:end-1],vcat(K...)[:,2],label="",width=2.0,color=:purple,linetype=:steppost)
-#
-# plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],legend=:bottom,label="sample",color=:orange,width=2.0,linetype=:steppost)
-# plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
+z_sample_mass, u_sample_mass, J_sample_mass = simulate_linear_controller(K_sample_mass,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)
+plt = plot!(t_sim,hcat(z_sample_mass...)[1,:],linetype=:steppost,color=:cyan,label="sample (mass)",width=2.0)
+plt = plot!(t_sim,hcat(z_sample_mass...)[2,:],linetype=:steppost,color=:cyan,label="",width=2.0)
 
-plot(t_sim[1:end-1],hcat(u_nom_sim...)[:],color=:red,label="ref.",linetype=:steppost)
+plot(t_sim[1:end-1],hcat(u_nom_sim...)[:],legend=:bottom,color=:red,label="ref.",linetype=:steppost)
 plot!(t_sim[1:end-1],hcat(u_tvlqr...)[:],color=:purple,label="tvlqr",linetype=:steppost)
-plot!(t_sim[1:end-1],hcat(u_sample...)[:],color=:orange,label="sample",linetype=:steppost)
+plot!(t_sim[1:end-1],hcat(u_sample_noise...)[:],color=:orange,label="sample (noise)",linetype=:steppost)
+plot!(t_sim[1:end-1],hcat(u_sample_mass...)[:],color=:cyan,label="sample (mass)",linetype=:steppost)
 
 # objective value
 J_tvlqr
-J_sample
-
-J_tvlqr
-J_sample
+J_sample_noise
+J_sample_mass
