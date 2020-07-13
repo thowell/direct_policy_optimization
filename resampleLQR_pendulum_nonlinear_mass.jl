@@ -187,8 +187,6 @@ model3 = Pendulum(1.1,0.5,0.1,0.5,0.25,9.81)
 model4 = Pendulum(1.2,0.5,0.1,0.5,0.25,9.81)
 models_mass = [model1,model2,model3,model4]
 
-
-
 n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
 m_nlp = N*(n*(T-1) + m*(T-1))
 
@@ -237,7 +235,7 @@ end
 
 function con_noise!(c,z)
     β = 1.0
-    w = 1.0e-1#1.0
+    w = 1.0e-1
     for t = 1:T-1
         xs = (t==1 ? [x1_noise[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
@@ -296,12 +294,12 @@ K_sample_noise = [reshape(z_sol_noise[idx_k[t]],m,n) for t = 1:T-1]
 K_sample_mass = [reshape(z_sol_mass[idx_k[t]],m,n) for t = 1:T-1]
 
 # simulate controllers
-model_unc = Pendulum(1.15,0.5,0.1,0.5,0.25,9.81)
+model_unc = Pendulum(1.16,0.5,0.1,0.5,0.25,9.81)
 
 model_sim = model_unc
 T_sim = T
 μ = zeros(n)
-Σ = Diagonal(1.0e-3*rand(n))
+Σ = Diagonal(1.0e-5*rand(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x_nom[1])
@@ -310,7 +308,7 @@ z_nom_sim, u_nom_sim = nominal_trajectories(x_nom,u_nom,T_sim,Δt)
 t_nom = range(0,stop=Δt*T,length=T)
 t_sim = range(0,stop=Δt*T,length=T_sim)
 
-plt = plot(t_nom,hcat(x_nom...)[1,:],legend=:bottom,linetype=:steppost,color=:red,label="ref.",width=2.0,xlabel="time (s)")
+plt = plot(t_nom,hcat(x_nom...)[1,:],title="Pendulum states",legend=:bottom,linetype=:steppost,color=:red,label="ref.",width=2.0,xlabel="time (s)")
 plt = plot!(t_nom,hcat(x_nom...)[2,:],linetype=:steppost,color=:red,label="",width=2.0)
 
 z_tvlqr, u_tvlqr, J_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)
@@ -325,7 +323,7 @@ z_sample_mass, u_sample_mass, J_sample_mass = simulate_linear_controller(K_sampl
 plt = plot!(t_sim,hcat(z_sample_mass...)[1,:],linetype=:steppost,color=:cyan,label="sample (mass)",width=2.0)
 plt = plot!(t_sim,hcat(z_sample_mass...)[2,:],linetype=:steppost,color=:cyan,label="",width=2.0)
 
-plot(t_sim[1:end-1],hcat(u_nom_sim...)[:],legend=:bottom,color=:red,label="ref.",linetype=:steppost)
+plot(t_sim[1:end-1],hcat(u_nom_sim...)[:],title="Pendulum controls",xlabel="time (s)",legend=:bottom,color=:red,label="ref.",linetype=:steppost)
 plot!(t_sim[1:end-1],hcat(u_tvlqr...)[:],color=:purple,label="tvlqr",linetype=:steppost)
 plot!(t_sim[1:end-1],hcat(u_sample_noise...)[:],color=:orange,label="sample (noise)",linetype=:steppost)
 plot!(t_sim[1:end-1],hcat(u_sample_mass...)[:],color=:cyan,label="sample (mass)",linetype=:steppost)
