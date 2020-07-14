@@ -387,10 +387,15 @@ K_sample_l∞ = [reshape(z_sol_l∞[idx_k[t]],m,n) for t = 1:T-1]
 model_sim = model
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-3*rand(n))
+Σ = Diagonal(1.0e-3*ones(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
-z0_sim = copy(x_nom[1])
+
+Σ0 = Diagonal(1.0e-2*ones(n))
+W0 = Distributions.MvNormal(μ0,Σ0)
+w0 = rand(W0,1)
+
+z0_sim = vec(copy(x_nom[1]) + w0)
 
 z_nom_sim, u_nom_sim = nominal_trajectories(x_nom,u_nom,T_sim,Δt)
 t_nom = range(0,stop=Δt*T,length=T)

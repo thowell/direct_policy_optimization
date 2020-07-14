@@ -258,9 +258,10 @@ T_sim = 10*T
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 
+μ0 = zeros(n)
 Σ0 = Diagonal(1.0e-2*ones(n))
-W0 = Distributions.MvNormal(μ,Σ)
-w0 = rand(W,1)
+W0 = Distributions.MvNormal(μ0,Σ0)
+w0 = rand(W0,1)
 
 z0_sim = vec(copy(x_nom[1]) + w0)
 
