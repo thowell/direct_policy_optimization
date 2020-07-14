@@ -107,8 +107,8 @@ plot(θ_sol,dθ_sol,xlabel="θ",ylabel="dθ",width=2.0)
 A = []
 B = []
 for t = 1:T-1
-    x = x_sol[t]
-    u = u_sol[t]
+    x = x_nom[t]
+    u = u_nom[t]
     fx(z) = dynamics(z,u,Δt)
     fu(z) = dynamics(x,z,Δt)
 
@@ -200,7 +200,7 @@ plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0
 # simulate controllers
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-5*rand(n))
+Σ = Diagonal(1.0e-5*ones(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x_nom[1])

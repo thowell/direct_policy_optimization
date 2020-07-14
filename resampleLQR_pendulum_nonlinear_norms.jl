@@ -313,7 +313,6 @@ idx_ineq = vcat(vcat(idx_con_sxp...,idx_con_sxn...,idx_con_sup...,idx_con_sun...
 prob_l1 = Problem(n_nlp_l1,m_nlp_l1,obj_l1,con_l1!,true,idx_ineq=idx_ineq)
 
 z0_l1 = rand(n_nlp_l1)
-z0_l∞ = rand(n_nlp_l∞)
 for t = 1:T-1
     for i = 1:N
         z0_l1[idx_x[i][t]] = copy(x_nom[t+1])
@@ -388,7 +387,7 @@ K_sample_l∞ = [reshape(z_sol_l∞[idx_k[t]],m,n) for t = 1:T-1]
 model_sim = model
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-5*rand(n))
+Σ = Diagonal(1.0e-3*rand(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 z0_sim = copy(x_nom[1])

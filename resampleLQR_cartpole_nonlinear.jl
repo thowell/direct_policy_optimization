@@ -1,4 +1,4 @@
-using LinearAlgebra, ForwardDiff, Distributions, Plots
+using LinearAlgebra, ForwardDiff, Distributions, Plots, StaticArrays
 include("ipopt.jl")
 include("integration.jl")
 include("control.jl")
