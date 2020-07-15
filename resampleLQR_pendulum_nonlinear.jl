@@ -218,6 +218,31 @@ function obj(z)
     return s
 end
 
+function obj(z)
+    s = 0
+    for t = 1:T-1
+        for i = 1:N
+            x = view(z,idx_x[i][t])
+            u = view(z,idx_u[i][t])
+            s += (x - x_nom[t+1])'*Q[t+1]*(x - x_nom[t+1]) + (u - u_nom[t])'*R[t]*(u - u_nom[t])
+        end
+    end
+    return s
+end
+
+function ∇obj!(g,z)
+    g .= 0.0
+    for t = 1:T-1
+        for i = 1:N
+            x = z[idx_x[i][t]]
+            u = z[idx_u[i][t]]
+            g[idx_x[i][t]] = 2.0*Q[t+1]*(x - x_nom[t+1])
+            g[idx_u[i][t]] = 2.0*R[t]*(u - u_nom[t])
+        end
+    end
+    return nothing
+end
+
 function con!(c,z)
     β = 1.0
     w = 1.0e-1
@@ -238,7 +263,19 @@ end
 
 c0 = rand(m_nlp)
 con!(c0,ones(n_nlp))
-prob = Problem(n_nlp,m_nlp,obj,con!,true)
+
+grad_f1 = ones(n_nlp)
+grad_f2 = ones(n_nlp)
+∇obj!(grad_f1,z0)
+ForwardDiff.gradient!(grad_f2,obj,z0)
+grad_f1
+grad_f2
+norm(grad_f1-grad_f2)
+# ∇obj!(g,z) = ForwardDiff.gradient!(g,obj,z)
+∇con!(∇c,z) = ForwardDiff.jacobian!(∇c,con!,zeros(eltype(z),m_nlp),z)
+prob = problem_derivatives(n_nlp,m_nlp,obj,∇obj!,con!,∇con!,true)
+
+# prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z0 = rand(n_nlp)
 z_sol_s = solve(z0,prob)
@@ -254,7 +291,7 @@ model_sim = model
 T_sim = 10*T
 
 μ = zeros(n)
-Σ = Diagonal(1.0e-3*ones(n))
+Σ = Diagonal(1.0e-1*ones(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 

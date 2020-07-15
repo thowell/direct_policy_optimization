@@ -1,4 +1,7 @@
-function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;_norm=2)
+function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
+        _norm=2,
+        ul=-Inf*ones(length(u_nom[1])),
+        uu=Inf*ones(length(u_nom[1])))
     T = length(Kc)+1
     times = [(t-1)*Δt for t = 1:T-1]
     tf = Δt*T
@@ -13,6 +16,10 @@ function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;_nor
         k = searchsortedlast(times,t)
         z = z_rollout[end] + dt_sim*w[:,tt]
         u = u_nom[k] - Kc[k]*(z - z_nom[k])
+
+        # clip controls
+        u = max.(u,ul)
+        u = min.(u,uu)
 
         push!(z_rollout,dynamics(model,z,u,dt_sim))
         push!(u_rollout,u)
