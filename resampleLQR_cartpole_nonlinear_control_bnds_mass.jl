@@ -45,7 +45,7 @@ function dyn_c(model::Cartpole, x, u)
     return @SVector [x[3],x[4],qdd[1],qdd[2]]
 end
 
-model = Cartpole(1.0,0.2,0.5,9.81)
+model = Cartpole(2.0,0.2,0.5,9.81)
 n, m = 4,1
 
 # Cartpole discrete-time dynamics (midpoint)
@@ -181,16 +181,17 @@ x1_vec = vcat(x1...)
 
 N = length(x1)
 
-# model1 = Cartpole(5.0,1.0,1.0,9.81)
-# model2 = Cartpole(5.0,1.0,1.0,9.81)
-# model3 = Cartpole(7.5,1.0,1.0,9.81)
-# model4 = Cartpole(10.0,1.0,1.0,9.81)
-# model5 = Cartpole(10.0,1.0,1.0,9.81)
-# model6 = Cartpole(12.5,1.0,1.0,9.81)
-# model7 = Cartpole(15.0,1.0,1.0,9.81)
-# model8 = Cartpole(15.0,1.0,1.0,9.81)
+model1 = Cartpole(1.01,0.2,0.5,9.81)
+model2 = Cartpole(1.01,0.2,0.5,9.81)
+model3 = Cartpole(1.01,0.2,0.5,9.81)
+model4 = Cartpole(1.01,0.2,0.5,9.81)
+model5 = Cartpole(1.02,0.2,0.5,9.81)
+model6 = Cartpole(1.02,0.2,0.5,9.81)
+model7 = Cartpole(1.02,0.2,0.5,9.81)
+model8 = Cartpole(1.02,0.2,0.5,9.81)
 
-models_mass = [model for i = 1:N]#model1,model2,model3,model4,model5,model6,model7,model8]
+# models_mass = [model for i = 1:N]#model1,model2,model3,model4,model5,model6,model7,model8]
+models_mass = [model1,model2,model3,model4,model5,model6,model7,model8]
 
 n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
 m_nlp = N*(n*(T-1) + m*(T-1))
@@ -446,42 +447,44 @@ K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 
 # plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
 
-model_unc = Cartpole(1.0,0.2,0.5,9.81)
+# model_unc = Cartpole(0.965,0.2,0.5,9.81)
+model_unc = Cartpole(1.01,0.2,0.5,9.81)
+
 model_sim = model_unc
 
 T_sim = 10*T
 μ = zeros(n)
-Σ = Diagonal(1.0e-2*rand(n))
+Σ = Diagonal(1.0e-3*ones(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 
 μ0 = zeros(n)
-Σ0 = Diagonal(1.0e-2*ones(n))
+Σ0 = Diagonal(1.0e-3*ones(n))
 W0 = Distributions.MvNormal(μ0,Σ0)
 w0 = rand(W0,1)
 
-z0_sim = vec(copy(x_nom[1]) + w[:,1])
+z0_sim = vec(copy(x_nom[1]) + 1.0*w[:,1])
 
 z_nom_sim, u_nom_sim = nominal_trajectories(x_nom,u_nom,T_sim,Δt)
 t_nom = range(0,stop=Δt*T,length=T)
 t_sim = range(0,stop=Δt*T,length=T_sim)
 
-plt = plot(t_nom,hcat(x_nom...)[1,:],title="States",legend=:bottom,linetype=:steppost,color=:red,label="ref.",width=2.0,xlabel="time (s)")
-plt = plot!(t_nom,hcat(x_nom...)[2,:],linetype=:steppost,color=:red,label="",width=2.0)
-plt = plot!(t_nom,hcat(x_nom...)[3,:],linetype=:steppost,color=:red,label="",width=2.0)
-plt = plot!(t_nom,hcat(x_nom...)[4,:],linetype=:steppost,color=:red,label="",width=2.0)
+plt = plot(t_nom,hcat(x_nom...)[1,:],title="States",legend=:bottom,color=:red,label="ref.",width=2.0,xlabel="time (s)")
+plt = plot!(t_nom,hcat(x_nom...)[2,:],color=:red,label="",width=2.0)
+plt = plot!(t_nom,hcat(x_nom...)[3,:],color=:red,label="",width=2.0)
+plt = plot!(t_nom,hcat(x_nom...)[4,:],color=:red,label="",width=2.0)
 
 z_tvlqr, u_tvlqr, J_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,ul=ul*ones(m),uu=uu*ones(m))
-plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],linetype=:steppost,color=:purple,label="tvlqr",width=2.0)
-plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],linetype=:steppost,color=:purple,label="",width=2.0)
-plt = plot!(t_sim,hcat(z_tvlqr...)[3,:],linetype=:steppost,color=:purple,label="",width=2.0)
-plt = plot!(t_sim,hcat(z_tvlqr...)[4,:],linetype=:steppost,color=:purple,label="",width=2.0)
+plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
+plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
+plt = plot!(t_sim,hcat(z_tvlqr...)[3,:],color=:purple,label="",width=2.0)
+plt = plot!(t_sim,hcat(z_tvlqr...)[4,:],color=:purple,label="",width=2.0)
 
 z_sample, u_sample, J_sample = simulate_linear_controller(K_sample,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,ul=ul*ones(m),uu=uu*ones(m))
-plt = plot!(t_sim,hcat(z_sample...)[1,:],linetype=:steppost,color=:orange,label="sample",width=2.0)
-plt = plot!(t_sim,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label="",width=2.0)
-plt = plot!(t_sim,hcat(z_sample...)[3,:],linetype=:steppost,color=:orange,label="",width=2.0)
-plt = plot!(t_sim,hcat(z_sample...)[4,:],linetype=:steppost,color=:orange,label="",width=2.0)
+plt = plot!(t_sim,hcat(z_sample...)[1,:],color=:orange,label="sample",width=2.0)
+plt = plot!(t_sim,hcat(z_sample...)[2,:],color=:orange,label="",width=2.0)
+plt = plot!(t_sim,hcat(z_sample...)[3,:],color=:orange,label="",width=2.0)
+plt = plot!(t_sim,hcat(z_sample...)[4,:],color=:orange,label="",width=2.0)
 
 # plot(t_nom[1:end-1],vcat(K...)[:,1],xlabel="time (s)",title="Gains",label="tvlqr",width=2.0,color=:purple,linetype=:steppost)
 # plot!(t_nom[1:end-1],vcat(K...)[:,2],label="",width=2.0,color=:purple,linetype=:steppost)
