@@ -45,7 +45,7 @@ function dyn_c(model::Cartpole, x, u)
     return @SVector [x[3],x[4],qdd[1],qdd[2]]
 end
 
-model = Cartpole(2.0,0.2,0.5,9.81)
+model = Cartpole(1.0,0.2,0.5,9.81)
 n, m = 4,1
 
 # Cartpole discrete-time dynamics (midpoint)
@@ -166,7 +166,7 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-α = 1.0e-1
+α = 1.0e-3
 x11 = α*[1.0; 0.0; 0.0; 0.0] + x_nom[1]
 x12 = α*[-1.0; 0.0; 0.0; 0.0] + x_nom[1]
 x13 = α*[0.0; 1.0;; 0.0; 0.0] + x_nom[1]
@@ -181,14 +181,14 @@ x1_vec = vcat(x1...)
 
 N = length(x1)
 
-model1 = Cartpole(1.01,0.2,0.5,9.81)
-model2 = Cartpole(1.01,0.2,0.5,9.81)
-model3 = Cartpole(1.01,0.2,0.5,9.81)
-model4 = Cartpole(1.01,0.2,0.5,9.81)
-model5 = Cartpole(1.02,0.2,0.5,9.81)
-model6 = Cartpole(1.02,0.2,0.5,9.81)
-model7 = Cartpole(1.02,0.2,0.5,9.81)
-model8 = Cartpole(1.02,0.2,0.5,9.81)
+model1 = Cartpole(1.0,0.190,0.5,9.81)
+model2 = Cartpole(1.0,0.195,0.5,9.81)
+model3 = Cartpole(1.0,0.195,0.5,9.81)
+model4 = Cartpole(1.0,0.2,0.5,9.81)
+model5 = Cartpole(1.0,0.2,0.5,9.81)
+model6 = Cartpole(1.0,0.205,0.5,9.81)
+model7 = Cartpole(1.0,0.205,0.5,9.81)
+model8 = Cartpole(1.0,0.210,0.5,9.81)
 
 # models_mass = [model for i = 1:N]#model1,model2,model3,model4,model5,model6,model7,model8]
 models_mass = [model1,model2,model3,model4,model5,model6,model7,model8]
@@ -243,6 +243,7 @@ end
 
 function sample_nonlinear_dynamics_vec(models,X,U; β=1.0,w=1.0)
     X⁺ = vcat([dynamics(models[i],X[(i-1)*n .+ (1:n)],U[(i-1)*m .+ (1:m)],Δt) for i = 1:N]...)
+    # return X⁺
     Xs⁺ = resample_vec(X⁺,β=β,w=w)
     return Xs⁺
 end
@@ -448,7 +449,7 @@ K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 # plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
 
 # model_unc = Cartpole(0.965,0.2,0.5,9.81)
-model_unc = Cartpole(1.01,0.2,0.5,9.81)
+model_unc = Cartpole(1.0,0.175,0.5,9.81)
 
 model_sim = model_unc
 
