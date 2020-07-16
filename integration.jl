@@ -9,3 +9,12 @@ function rk3(model,z,u,Δt)
     k3 = Δt*model.f(model,z - k1 + 2.0*k2,u)
     z + (k1 + 4.0*k2 + k3)/6.0
 end
+
+function xm_rk3_implicit(model,x⁺,x,u,h)
+    0.5*(x⁺ + x) + h[1]/8.0*(model.f(model,x,u) - model.f(model,x⁺,u))
+end
+
+function rk3_implicit(model,x⁺,x,u,h)
+    xm = xm_rk3_implicit(model,x⁺,x,u,h)
+    x⁺ - x - h[1]/6*model.f(model,x,u) - 4*h[1]/6*model.f(model,xm,u) - h[1]/6*model.f(model,x⁺,u)
+end
