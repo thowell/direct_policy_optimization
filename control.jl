@@ -11,6 +11,8 @@ function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
     z_rollout = [z0]
     u_rollout = []
     J = 0.0
+    Jx = 0.0
+    Ju = 0.0
     for tt = 1:T_sim-1
         t = t_sim[tt]
         k = searchsortedlast(times,t)
@@ -26,11 +28,16 @@ function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
         if _norm == 2
             J += (z_rollout[end]-z_nom[k+1])'*Q[k+1]*(z_rollout[end]-z_nom[k+1])
             J += (u_rollout[end]-u_nom[k])'*R[k]*(u_rollout[end]-u_nom[k])
+            Jx += (z_rollout[end]-z_nom[k+1])'*Q[k+1]*(z_rollout[end]-z_nom[k+1])
+            Ju += (u_rollout[end]-u_nom[k])'*R[k]*(u_rollout[end]-u_nom[k])
         else
-            J += norm(sqrt(Q[k+1])*(z_rollout[end]-z_nom[k+1]),_norm) + norm(sqrt(R[k])*(u-u_nom[k]),_norm)
+            J += norm(sqrt(Q[k+1])*(z_rollout[end]-z_nom[k+1]),_norm)
+            J += norm(sqrt(R[k])*(u-u_nom[k]),_norm)
+            Jx += norm(sqrt(Q[k+1])*(z_rollout[end]-z_nom[k+1]),_norm)
+            Ju += norm(sqrt(R[k])*(u-u_nom[k]),_norm)
         end
     end
-    return z_rollout, u_rollout, J/(T_sim-1)
+    return z_rollout, u_rollout, J/(T_sim-1), Jx/(T_sim-1), Ju/(T_sim-1)
 end
 
 function nominal_trajectories(z_nom,u_nom,T_sim,Δt)
