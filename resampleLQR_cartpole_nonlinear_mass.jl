@@ -9,10 +9,10 @@ function fastsqrt(A)
     #S = sqrtm(A);
     Ep = 1e-8*Matrix(I,size(A))
 
-    if count(diag(A) .> 0.0) != size(A,1)
-        S = diagm(sqrt.(diag(A)));
-        return S
-    end
+    # if count(diag(A) .> 0.0) != size(A,1)
+    #     S = diagm(sqrt.(diag(A)));
+    #     return S
+    # end
 
     In = Matrix(1.0*I,size(A));
     S = A;
@@ -20,7 +20,7 @@ function fastsqrt(A)
 
     T = .5*(T + inv(S+Ep));
     S = .5*(S+In);
-    for k = 1:4
+    for k = 1:7
         Snew = .5*(S + inv(T+Ep));
         T = .5*(T + inv(S+Ep));
         S = Snew;
@@ -37,10 +37,10 @@ end
 
 function dyn_c(model::Cartpole, x, u)
     H = @SMatrix [model.mc+model.mp model.mp*model.l*cos(x[2]); model.mp*model.l*cos(x[2]) model.mp*model.l^2]
-    C = @SMatrix [0.0 -model.mp*x[2]*model.l*sin(x[2]); 0.0 0.0]
+    C = @SMatrix [0.0 -model.mp*x[4]*model.l*sin(x[2]); 0.0 0.0]
     G = @SVector [0.0, model.mp*model.g*model.l*sin(x[2])]
     B = @SVector [1.0, 0.0]
-    qdd = SVector{2}(-H\(C*view(x,1:2) + G - B*u[1]))
+    qdd = SVector{2}(-H\(C*view(x,3:4) + G - B*u[1]))
 
     return @SVector [x[3],x[4],qdd[1],qdd[2]]
 end

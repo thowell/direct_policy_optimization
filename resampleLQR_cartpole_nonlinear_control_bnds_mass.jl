@@ -20,7 +20,7 @@ function fastsqrt(A)
 
     T = .5*(T + inv(S+Ep));
     S = .5*(S+In);
-    for k = 1:4
+    for k = 1:7
         Snew = .5*(S + inv(T+Ep));
         T = .5*(T + inv(S+Ep));
         S = Snew;
@@ -37,10 +37,10 @@ end
 
 function dyn_c(model::Cartpole, x, u)
     H = @SMatrix [model.mc+model.mp model.mp*model.l*cos(x[2]); model.mp*model.l*cos(x[2]) model.mp*model.l^2]
-    C = @SMatrix [0.0 -model.mp*x[2]*model.l*sin(x[2]); 0.0 0.0]
+    C = @SMatrix [0.0 -model.mp*x[4]*model.l*sin(x[2]); 0.0 0.0]
     G = @SVector [0.0, model.mp*model.g*model.l*sin(x[2])]
     B = @SVector [1.0, 0.0]
-    qdd = SVector{2}(-H\(C*view(x,1:2) + G - B*u[1]))
+    qdd = SVector{2}(-H\(C*view(x,3:4) + G - B*u[1]))
 
     return @SVector [x[3],x[4],qdd[1],qdd[2]]
 end
@@ -49,18 +49,18 @@ model = Cartpole(1.0,0.2,0.5,9.81)
 n, m = 4,1
 
 # Cartpole discrete-time dynamics (midpoint)
-Δt = 0.02
+Δt = 0.04
 function dynamics(model,x,u,Δt)
     x + Δt*dyn_c(model,x + 0.5*Δt*dyn_c(model,x,u),u)
 end
 
 # Trajectory optimization
-T = 100
+T = 50
 x1 = zeros(n)
 xT = [0.0;π;0.0;0.0]
 
-ul = -10.0
-uu = 10.0
+ul = -8.5
+uu = 8.5
 
 function linear_interp(x1,xT,T)
     n = length(x1)
@@ -154,8 +154,8 @@ for t = 1:T-1
     push!(B,ForwardDiff.jacobian(fu,u))
 end
 
-Q = [t < T ? Diagonal(1.0*@SVector [10.0,10.0,1.0,1.0]) : Diagonal([100.0;100.0;100.0;100.0]) for t = 1:T]
-R = [Diagonal(1.0*@SVector ones(m)) for t = 1:T-1]
+Q = [t < T ? Diagonal(1.0*@SVector [10.0,10.0,1.0e-1,1.0e-1]) : Diagonal([100.0;100.0;100.0;100.0]) for t = 1:T]
+R = [Diagonal(1.0e-1*@SVector ones(m)) for t = 1:T-1]
 
 P = [zeros(n,n) for t = 1:T]
 K = [zeros(m,n) for t = 1:T-1]
@@ -276,7 +276,7 @@ end
 
 function con!(c,z)
     β = 1.0
-    w = 1.0e-3
+    w = 1.0e-4
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
@@ -294,7 +294,7 @@ end
 
 function ∇con_vec!(∇c,z)
     β = 1.0
-    w = 1.0e-3
+    w = 1.0e-4
     Im = Matrix(I,m,m)
     ∇tmp_x = zeros(n*N,n*N)
     ∇tmp_u = zeros(n*N,m*N)
@@ -448,19 +448,18 @@ K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 
 # plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
 
-# model_unc = Cartpole(0.965,0.2,0.5,9.81)
-model_unc = Cartpole(1.0,0.18,0.5,9.81)
+model_unc = Cartpole(1.0,0.20,0.5,9.81)
 
 model_sim = model_unc
 
-T_sim = 10*T
+T_sim = 10T
 μ = zeros(n)
-Σ = Diagonal(1.0e-3*ones(n))
+Σ = Diagonal(1.0e-32*ones(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 
 μ0 = zeros(n)
-Σ0 = Diagonal(1.0e-3*ones(n))
+Σ0 = Diagonal(1.0e-32*ones(n))
 W0 = Distributions.MvNormal(μ0,Σ0)
 w0 = rand(W0,1)
 
@@ -470,22 +469,22 @@ z_nom_sim, u_nom_sim = nominal_trajectories(x_nom,u_nom,T_sim,Δt)
 t_nom = range(0,stop=Δt*T,length=T)
 t_sim = range(0,stop=Δt*T,length=T_sim)
 
-plt = plot(t_nom,hcat(x_nom...)[1,:],title="States",legend=:bottom,color=:red,label="ref.",width=2.0,xlabel="time (s)")
+plt = plot(t_nom,hcat(x_nom...)[1,:],title="States",legend=:topleft,color=:red,label="ref.",width=2.0,xlabel="time (s)")
 plt = plot!(t_nom,hcat(x_nom...)[2,:],color=:red,label="",width=2.0)
-plt = plot!(t_nom,hcat(x_nom...)[3,:],color=:red,label="",width=2.0)
-plt = plot!(t_nom,hcat(x_nom...)[4,:],color=:red,label="",width=2.0)
-
-z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,ul=ul*ones(m),uu=uu*ones(m))
-plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
-plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
-plt = plot!(t_sim,hcat(z_tvlqr...)[3,:],color=:purple,label="",width=2.0)
-plt = plot!(t_sim,hcat(z_tvlqr...)[4,:],color=:purple,label="",width=2.0)
+# plt = plot!(t_nom,hcat(x_nom...)[3,:],color=:red,label="",width=2.0)
+# plt = plot!(t_nom,hcat(x_nom...)[4,:],color=:red,label="",width=2.0)
 
 z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(K_sample,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,ul=ul*ones(m),uu=uu*ones(m))
 plt = plot!(t_sim,hcat(z_sample...)[1,:],color=:orange,label="sample",width=2.0)
 plt = plot!(t_sim,hcat(z_sample...)[2,:],color=:orange,label="",width=2.0)
-plt = plot!(t_sim,hcat(z_sample...)[3,:],color=:orange,label="",width=2.0)
-plt = plot!(t_sim,hcat(z_sample...)[4,:],color=:orange,label="",width=2.0)
+# plt = plot!(t_sim,hcat(z_sample...)[3,:],color=:orange,label="",width=2.0)
+# plt = plot!(t_sim,hcat(z_sample...)[4,:],color=:orange,label="",width=2.0)
+
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,ul=ul*ones(m),uu=uu*ones(m))
+plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
+plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
+# plt = plot!(t_sim,hcat(z_tvlqr...)[3,:],color=:purple,label="",width=2.0)
+# plt = plot!(t_sim,hcat(z_tvlqr...)[4,:],color=:purple,label="",width=2.0)
 
 # plot(t_nom[1:end-1],vcat(K...)[:,1],xlabel="time (s)",title="Gains",label="tvlqr",width=2.0,color=:purple,linetype=:steppost)
 # plot!(t_nom[1:end-1],vcat(K...)[:,2],label="",width=2.0,color=:purple,linetype=:steppost)
@@ -493,7 +492,7 @@ plt = plot!(t_sim,hcat(z_sample...)[4,:],color=:orange,label="",width=2.0)
 # plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],legend=:bottom,label="sample",color=:orange,width=2.0,linetype=:steppost)
 # plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
 
-plot(t_sim[1:end-1],hcat(u_nom_sim...)[:],title="Controls",xlabel="time (s)",legend=:bottom,color=:red,label="ref.",linetype=:steppost)
+plot(t_sim[1:end-1],hcat(u_nom_sim...)[:],title="Controls",xlabel="time (s)",legend=:bottomright,color=:red,label="ref.",linetype=:steppost)
 plot!(t_sim[1:end-1],hcat(u_tvlqr...)[:],color=:purple,label="tvlqr",linetype=:steppost)
 plot!(t_sim[1:end-1],hcat(u_sample...)[:],color=:orange,label="sample",linetype=:steppost)
 

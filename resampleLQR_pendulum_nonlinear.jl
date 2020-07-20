@@ -20,7 +20,7 @@ function fastsqrt(A)
 
     T = .5*(T + inv(S+Ep));
     S = .5*(S+In);
-    for k = 1:4
+    for k = 1:7
         Snew = .5*(S + inv(T+Ep));
         T = .5*(T + inv(S+Ep));
         S = Snew;
@@ -126,7 +126,7 @@ con_traj!(c0,z0)
 prob = Problem(n_nlp,m_nlp,obj_traj,con_traj!,true)
 
 # Solve
-z_sol = solve(z0,prob)
+z_sol = solve(copy(z0),prob)
 
 x_nom = [z_sol[x_idx[t]] for t = 1:T]
 u_nom = [z_sol[u_idx[t]] for t = 1:T-1]
@@ -261,21 +261,21 @@ function con!(c,z)
     return c
 end
 
-c0 = rand(m_nlp)
-con!(c0,ones(n_nlp))
-
-grad_f1 = ones(n_nlp)
-grad_f2 = ones(n_nlp)
-∇obj!(grad_f1,z0)
-ForwardDiff.gradient!(grad_f2,obj,z0)
-grad_f1
-grad_f2
-norm(grad_f1-grad_f2)
+# c0 = rand(m_nlp)
+# con!(c0,ones(n_nlp))
+#
+# grad_f1 = ones(n_nlp)
+# grad_f2 = ones(n_nlp)
+# ∇obj!(grad_f1,z0)
+# ForwardDiff.gradient!(grad_f2,obj,z0)
+# grad_f1
+# grad_f2
+# norm(grad_f1-grad_f2)
 # ∇obj!(g,z) = ForwardDiff.gradient!(g,obj,z)
-∇con!(∇c,z) = ForwardDiff.jacobian!(∇c,con!,zeros(eltype(z),m_nlp),z)
-prob = problem_derivatives(n_nlp,m_nlp,obj,∇obj!,con!,∇con!,true)
+# ∇con!(∇c,z) = ForwardDiff.jacobian!(∇c,con!,zeros(eltype(z),m_nlp),z)
+# prob = problem_derivatives(n_nlp,m_nlp,obj,∇obj!,con!,∇con!,true)
 
-# prob = Problem(n_nlp,m_nlp,obj,con!,true)
+prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z0 = rand(n_nlp)
 z_sol_s = solve(z0,prob)
@@ -309,11 +309,11 @@ t_sim = range(0,stop=Δt*T,length=T_sim)
 plt = plot(t_nom,hcat(x_nom...)[1,:],legend=:bottom,linetype=:steppost,color=:red,label="ref.",width=2.0,xlabel="time (s)")
 plt = plot!(t_nom,hcat(x_nom...)[2,:],linetype=:steppost,color=:red,label="",width=2.0)
 
-z_tvlqr, u_tvlqr, J_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,_norm=2)
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,_norm=2)
 plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],linetype=:steppost,color=:purple,label="tvlqr",width=2.0)
 plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],linetype=:steppost,color=:purple,label="",width=2.0)
 
-z_sample, u_sample, J_sample = simulate_linear_controller(K_sample,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,_norm=2)
+z_sample, u_sample, J_sample,Jx_sample, Ju_sample = simulate_linear_controller(K_sample,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,_norm=2)
 plt = plot!(t_sim,hcat(z_sample...)[1,:],linetype=:steppost,color=:orange,label="sample",width=2.0)
 plt = plot!(t_sim,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label="",width=2.0)
 
@@ -330,3 +330,11 @@ plot!(hcat(u_sample...)',color=:orange,label="sample",linetype=:steppost)
 # objective value
 J_tvlqr
 J_sample
+
+# state tracking
+Jx_tvlqr
+Jx_sample
+
+# control tracking
+Ju_tvlqr
+Ju_sample

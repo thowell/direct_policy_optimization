@@ -20,7 +20,7 @@ function fastsqrt(A)
 
     T = .5*(T + inv(S+Ep));
     S = .5*(S+In);
-    for k = 1:4
+    for k = 1:7
         Snew = .5*(S + inv(T+Ep));
         T = .5*(T + inv(S+Ep));
         S = Snew;
@@ -37,10 +37,10 @@ end
 
 function dyn_c(model::Cartpole, x, u)
     H = @SMatrix [model.mc+model.mp model.mp*model.l*cos(x[2]); model.mp*model.l*cos(x[2]) model.mp*model.l^2]
-    C = @SMatrix [0.0 -model.mp*x[2]*model.l*sin(x[2]); 0.0 0.0]
+    C = @SMatrix [0.0 -model.mp*x[4]*model.l*sin(x[2]); 0.0 0.0]
     G = @SVector [0.0, model.mp*model.g*model.l*sin(x[2])]
     B = @SVector [1.0, 0.0]
-    qdd = SVector{2}(-H\(C*view(x,1:2) + G - B*u[1]))
+    qdd = SVector{2}(-H\(C*view(x,3:4) + G - B*u[1]))
 
     return @SVector [x[3],x[4],qdd[1],qdd[2]]
 end
@@ -247,7 +247,7 @@ end
 
 c0 = rand(m_nlp)
 con!(c0,ones(n_nlp))
-prob = Problem(n_nlp,m_nlp,obj,∇obj!,con!,true)
+prob = Problem(n_nlp,m_nlp,obj,con!,true)
 
 z0 = rand(n_nlp)
 for t = 1:T-1
@@ -287,13 +287,13 @@ plt = plot!(t_nom,hcat(x_nom...)[2,:],linetype=:steppost,color=:red,label="",wid
 plt = plot!(t_nom,hcat(x_nom...)[3,:],linetype=:steppost,color=:red,label="",width=2.0)
 plt = plot!(t_nom,hcat(x_nom...)[4,:],linetype=:steppost,color=:red,label="",width=2.0)
 
-z_tvlqr, u_tvlqr, J_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)
 plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],linetype=:steppost,color=:purple,label="tvlqr",width=2.0)
 plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],linetype=:steppost,color=:purple,label="",width=2.0)
 plt = plot!(t_sim,hcat(z_tvlqr...)[3,:],linetype=:steppost,color=:purple,label="",width=2.0)
 plt = plot!(t_sim,hcat(z_tvlqr...)[4,:],linetype=:steppost,color=:purple,label="",width=2.0)
 
-z_sample, u_sample, J_sample = simulate_linear_controller(K_sample,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)
+z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(K_sample,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)
 plt = plot!(t_sim,hcat(z_sample...)[1,:],linetype=:steppost,color=:orange,label="sample",width=2.0)
 plt = plot!(t_sim,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label="",width=2.0)
 plt = plot!(t_sim,hcat(z_sample...)[3,:],linetype=:steppost,color=:orange,label="",width=2.0)
@@ -312,6 +312,14 @@ plot!(hcat(u_sample...)',color=:orange,label="sample",linetype=:steppost)
 # objective value
 J_tvlqr
 J_sample
+
+# state tracking
+Jx_tvlqr
+Jx_sample
+
+# control tracking
+Ju_tvlqr
+Ju_sample
 
 # gain error
 # K_sample = [reshape(z_sol_s[idx_k[t]],m,n) for t = 1:T-1]

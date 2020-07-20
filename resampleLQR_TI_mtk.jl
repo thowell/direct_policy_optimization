@@ -1,5 +1,5 @@
 using LinearAlgebra, ForwardDiff, Distributions, Plots
-include("ipopt.jl")
+include("mtk.jl")
 
 function fastsqrt(A)
     #FASTSQRT computes the square root of a matrix A with Denman-Beavers iteration
@@ -7,10 +7,10 @@ function fastsqrt(A)
     #S = sqrtm(A);
     Ep = 1e-8*Matrix(I,size(A))
 
-    if count(diag(A) .> 0.0) != size(A,1)
-        S = diagm(sqrt.(diag(A)));
-        return S
-    end
+    # if count(diag(A) .> 0.0) != size(A,1)
+    #     S = diagm(sqrt.(diag(A)));
+    #     return S
+    # end
 
     In = Matrix(1.0*I,size(A));
     S = A;
@@ -48,7 +48,7 @@ function dynamics(x,u,Δt)
 end
 
 # TVLQR solution
-T = 20
+T = 3
 Q = Matrix(1.0*I,n,n)
 R = Matrix(0.1*I,m,m)
 
@@ -92,10 +92,11 @@ function resample(X; β=1.0,w=1.0)
     n = length(X[1])
 
     xμ = sum(X)./N
-    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + w*I
+    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*transpose(X[i] - xμ) for i = 1:N]) + w*I
     # cols = cholesky(Σμ).U
     cols = fastsqrt(Σμ)
-    Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
+    cols = Σμ
+    # Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
 
     return Xs
 end
@@ -142,7 +143,7 @@ function obj(z)
         for i = 1:N
             x = view(z,idx_x[i][t])
             u = view(z,idx_u[i][t])
-            s += x'*Q*x + u'*R*u
+            s += transpose(x)*Q*x + transpose(u)*R*u
         end
     end
     return s
@@ -163,15 +164,46 @@ function con!(c,z)
             c[idx_con_ctrl[i][t]] = u[i] + k*xs[i]
         end
     end
+    # c .= 0.0
     return c
 end
 
-c0 = rand(m_nlp)
-con!(c0,ones(n_nlp))
-prob = Problem(n_nlp,m_nlp,obj,con!,true)
+function cy(z,y)
+    β = 1.0
+    w = 1.0e-1
+    J = 0.0
+    for t = 1:T-1
+        xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
+        u = [view(z,idx_u[i][t]) for i = 1:N]
+        xs⁺ = sample_dynamics(xs,u,β=β,w=w)
+        x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
+        k = reshape(view(z,idx_k[t]),m,n)
+
+        for i = 1:N
+            # c[idx_con_dyn[i][t]] = xs⁺[i] - x⁺[i]
+            # c[idx_con_ctrl[i][t]] = u[i] + k*xs[i]
+
+            J += transpose(view(y,idx_con_dyn[i][t]))*(xs⁺[i] - x⁺[i])
+            J += transpose(view(y,idx_con_ctrl[i][t]))*(u[i] + k*xs[i])
+        end
+    end
+    return J
+end
+
+# c0 = rand(m_nlp)
+# con!(c0,ones(n_nlp))
+
+∇obj_fast!,∇c_fast!,∇²L_fast!,∇obj_fast,∇c_fast,∇²L_fast,∇c_sparsity,∇²L_sparsity = generate(obj,con!,cy,n_nlp,m_nlp)
+
+prob = Problem(n_nlp,m_nlp,
+    primal_bounds(n_nlp),
+    constraint_bounds(m_nlp),
+    sparsity(∇c_sparsity),sparsity(∇²L_sparsity),
+    ∇obj_fast,∇c_fast,∇²L_fast,
+    enable_hessian=true)
 
 z0 = rand(n_nlp)
-z_sol = solve(z0,prob)
+@time z_sol = solve(copy(z0),prob)
 
 K_sample = [reshape(z_sol[idx_k[t]],m,n) for t = 1:T-1]
 K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
