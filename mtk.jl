@@ -19,39 +19,46 @@ const b = rand(m)
 function con(x)
     A*x - b
 end
-function con!(z,x)
+
+function con(z,x)
     z .= con(x)
 end
 
-function L(x,y)
-    obj(x) + transpose(y)*c(x)
+function generate(obj,con,n,m)
+    @variables x_sym[1:n], c_sym[1:m]
+    @parameters y_sym[1:m]
+
+    J = obj(x_sym)
+    obj_fast! = eval(ModelingToolkit.build_function([J],x_sym,
+                parallel=ModelingToolkit.MultithreadedForm())[2])
+    ∇obj_sparsity = ModelingToolkit.sparsejacobian([J],x_sym)
+    ∇obj_fast! = eval(ModelingToolkit.build_function(∇obj_sparsity,x_sym,
+                parallel=ModelingToolkit.MultithreadedForm())[2])
+    ∇obj_fast = similar(∇obj_sparsity,T)
+
+    con(c_sym,x_sym)
+    c_fast! = eval(ModelingToolkit.build_function(c_sym,x_sym,
+                parallel=ModelingToolkit.MultithreadedForm())[2])
+    ∇c_sparsity = ModelingToolkit.sparsejacobian(c_sym,x_sym)
+    ∇c_fast! = eval(ModelingToolkit.build_function(∇c_sparsity,x_sym,
+                parallel=ModelingToolkit.MultithreadedForm())[2])
+    ∇c_fast = similar(∇c_sparsity,T)
+
+    function L(x,y)
+        obj(x) + transpose(y)*con(x)
+    end
+
+    z = L(x_sym,y_sym)
+
+    ∇²L_sparsity = ModelingToolkit.sparsehessian(z,x_sym)
+    ∇²L_fast! = eval(ModelingToolkit.build_function(∇²L_sparsity,x_sym,y_sym,
+                parallel=ModelingToolkit.MultithreadedForm())[2])
+    ∇²L_fast = similar(∇²L_sparsity,T)
+
+    return ∇obj_fast!,∇c_fast!,∇²L_fast!,∇obj_fast,∇c_fast,∇²L_fast,∇c_sparsity,∇²L_sparsity
 end
 
-@variables x_sym[1:n], c_sym[1:m]
-@parameters y_sym[1:m]
-
-J = obj(x_sym)
-obj_fast! = eval(ModelingToolkit.build_function([J],x_sym,
-            parallel=ModelingToolkit.MultithreadedForm())[2])
-∇obj_sparsity = ModelingToolkit.sparsejacobian([J],x_sym)
-∇obj_fast! = eval(ModelingToolkit.build_function(∇J_sparsity,x_sym,
-            parallel=ModelingToolkit.MultithreadedForm())[2])
-∇obj_fast = similar(∇J_sparsity,T)
-
-c!(c_sym,x_sym)
-c_fast! = eval(ModelingToolkit.build_function(c_sym,x_sym,
-            parallel=ModelingToolkit.MultithreadedForm())[2])
-∇c_sparsity = ModelingToolkit.sparsejacobian(c_sym,x_sym)
-∇c_fast! = eval(ModelingToolkit.build_function(∇c_sparsity,x_sym,
-            parallel=ModelingToolkit.MultithreadedForm())[2])
-∇c_fast = similar(∇c_sparsity,T)
-
-z = L(x_sym,y_sym)
-
-∇²L_sparsity = ModelingToolkit.sparsehessian(z,x_sym)
-∇²L_fast! = eval(ModelingToolkit.build_function(∇²L_sparsity,x_sym,y_sym,
-            parallel=ModelingToolkit.MultithreadedForm())[2])
-∇²L_fast = similar(∇²L_sparsity,T)
+∇obj_fast!,∇c_fast!,∇²L_fast!,∇obj_fast,∇c_fast,∇²L_fast,∇c_sparsity,∇²L_sparsity = generate(obj,con,n,m)
 
 x0 = rand(n)
 const y0 = rand(m)
@@ -119,7 +126,7 @@ function MOI.eval_objective_gradient(prob::MOI.AbstractNLPEvaluator, grad_f, x)
 end
 
 function MOI.eval_constraint(prob::MOI.AbstractNLPEvaluator,g,x)
-    c!(g,x)
+    con(g,x)
     return nothing
 end
 
@@ -153,13 +160,20 @@ function sparsity(x)
     collect(zip(row,col))
 end
 
-MOI.features_available(prob::MOI.AbstractNLPEvaluator) = [:Grad, :Jac, :Hess]
+function MOI.features_available(prob::MOI.AbstractNLPEvaluator)
+    if prob.enable_hessian
+        return [:Grad, :Jac, :Hess]
+    else
+        return [:Grad, :Jac]
+    end
+end
 MOI.initialize(prob::MOI.AbstractNLPEvaluator, features) = nothing
 MOI.jacobian_structure(prob::MOI.AbstractNLPEvaluator) = prob.jacobian_sparsity
 MOI.hessian_lagrangian_structure(prob::MOI.AbstractNLPEvaluator) = prob.hessian_sparsity
 
 function solve(x0,prob::MOI.AbstractNLPEvaluator;
         tol=1.0e-6,nlp=:ipopt,max_iter=1000)
+
     x_l, x_u = prob.primal_bounds
     c_l, c_u = prob.constraint_bounds
 
@@ -195,20 +209,22 @@ function solve(x0,prob::MOI.AbstractNLPEvaluator;
 end
 
 prob = Problem(n,m,
-    primal_bounds(n),constraint_bounds(m),
+    primal_bounds(n),
+    constraint_bounds(m),
     sparsity(∇c_sparsity),sparsity(∇²L_sparsity),
-    ∇obj_fast,∇c_fast,∇²L_fast)
+    ∇obj_fast,∇c_fast,∇²L_fast,
+    enable_hessian=true)
 
-MOI.eval_objective(prob, x0)
-grad_f = zero(x0)
-prob.∇obj_fast
-MOI.eval_objective_gradient(prob, grad_f, x0)
-g = zeros(m)
-MOI.eval_constraint(prob,g,x0)
-length(nonzeros(∇c_sparsity))
-jac = zeros(nnz(∇c_sparsity))
-MOI.eval_constraint_jacobian(prob, jac, x0)
-H = zeros(nnz(∇²L_sparsity))
-MOI.eval_hessian_lagrangian(prob, H, x0, 0.0, y0)
+# MOI.eval_objective(prob, x0)
+# grad_f = zero(x0)
+# prob.∇obj_fast
+# MOI.eval_objective_gradient(prob, grad_f, x0)
+# g = zeros(m)
+# MOI.eval_constraint(prob,g,x0)
+# length(nonzeros(∇c_sparsity))
+# jac = zeros(nnz(∇c_sparsity))
+# MOI.eval_constraint_jacobian(prob, jac, x0)
+# H = zeros(nnz(∇²L_sparsity))
+# MOI.eval_hessian_lagrangian(prob, H, x0, 0.0, y0)
 
-sol = solve(x0,prob)
+@time sol = solve(copy(x0),prob)
