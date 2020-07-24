@@ -200,7 +200,7 @@ function ∇con_nom_vec!(c,z)
     return nothing
 end
 
-function _sparsity_jacobian_nom(;shift=0)
+function _sparsity_jacobian_nom(;r_shift=0,c_shift=0)
     row = []
     col = []
 
@@ -208,29 +208,29 @@ function _sparsity_jacobian_nom(;shift=0)
 
         # c[(t-1)*n .+ (1:n)] = x⁺ - dynamics(model_nom,x,u,Δt)
 
-        r_idx = shift + (t-1)*n .+ (1:n)
-        c_idx = x_nom_idx[t]
+        r_idx = r_shift + (t-1)*n .+ (1:n)
+        c_idx = c_shift .+ x_nom_idx[t]
         row_col!(row,col,r_idx,c_idx)
 
-        r_idx = shift + (t-1)*n .+ (1:n)
-        c_idx = u_nom_idx[t]
+        r_idx = r_shift + (t-1)*n .+ (1:n)
+        c_idx = c_shift .+ u_nom_idx[t]
         row_col!(row,col,r_idx,c_idx)
 
-        r_idx = shift + (t-1)*n .+ (1:n)
-        c_idx = x_nom_idx[t+1]
+        r_idx = r_shift + (t-1)*n .+ (1:n)
+        c_idx = c_shift .+ x_nom_idx[t+1]
         row_col!(row,col,r_idx,c_idx)
 
     end
     # c[(T-1)*n .+ (1:n)] = z[x_nom_idx[1]] - x1
 
-    r_idx = shift + (T-1)*n .+ (1:n)
-    c_idx = x_nom_idx[1]
+    r_idx = r_shift + (T-1)*n .+ (1:n)
+    c_idx = c_shift .+ x_nom_idx[1]
     row_col!(row,col,r_idx,c_idx)
 
     # c[T*n .+ (1:n)] = z[x_nom_idx[T]] - xT
 
-    r_idx = shift + T*n .+ (1:n)
-    c_idx = x_nom_idx[T]
+    r_idx = r_shift + T*n .+ (1:n)
+    c_idx = c_shift .+ x_nom_idx[T]
     row_col!(row,col,r_idx,c_idx)
 
     return collect(zip(row,col))
@@ -329,7 +329,7 @@ idx_u_vec = [vcat([idx_u[i][t] for i = 1:N]...) for t = 1:T-1]
 idx_x_nom = [N*(n*(T-1) + m*(T-1)) + m*n*(T-1) .+ x_nom_idx[t] for t = 1:T]
 idx_u_nom = [N*(n*(T-1) + m*(T-1)) + m*n*(T-1) .+ u_nom_idx[t] for t = 1:T-1]
 
-idx_z_nom = vcat([[idx_x_nom[t]...,idx_u_nom[t]...] for t = 1:T-1]...,idx_x_nom[T])
+idx_z_nom = N*(n*(T-1) + m*(T-1)) + m*n*(T-1) .+ (1:n_nom_nlp)
 idx_c_nom = N*(n*(T-1) + m*(T-1)) .+ (1:m_nom_nlp)
 
 function resample(X; β=1.0,w=1.0)
@@ -580,14 +580,15 @@ function ∇con_vec!(∇c,z)
             shift += len
         end
     end
-    ∇con_nom_vec!(view(∇c,shift .+ (1:len_jac_nom)),view(z,idx_z_nom))
+    ∇con_nom_vec!(view(∇c,len_jac .+ (1:len_jac_nom)),view(z,idx_z_nom))
 
     return ∇c
 end
+len_jac
+len_jac_nom
 
 idx_z_nom
-
-sparsity = collect([_sparsity_jacobian()...,_sparsity_jacobian_nom(shift=N*(n*(T-1) + m*(T-1)))...])
+sparsity = collect([_sparsity_jacobian()...,_sparsity_jacobian_nom(r_shift=(N*(n*(T-1) + m*(T-1))),c_shift=(N*(n*(T-1) + m*(T-1)) + m*n*(T-1)))...])
 
 ∇c = spzeros(m_nlp,n_nlp)
 ∇c_jac = zeros(length(sparsity))
