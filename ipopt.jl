@@ -30,7 +30,7 @@ function Problem(n_nlp,m_nlp,obj,con!,enable_hessian;
         primal_bounds)
 end
 
-function Problem(n_nlp,m_nlp,obj,∇obj,con!,∇con!,enable_hessian;
+function Problem(n_nlp,m_nlp,obj,∇obj!,con!,∇con!,enable_hessian;
         idx_ineq=(1:0),
         sparsity_jac=sparsity_jacobian(n_nlp,m_nlp),
         reshape_jac=true,

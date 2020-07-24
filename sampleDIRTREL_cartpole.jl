@@ -1,4 +1,4 @@
-using LinearAlgebra, ForwardDiff, Distributions, Plots, StaticArrays
+using LinearAlgebra, ForwardDiff, Distributions, Plots, StaticArrays, SparseArrays
 include("ipopt.jl")
 include("integration.jl")
 include("control.jl")
@@ -20,7 +20,7 @@ function fastsqrt(A)
 
     T = .5*(T + inv(S+Ep));
     S = .5*(S+In);
-    for k = 1:7
+    for k = 1:5
         Snew = .5*(S + inv(T+Ep));
         T = .5*(T + inv(S+Ep));
         S = Snew;
@@ -47,19 +47,19 @@ function dyn_c(model::Cartpole, x, u)
     return @SVector [x[3],x[4],qdd[1],qdd[2]]
 end
 
-model = Cartpole(1.0,0.2,0.5,9.81,dyn_c)
+model_nom = Cartpole(1.0,0.2,0.5,9.81,dyn_c)
 n, m = 4,1
 
 # Cartpole discrete-time dynamics (midpoint)
-Δt = 0.04
+Δt = 0.1
 function dynamics(model,x,u,Δt)
     rk3(model,x,u,Δt)
 end
 
 # Trajectory optimization
-T = 50
-x1 = zeros(n)
-xT = [0.0;π;0.0;0.0]
+T = 20
+x1_nom = zeros(n)
+xT_nom = [0.0;π;0.0;0.0]
 
 ul = -10.0
 uu = 10.0
@@ -75,70 +75,188 @@ function linear_interp(x1,xT,T)
 
     return X
 end
-x_ref = linear_interp(x1,xT,T)
+x_nom_ref = linear_interp(x1_nom,xT_nom,T)
 
-Q = [t!=T ? Diagonal(1.0*@SVector [1.0,1.0,1.0,1.0]) : Diagonal(1.0*@SVector ones(n)) for t = 1:T]
-R = [Diagonal(1.0e-1*@SVector ones(m)) for t = 1:T-1]
+Q_nom = [t!=T ? Diagonal(1.0*@SVector [1.0,1.0,1.0,1.0]) : Diagonal(1.0*@SVector ones(n)) for t = 1:T]
+R_nom = [Diagonal(1.0e-1*@SVector ones(m)) for t = 1:T-1]
 
-x_idx = [(t-1)*(n+m) .+ (1:n) for t = 1:T]
-u_idx = [(t-1)*(n+m) + n .+ (1:m) for t = 1:T-1]
+x_nom_idx = [(t-1)*(n+m) .+ (1:n) for t = 1:T]
+u_nom_idx = [(t-1)*(n+m) + n .+ (1:m) for t = 1:T-1]
 
-n_nlp = n*T + m*(T-1)
-m_nlp = n*(T+1)
+n_nom_nlp = n*T + m*(T-1)
+m_nom_nlp = n*(T+1)
 
-zl = -Inf*ones(n_nlp)
-zu = Inf*ones(n_nlp)
+zl_nom = -Inf*ones(n_nom_nlp)
+zu_nom = Inf*ones(n_nom_nlp)
 
-z0 = 1.0e-5*randn(n_nlp)
+z0 = 1.0e-5*randn(n_nom_nlp)
 for t = 1:T
-    z0[x_idx[t]] = x_ref[t]
+    z0[x_nom_idx[t]] = x_nom_ref[t]
 
     if t < T
-        zl[u_idx[t]] .= ul
-        zu[u_idx[t]] .= uu
+        zl_nom[u_nom_idx[t]] .= ul
+        zu_nom[u_nom_idx[t]] .= uu
     end
 end
 
-function obj_traj(z)
+function obj_nom(z)
     s = 0.0
     for t = 1:T-1
-        x = z[x_idx[t]]
-        u = z[u_idx[t]]
-        s += (x-xT)'*Q[t]*(x-xT) + u'*R[t]*u
+        x = z[x_nom_idx[t]]
+        u = z[u_nom_idx[t]]
+        s += (x-xT_nom)'*Q_nom[t]*(x-xT_nom) + u'*R_nom[t]*u
     end
-    x = z[x_idx[T]]
-    s += (x-xT)'*Q[T]*(x-xT)
+    x = z[x_nom_idx[T]]
+    s += (x-xT_nom)'*Q_nom[T]*(x-xT_nom)
 
     return s
 end
 
-obj_traj(z0)
+obj_nom(z0)
+
+function ∇obj_nom!(g,z)
+    g .= 0.0
+    for t = 1:T-1
+        x = z[x_nom_idx[t]]
+        u = z[u_nom_idx[t]]
+        g[x_nom_idx[t]] += 2.0*Q_nom[t]*(x-xT_nom)
+        g[u_nom_idx[t]] += 2.0*R_nom[t]*u
+    end
+    x = z[x_nom_idx[T]]
+    g[x_nom_idx[T]] += 2.0*Q_nom[T]*(x-xT_nom)
+
+    return g
+end
+
+g_nom = zeros(n_nom_nlp)
+∇obj_nom!(g_nom,z0)
+norm(g_nom - ForwardDiff.gradient(obj_nom,z0))
+
+#TODO confirm
 
 # Constraints
-function con_traj!(c,z)
+function con_nom!(c,z)
     for t = 1:T-1
-        x = z[x_idx[t]]
-        u = z[u_idx[t]]
-        x⁺ = z[x_idx[t+1]]
-        c[(t-1)*n .+ (1:n)] = x⁺ - dynamics(model,x,u,Δt)
+        x = z[x_nom_idx[t]]
+        u = z[u_nom_idx[t]]
+        x⁺ = z[x_nom_idx[t+1]]
+        c[(t-1)*n .+ (1:n)] = x⁺ - dynamics(model_nom,x,u,Δt)
     end
-    c[(T-1)*n .+ (1:n)] = z[x_idx[1]] - x1
-    c[T*n .+ (1:n)] = z[x_idx[T]] - xT
+    c[(T-1)*n .+ (1:n)] = z[x_nom_idx[1]] - x1_nom
+    c[T*n .+ (1:n)] = z[x_nom_idx[T]] - xT_nom
     return c
 end
 
-c0 = zeros(m_nlp)
-con_traj!(c0,z0)
+c0 = zeros(m_nom_nlp)
+con_nom!(c0,z0)
 
-# NLP problem
-prob = Problem(n_nlp,m_nlp,obj_traj,con_traj!,true,
-    primal_bounds=(zl,zu))
+# Constraints
+function ∇con_nom_vec!(c,z)
+    shift = 0
+    for t = 1:T-1
+        x = z[x_nom_idx[t]]
+        u = z[u_nom_idx[t]]
+        x⁺ = z[x_nom_idx[t+1]]
+        # c[(t-1)*n .+ (1:n)] = x⁺ - dynamics(model_nom,x,u,Δt)
+
+        dynx(w) = x⁺ - dynamics(model_nom,w,u,Δt)
+        dynu(w) = x⁺ - dynamics(model_nom,x,w,Δt)
+        dynx⁺(w) = w - dynamics(model_nom,x,u,Δt)
+
+        r_idx = (t-1)*n .+ (1:n)
+        c_idx = x_nom_idx[t]
+        len = length(r_idx)*length(c_idx)
+        c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(dynx,x))
+        shift += len
+
+        r_idx = (t-1)*n .+ (1:n)
+        c_idx = u_nom_idx[t]
+        len = length(r_idx)*length(c_idx)
+        c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(dynu,u))
+        shift += len
+
+        r_idx = (t-1)*n .+ (1:n)
+        c_idx = x_nom_idx[t+1]
+        len = length(r_idx)*length(c_idx)
+        c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(dynx⁺,x⁺))
+        shift += len
+
+    end
+    # c[(T-1)*n .+ (1:n)] = z[x_nom_idx[1]] - x1
+
+    r_idx = (T-1)*n .+ (1:n)
+    c_idx = x_nom_idx[1]
+    len = length(r_idx)*length(c_idx)
+    c[shift .+ (1:len)] = vec(Diagonal(ones(n)))
+    shift += len
+
+    # c[T*n .+ (1:n)] = z[x_nom_idx[T]] - xT
+
+    r_idx = T*n .+ (1:n)
+    c_idx = x_nom_idx[T]
+    len = length(r_idx)*length(c_idx)
+    c[shift .+ (1:len)] = vec(Diagonal(ones(n)))
+    shift += len
+    return nothing
+end
+
+function _sparsity_jacobian_nom(;shift=0)
+    row = []
+    col = []
+
+    for t = 1:T-1
+
+        # c[(t-1)*n .+ (1:n)] = x⁺ - dynamics(model_nom,x,u,Δt)
+
+        r_idx = shift + (t-1)*n .+ (1:n)
+        c_idx = x_nom_idx[t]
+        row_col!(row,col,r_idx,c_idx)
+
+        r_idx = shift + (t-1)*n .+ (1:n)
+        c_idx = u_nom_idx[t]
+        row_col!(row,col,r_idx,c_idx)
+
+        r_idx = shift + (t-1)*n .+ (1:n)
+        c_idx = x_nom_idx[t+1]
+        row_col!(row,col,r_idx,c_idx)
+
+    end
+    # c[(T-1)*n .+ (1:n)] = z[x_nom_idx[1]] - x1
+
+    r_idx = shift + (T-1)*n .+ (1:n)
+    c_idx = x_nom_idx[1]
+    row_col!(row,col,r_idx,c_idx)
+
+    # c[T*n .+ (1:n)] = z[x_nom_idx[T]] - xT
+
+    r_idx = shift + T*n .+ (1:n)
+    c_idx = x_nom_idx[T]
+    row_col!(row,col,r_idx,c_idx)
+
+    return collect(zip(row,col))
+end
+
+ForwardDiff.jacobian(con_nom!,zeros(m_nom_nlp),z0)
+
+sparsity_nom = _sparsity_jacobian_nom()
+∇c_nom_vec = zeros(length(sparsity_nom))
+∇con_nom_vec!(∇c_nom_vec,z0)
+∇c_nom = spzeros(m_nom_nlp,n_nom_nlp)
+for (i,idx) in enumerate(sparsity_nom)
+    ∇c_nom[idx[1],idx[2]] = ∇c_nom_vec[i]
+end
+
+norm(vec(∇c_nom)-vec(ForwardDiff.jacobian(con_nom!,zeros(m_nom_nlp),z0)))
+
+prob = Problem(n_nom_nlp,m_nom_nlp,obj_nom,∇obj_nom!,con_nom!,∇con_nom_vec!,false,
+    sparsity_jac=_sparsity_jacobian_nom(),
+    primal_bounds=(zl_nom,zu_nom))
 
 # Solve
 z_sol = solve(z0,prob)
 
-x_nom = [z_sol[x_idx[t]] for t = 1:T]
-u_nom = [z_sol[u_idx[t]] for t = 1:T-1]
+x_nom = [z_sol[x_nom_idx[t]] for t = 1:T]
+u_nom = [z_sol[u_nom_idx[t]] for t = 1:T-1]
 
 plot(hcat(x_nom...)',xlabel="time step",ylabel="state",label=["x" "θ" "dx" "dθ"],width=2.0,legend=:topleft)
 plot(hcat(u_nom...)',linetype=:steppost,xlabel="time step",ylabel="control",label="",width=2.0)
@@ -149,8 +267,8 @@ B = []
 for t = 1:T-1
     x = x_nom[t]
     u = u_nom[t]
-    fx(z) = dynamics(model,z,u,Δt)
-    fu(z) = dynamics(model,x,z,Δt)
+    fx(z) = dynamics(model_nom,z,u,Δt)
+    fu(z) = dynamics(model_nom,x,z,Δt)
 
     push!(A,ForwardDiff.jacobian(fx,x))
     push!(B,ForwardDiff.jacobian(fu,u))
@@ -168,7 +286,7 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-α = 1.0e-32
+α = 1.0e-1
 x11 = α*[1.0; 0.0; 0.0; 0.0] + x_nom[1]
 x12 = α*[-1.0; 0.0; 0.0; 0.0] + x_nom[1]
 x13 = α*[0.0; 1.0;; 0.0; 0.0] + x_nom[1]
@@ -192,11 +310,11 @@ model6 = Cartpole(1.0,0.21,0.5,9.81,dyn_c)
 model7 = Cartpole(1.0,0.215,0.5,9.81,dyn_c)
 model8 = Cartpole(1.0,0.22,0.5,9.81,dyn_c)
 
-# models_mass = [model for i = 1:N]
-models_mass = [model1,model2,model3,model4,model5,model6,model7,model8]
+models_mass = [model_nom for i = 1:N]
+# models_mass = [model1,model2,model3,model4,model5,model6,model7,model8]
 
-n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1)
-m_nlp = N*(n*(T-1) + m*(T-1))
+n_nlp = N*(n*(T-1) + m*(T-1)) + m*n*(T-1) + n_nom_nlp
+m_nlp = N*(n*(T-1) + m*(T-1)) + m_nom_nlp
 
 idx_k = [(t-1)*(m*n) .+ (1:m*n) for t = 1:T-1]
 idx_x = [[(T-1)*(m*n) + (i-1)*(n*(T-1) + m*(T-1)) + (t-1)*(n+m) .+ (1:n) for t = 1:T-1] for i = 1:N]
@@ -208,32 +326,35 @@ idx_con_ctrl = [[(i-1)*(m*(T-1)) + N*(n*(T-1)) + (t-1)*m .+ (1:m) for t = 1:T-1]
 idx_x_vec = [vcat([idx_x[i][t] for i = 1:N]...) for t = 1:T-1]
 idx_u_vec = [vcat([idx_u[i][t] for i = 1:N]...) for t = 1:T-1]
 
-# function resample(X; β=1.0,w=1.0)
-#     N = length(X)
-#     n = length(X[1])
-#
-#     xμ = sum(X)./N
-#     Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + w*I
-#     # cols = cholesky(Σμ).U
-#     cols = fastsqrt(Σμ)
-#     Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
-#
-#     return Xs
-# end
-#
-# function sample_nonlinear_dynamics(models,X,U; β=1.0,w=1.0)
-#     N = length(X)
-#     X⁺ = []
-#     for i = 1:N
-#         push!(X⁺,dynamics(models[i],X[i],U[i],Δt))
-#     end
-#     # return X⁺
-#     Xs⁺ = resample(X⁺,β=β,w=w)
-#     return Xs⁺
-# end
+idx_x_nom = [N*(n*(T-1) + m*(T-1)) + m*n*(T-1) .+ x_nom_idx[t] for t = 1:T]
+idx_u_nom = [N*(n*(T-1) + m*(T-1)) + m*n*(T-1) .+ u_nom_idx[t] for t = 1:T-1]
 
-idx_x_vec = [vcat([idx_x[i][t] for i = 1:N]...) for t = 1:T-1]
-idx_u_vec = [vcat([idx_u[i][t] for i = 1:N]...) for t = 1:T-1]
+idx_z_nom = vcat([[idx_x_nom[t]...,idx_u_nom[t]...] for t = 1:T-1]...,idx_x_nom[T])
+idx_c_nom = N*(n*(T-1) + m*(T-1)) .+ (1:m_nom_nlp)
+
+function resample(X; β=1.0,w=1.0)
+    N = length(X)
+    n = length(X[1])
+
+    xμ = sum(X)./N
+    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + w*I
+    # cols = cholesky(Σμ).U
+    cols = fastsqrt(Σμ)
+    Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
+
+    return Xs
+end
+
+function sample_nonlinear_dynamics(models,X,U; β=1.0,w=1.0)
+    N = length(X)
+    X⁺ = []
+    for i = 1:N
+        push!(X⁺,dynamics(models[i],X[i],U[i],Δt))
+    end
+    # return X⁺
+    Xs⁺ = resample(X⁺,β=β,w=w)
+    return Xs⁺
+end
 
 function resample_vec(X; β=1.0,w=1.0)
     xμ = sum([X[(i-1)*n .+ (1:n)] for i = 1:N])./N
@@ -254,35 +375,54 @@ function sample_nonlinear_dynamics_vec(models,X,U; β=1.0,w=1.0)
     return Xs⁺
 end
 
+γ = 0.1
 function obj(z)
-    s = 0
-    for t = 1:T-1
+    s = 0.0
+    for t = 1:1
+        x⁺_nom = z[idx_x_nom[t+1]]
+        u_nom = view(z,idx_u_nom[t])
         for i = 1:N
             x = view(z,idx_x[i][t])
             u = view(z,idx_u[i][t])
-            s += (x - x_nom[t+1])'*Q[t+1]*(x - x_nom[t+1]) + (u - u_nom[t])'*R[t]*(u - u_nom[t])
+            s += (x - x⁺_nom)'*Q[t+1]*(x - x⁺_nom) + (u - u_nom)'*R[t]*(u - u_nom)
         end
     end
-    return s
+    return γ*s/N + obj_nom(view(z,idx_z_nom))
 end
+
+obj(rand(n_nlp))
 
 function ∇obj!(g,z)
     g .= 0.0
-    for t = 1:T-1
+    ∇obj_nom!(view(g,idx_z_nom),view(z,idx_z_nom))
+
+    for t = 1:1
+        x⁺_nom = z[idx_x_nom[t+1]]
+        u_nom = view(z,idx_u_nom[t])
         for i = 1:N
             x = view(z,idx_x[i][t])
             u = view(z,idx_u[i][t])
 
-            g[idx_x[i][t]] = 2.0*Q[t+1]*(x - x_nom[t+1])
-            g[idx_u[i][t]] = 2.0*R[t]*(u - u_nom[t])
+            g[idx_x[i][t]] += 2.0*Q[t+1]*(x - x⁺_nom)/N*γ
+            g[idx_u[i][t]] += 2.0*R[t]*(u - u_nom)/N*γ
+
+            g[idx_x_nom[t+1]] -= 2.0*Q[t+1]*(x - x⁺_nom)/N*γ
+            g[idx_u_nom[t]] -= 2.0*R[t]*(u - u_nom)/N*γ
+
         end
     end
-    return g
+    return nothing
 end
 
+x0 = rand(n_nlp)
+grad_f = zeros(n_nlp)
+∇obj!(grad_f,x0)
+norm(grad_f - ForwardDiff.gradient(obj,x0))
+
 function con!(c,z)
+    c .= 0.0
     β = 1.0
-    w = 1.0e-5
+    w = 1.0e-2
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
@@ -290,77 +430,20 @@ function con!(c,z)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         k = reshape(view(z,idx_k[t]),m,n)
 
+        x_nom = view(z,idx_x_nom[t])
+        u_nom = view(z,idx_u_nom[t])
+
         for i = 1:N
             c[idx_con_dyn[i][t]] = xs⁺[i] - x⁺[i]
-            c[idx_con_ctrl[i][t]] = u[i] + k*(xs[i] - x_nom[t]) - u_nom[t]
+            c[idx_con_ctrl[i][t]] = u[i] + k*(xs[i] - x_nom) - u_nom
         end
     end
+    con_nom!(view(c,idx_c_nom),view(z,idx_z_nom))
     return c
 end
-
-function ∇con_vec!(∇c,z)
-    β = 1.0
-    w = 1.0e-5
-    Im = Matrix(I,m,m)
-    ∇tmp_x = zeros(n*N,n*N)
-    ∇tmp_u = zeros(n*N,m*N)
-
-    shift = 0
-    for t = 1:T-1
-        xs = (t==1 ? x1_vec : view(z,idx_x_vec[t-1]))
-        u = view(z,idx_u_vec[t])
-        k = reshape(view(z,idx_k[t]),m,n)
-
-        tmp_x(y) = sample_nonlinear_dynamics_vec(models_mass,y,u,β=β,w=w)
-        tmp_u(y) = sample_nonlinear_dynamics_vec(models_mass,xs,y,β=β,w=w)
-
-        ForwardDiff.jacobian!(∇tmp_x,tmp_x,xs)
-        ForwardDiff.jacobian!(∇tmp_u,tmp_u,u)
-
-        for i = 1:N
-            if t > 1
-                r_idx = idx_con_dyn[i][t]
-                c_idx = idx_x_vec[t-1]
-                len = length(r_idx)*length(c_idx)
-                ∇c[shift .+ (1:len)] = vec(∇tmp_x[(i-1)*n .+ (1:n),1:n*N])
-                shift += len
-            end
-
-            r_idx = idx_con_dyn[i][t]
-            c_idx = idx_u_vec[t]
-            len = length(r_idx)*length(c_idx)
-            ∇c[shift .+ (1:len)] = vec(∇tmp_u[(i-1)*n .+ (1:n),1:m*N])
-            shift += len
-
-            r_idx = idx_con_dyn[i][t]
-            c_idx = idx_x[i][t]
-            len = length(r_idx)
-            ∇c[shift .+ (1:len)] .= -1.0
-            shift += len
-
-            r_idx = idx_con_ctrl[i][t]
-            c_idx = idx_u[i][t]
-            len = length(r_idx)
-            ∇c[shift .+ (1:len)] .= 1.0
-            shift += len
-
-            r_idx = idx_con_ctrl[i][t]
-            c_idx = idx_k[t]
-            len = length(r_idx)*length(c_idx)
-            ∇c[shift .+ (1:len)] = vec(kron((xs[(i - 1)*n .+ (1:n)] - x_nom[t])',Im))
-            shift += len
-
-            if t > 1
-                r_idx = idx_con_ctrl[i][t]
-                c_idx = idx_x[i][t-1]
-                len = length(r_idx)*length(c_idx)
-                ∇c[shift .+ (1:len)] = vec(k)
-                shift += len
-            end
-        end
-    end
-    return ∇c
-end
+idx_c_nom
+con!(zeros(m_nlp),rand(n_nlp))
+zeros(m_nlp)[idx_c_nom]
 
 function _sparsity_jacobian()
 
@@ -401,52 +484,177 @@ function _sparsity_jacobian()
                 row_col!(row,col,r_idx,c_idx)
                 # ∇c[idx_con_ctrl[i][t],idx_x[i][t-1]] = k
             end
+
+            # u nom
+            r_idx = idx_con_ctrl[i][t]
+            c_idx = idx_u_nom[t]
+            row_col!(row,col,r_idx,c_idx)
+            # x nom
+            r_idx = idx_con_ctrl[i][t]
+            c_idx = idx_x_nom[t]
+            row_col!(row,col,r_idx,c_idx)
         end
     end
 
     return collect(zip(row,col))
 end
 
+len_jac = length(_sparsity_jacobian())
+len_jac_nom = length(_sparsity_jacobian_nom())
+
+function ∇con_vec!(∇c,z)
+    ∇c .= 0.0
+
+    β = 1.0
+    w = 1.0e-2
+
+    Im = Matrix(I,m,m)
+    ∇tmp_x = zeros(n*N,n*N)
+    ∇tmp_u = zeros(n*N,m*N)
+
+    shift = 0
+    for t = 1:T-1
+        x_nom = view(z,idx_x_nom[t])
+        u_nom = view(z,idx_u_nom[t])
+        xs = (t==1 ? x1_vec : view(z,idx_x_vec[t-1]))
+        u = view(z,idx_u_vec[t])
+        k = reshape(view(z,idx_k[t]),m,n)
+
+        tmp_x(y) = sample_nonlinear_dynamics_vec(models_mass,y,u,β=β,w=w)
+        tmp_u(y) = sample_nonlinear_dynamics_vec(models_mass,xs,y,β=β,w=w)
+
+        ForwardDiff.jacobian!(∇tmp_x,tmp_x,xs)
+        ForwardDiff.jacobian!(∇tmp_u,tmp_u,u)
+
+        for i = 1:N
+            if t > 1
+                r_idx = idx_con_dyn[i][t]
+                c_idx = idx_x_vec[t-1]
+                len = length(r_idx)*length(c_idx)
+                ∇c[shift .+ (1:len)] = vec(∇tmp_x[(i-1)*n .+ (1:n),1:n*N])
+                shift += len
+            end
+
+            r_idx = idx_con_dyn[i][t]
+            c_idx = idx_u_vec[t]
+            len = length(r_idx)*length(c_idx)
+            ∇c[shift .+ (1:len)] = vec(∇tmp_u[(i-1)*n .+ (1:n),1:m*N])
+            shift += len
+
+            r_idx = idx_con_dyn[i][t]
+            c_idx = idx_x[i][t]
+            len = length(r_idx)
+            ∇c[shift .+ (1:len)] .= -1.0
+            shift += len
+
+            r_idx = idx_con_ctrl[i][t]
+            c_idx = idx_u[i][t]
+            len = length(r_idx)
+            ∇c[shift .+ (1:len)] .= 1.0
+            shift += len
+
+            r_idx = idx_con_ctrl[i][t]
+            c_idx = idx_k[t]
+            len = length(r_idx)*length(c_idx)
+            ∇c[shift .+ (1:len)] = vec(kron((xs[(i - 1)*n .+ (1:n)] - x_nom)',Im))
+            shift += len
+
+            if t > 1
+                r_idx = idx_con_ctrl[i][t]
+                c_idx = idx_x[i][t-1]
+                len = length(r_idx)*length(c_idx)
+                ∇c[shift .+ (1:len)] = vec(k)
+                shift += len
+            end
+
+            r_idx = idx_con_ctrl[i][t]
+            c_idx = idx_u_nom[t]
+            len = length(r_idx)*length(c_idx)
+            ∇c[shift .+ (1:len)] = vec(Diagonal(-1.0*ones(m)))
+            shift += len
+
+            r_idx = idx_con_ctrl[i][t]
+            c_idx = idx_x_nom[t]
+            len = length(r_idx)*length(c_idx)
+            ∇c[shift .+ (1:len)] = vec(-1.0*k)
+            shift += len
+        end
+    end
+    ∇con_nom_vec!(view(∇c,shift .+ (1:len_jac_nom)),view(z,idx_z_nom))
+
+    return ∇c
+end
+
+idx_z_nom
+
+sparsity = collect([_sparsity_jacobian()...,_sparsity_jacobian_nom(shift=N*(n*(T-1) + m*(T-1)))...])
+
+∇c = spzeros(m_nlp,n_nlp)
+∇c_jac = zeros(length(sparsity))
+∇con_vec!(∇c_jac,x0)
+∇c_fd = ForwardDiff.jacobian(con!,zeros(m_nlp),x0)
+for (i,k) in enumerate(sparsity)
+    println("$i")
+    ∇c[k[1],k[2]] = ∇c_jac[i]
+end
+norm(vec(∇c) - vec(∇c_fd))
+
 z0 = rand(n_nlp)
 zl = -Inf*ones(n_nlp)
 zu = Inf*ones(n_nlp)
 
 for t = 1:T-1
+    z0[idx_x_nom[t]] = copy(x_nom[t])
+    z0[idx_u_nom[t]] = copy(u_nom[t])
+
+    zl[idx_u_nom[t]] .= ul
+    zu[idx_u_nom[t]] .= uu
+
+    z0[idx_k[t]] = vec(K[t])
+
     for i = 1:N
         z0[idx_x[i][t]] = copy(x_nom[t+1])
         z0[idx_u[i][t]] = copy(u_nom[t])
 
         zl[idx_u[i][t]] .= ul
         zu[idx_u[i][t]] .= uu
+
     end
+    z0[idx_x_nom[T]] = copy(x_nom[T])
 end
 
-prob = Problem(n_nlp,m_nlp,obj,∇obj!,con!,∇con_vec!,true,
-    sparsity_jac=_sparsity_jacobian(),
-    primal_bounds=(zl,zu))
+prob = Problem(n_nlp,m_nlp,obj,∇obj!,con!,∇con_vec!,false,
+    sparsity_jac=sparsity,
+    primal_bounds=([zl;zl_nom],[zu;zu_nom]))
 
-z_sol_s = solve(z0,prob)
-
+z_sol_s = solve(z0,prob,max_iter=1000)
+# z_sol_s = z0
 x_sol = [[z_sol_s[idx_x[i][t]] for t = 1:T-1] for i = 1:N]
 u_sol = [[z_sol_s[idx_u[i][t]] for t = 1:T-1] for i = 1:N]
+x_sol_nom = [z_sol_s[idx_x_nom[t]] for t = 1:T-1]
+u_sol_nom = [z_sol_s[idx_u_nom[t]] for t = 1:T-1]
 
 plot(hcat(x_sol[1]...)',color=:blue,label="")
 plot!(hcat(x_sol[2]...)',color=:green,label="")
-plot!(hcat(x_sol[3]...)',color=:red,label="")
+plot!(hcat(x_sol[3]...)',color=:purple,label="")
 plot!(hcat(x_sol[4]...)',color=:orange,label="")
 plot!(hcat(x_sol[5]...)',color=:brown,label="")
 plot!(hcat(x_sol[6]...)',color=:cyan,label="")
 plot!(hcat(x_sol[7]...)',color=:magenta,label="")
 plot!(hcat(x_sol[8]...)',color=:yellow,label="")
 
+plot!(hcat(x_sol_nom...)',color=:red,label="",width=2.0)
+
+
 plot(hcat(u_sol[1]...)',color=:blue,label="")
 plot!(hcat(u_sol[2]...)',color=:green,label="")
-plot!(hcat(u_sol[3]...)',color=:red,label="")
+plot!(hcat(u_sol[3]...)',color=:purple,label="")
 plot!(hcat(u_sol[4]...)',color=:orange,label="")
 plot!(hcat(u_sol[5]...)',color=:brown,label="")
 plot!(hcat(u_sol[6]...)',color=:cyan,label="")
 plot!(hcat(u_sol[7]...)',color=:magenta,label="")
 plot!(hcat(u_sol[8]...)',color=:yellow,label="")
+plot!(hcat(u_sol_nom...)',color=:red,label="",width=2.0)
 
 K_sample = [reshape(z_sol_s[idx_k[t]],m,n) for t = 1:T-1]
 K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]

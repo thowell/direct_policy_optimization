@@ -24,7 +24,34 @@ using BenchmarkTools
 #     z .= con(x)
 # end
 
-function generate(obj,con!,cy,n,m)
+# ∇obj_fast!,∇c_fast!,∇²L_fast!,∇obj_fast,∇c_fast,∇²L_fast,∇c_sparsity,∇²L_sparsity = generate(obj,con!,cy,n,m)
+
+# x0 = rand(n)
+# const y0 = rand(m)
+# const ∇J0 = zeros(n)
+# const c0 = zeros(m)
+# const ∇c0 = zeros(m,n)
+# const ∇²L = zeros(n,n)
+#
+# @benchmark ForwardDiff.gradient!($∇J0,$f,$x0)
+# @benchmark ∇J_fast!($∇J_fast,$x0)
+#
+# @benchmark c!($c0,$x0)
+# @benchmark c_fast!($c0,$x0)
+#
+# @benchmark ForwardDiff.jacobian!($∇c0,$c!,$c0,$x0)
+# @benchmark ∇c_fast!($∇c_fast,$x0)
+#
+# _L(w) = L(w,y0)
+# @benchmark ForwardDiff.hessian!($∇²L,$_L,$x0)
+# @benchmark ∇²L_fast!($∇²L_fast,$x0,$y0)
+#
+# ∇²L_fast!(∇²L_fast,x0,y0)
+#
+# ∇²L_fast
+# ∇²L_fast.nzval
+
+function generate(obj,con!,cy,n,m,T)
     @variables x_sym[1:n], c_sym[1:m]
     @parameters y_sym[1:m]
 
@@ -57,33 +84,6 @@ function generate(obj,con!,cy,n,m)
 
     return ∇obj_fast!,∇c_fast!,∇²L_fast!,∇obj_fast,∇c_fast,∇²L_fast,∇c_sparsity,∇²L_sparsity
 end
-
-# ∇obj_fast!,∇c_fast!,∇²L_fast!,∇obj_fast,∇c_fast,∇²L_fast,∇c_sparsity,∇²L_sparsity = generate(obj,con!,cy,n,m)
-
-# x0 = rand(n)
-# const y0 = rand(m)
-# const ∇J0 = zeros(n)
-# const c0 = zeros(m)
-# const ∇c0 = zeros(m,n)
-# const ∇²L = zeros(n,n)
-#
-# @benchmark ForwardDiff.gradient!($∇J0,$f,$x0)
-# @benchmark ∇J_fast!($∇J_fast,$x0)
-#
-# @benchmark c!($c0,$x0)
-# @benchmark c_fast!($c0,$x0)
-#
-# @benchmark ForwardDiff.jacobian!($∇c0,$c!,$c0,$x0)
-# @benchmark ∇c_fast!($∇c_fast,$x0)
-#
-# _L(w) = L(w,y0)
-# @benchmark ForwardDiff.hessian!($∇²L,$_L,$x0)
-# @benchmark ∇²L_fast!($∇²L_fast,$x0,$y0)
-#
-# ∇²L_fast!(∇²L_fast,x0,y0)
-#
-# ∇²L_fast
-# ∇²L_fast.nzval
 
 function obj(x)
     nothing
@@ -482,48 +482,37 @@ end
 
 
 
-using ModelingToolkit
+using ModelingToolkit, LinearAlgebra
 
-foo(x,y) = sin(x)*cos(y)
-@parameters t; @variables x(t) y(t) z(t); @derivatives D'~t;
-@register foo(x,y)
-function ModelingToolkit.derivative(::typeof(foo), (x, y), ::Val{1})
-   @warn "hello"
-   cos(x) * cos(y) # derivative w.r.t. the first argument
-end
-function ModelingToolkit.derivative(::typeof(foo), (x, y), ::Val{2})
-    @warn "hi"
-    -sin(x) * sin(y) # derivative w.r.t. the second argument
-end
+const n = 2
+const N = 2n
+@variables x[1:n*N]
 
-isequal(expand_derivatives(D(foo(x, y))), expand_derivatives(D(sin(x) * cos(y))))
-
-@variables y[1:4]
-function foo1(a)
-    A = reshape(a,2,2)
-    sqrt_A = sqrt(A)
-
-    #S = sqrtm(A);
-    Ep = 1e-8*Matrix(I,size(A))
-
-    # if count(diag(A) .> 0.0) != size(A,1)
-    #     S = diagm(sqrt.(diag(A)));
-    #     return S
-    # end
-
-    In = Matrix(1.0*I,size(A));
-    S = A;
-    T = Matrix(1.0*I,size(A));
-
-    T = .5*(T + inv(S+Ep));
-    S = .5*(S+In);
-    for k = 1:7
-        Snew = .5*(S + inv(T+Ep));
-        T = .5*(T + inv(S+Ep));
-        S = Snew;
+function resample(z)
+    xμ = zeros(eltype(z),n)
+    for i = 1:N
+        xμ += z[(i-1)*n .+ (1:n)]
     end
-    return S[1,1]
+    Σ = sum([(z[(i-1)*n .+ (1:n)] - xμ)*transpose(z[(i-1)*n .+ (1:n)] - xμ) for i = 1:N])
+    S = sqrt(Σ)
+    return xμ + S[:,1]
 end
 
-foo1(ones(4))
-foo1(y)
+function Base.sqrt(A::Array{Operation,2})
+   A
+   eigen(A)
+   A
+end
+x0 = rand(n*N)
+
+resample(x0)
+dx = resample(x)
+f_fast! = eval(ModelingToolkit.build_function(dx,x,
+            parallel=ModelingToolkit.MultithreadedForm())[2])
+f_sparsity = ModelingToolkit.sparsejacobian(dx,x)
+∇²f = eval(ModelingToolkit.build_function(f_sparsity,x,
+            parallel=ModelingToolkit.MultithreadedForm())[2])
+_∇²f = similar(f_sparsity,Float64)
+
+∇²f(_∇²f,x0)
+_∇²f
