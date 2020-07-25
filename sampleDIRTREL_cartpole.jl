@@ -51,13 +51,13 @@ model_nom = Cartpole(1.0,0.2,0.5,9.81,dyn_c)
 n, m = 4,1
 
 # Cartpole discrete-time dynamics (midpoint)
-Δt = 0.1
+Δt = 0.02
 function dynamics(model,x,u,Δt)
     rk3(model,x,u,Δt)
 end
 
 # Trajectory optimization
-T = 20
+T = 100
 x1_nom = zeros(n)
 xT_nom = [0.0;π;0.0;0.0]
 
@@ -284,7 +284,7 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-α = 1.0e-5
+α = 1.0e-3
 x11 = α*[1.0; 0.0; 0.0; 0.0] + x_nom[1]
 x12 = α*[-1.0; 0.0; 0.0; 0.0] + x_nom[1]
 x13 = α*[0.0; 1.0;; 0.0; 0.0] + x_nom[1]
@@ -415,12 +415,12 @@ end
 x0 = rand(n_nlp)
 grad_f = zeros(n_nlp)
 ∇obj!(grad_f,x0)
-@assert norm(grad_f - ForwardDiff.gradient(obj,x0)) < 1.0e-14
+@assert norm(grad_f - ForwardDiff.gradient(obj,x0)) < 1.0e-12
 
 function con!(c,z)
     c .= 0.0
     β = 1.0
-    w = 1.0e-5
+    w = 1.0e-3
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
@@ -504,7 +504,7 @@ function ∇con_vec!(∇c,z)
     ∇c .= 0.0
 
     β = 1.0
-    w = 1.0e-5
+    w = 1.0e-3
 
     Im = Matrix(I,m,m)
     ∇tmp_x = zeros(n*N,n*N)
@@ -670,12 +670,12 @@ model_sim = model_unc
 
 T_sim = 100T
 μ = zeros(n)
-Σ = Diagonal(1.0e-3*ones(n))
+Σ = Diagonal(1.0*ones(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 
 μ0 = zeros(n)
-Σ0 = Diagonal(1.0e-3*ones(n))
+Σ0 = Diagonal(1.0e-2*ones(n))
 W0 = Distributions.MvNormal(μ0,Σ0)
 w0 = rand(W0,1)
 
