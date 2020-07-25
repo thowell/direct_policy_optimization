@@ -130,7 +130,7 @@ end
 
 g_nom = zeros(n_nom_nlp)
 ∇obj_nom!(g_nom,z0)
-norm(g_nom - ForwardDiff.gradient(obj_nom,z0))
+@assert norm(g_nom - ForwardDiff.gradient(obj_nom,z0)) < 1.0e-14
 
 #TODO confirm
 
@@ -236,8 +236,6 @@ function _sparsity_jacobian_nom(;r_shift=0,c_shift=0)
     return collect(zip(row,col))
 end
 
-ForwardDiff.jacobian(con_nom!,zeros(m_nom_nlp),z0)
-
 sparsity_nom = _sparsity_jacobian_nom()
 ∇c_nom_vec = zeros(length(sparsity_nom))
 ∇con_nom_vec!(∇c_nom_vec,z0)
@@ -246,7 +244,7 @@ for (i,idx) in enumerate(sparsity_nom)
     ∇c_nom[idx[1],idx[2]] = ∇c_nom_vec[i]
 end
 
-norm(vec(∇c_nom)-vec(ForwardDiff.jacobian(con_nom!,zeros(m_nom_nlp),z0)))
+@assert (norm(vec(∇c_nom)-vec(ForwardDiff.jacobian(con_nom!,zeros(m_nom_nlp),z0))) < 1.0e-14)
 
 prob = Problem(n_nom_nlp,m_nom_nlp,obj_nom,∇obj_nom!,con_nom!,∇con_nom_vec!,false,
     sparsity_jac=_sparsity_jacobian_nom(),
@@ -286,7 +284,7 @@ for t = T-1:-1:1
     P[t] = Q[t] + K[t]'*R[t]*K[t] + (A[t]-B[t]*K[t])'*P[t+1]*(A[t]-B[t]*K[t])
 end
 
-α = 1.0e-1
+α = 1.0e-5
 x11 = α*[1.0; 0.0; 0.0; 0.0] + x_nom[1]
 x12 = α*[-1.0; 0.0; 0.0; 0.0] + x_nom[1]
 x13 = α*[0.0; 1.0;; 0.0; 0.0] + x_nom[1]
@@ -375,10 +373,10 @@ function sample_nonlinear_dynamics_vec(models,X,U; β=1.0,w=1.0)
     return Xs⁺
 end
 
-γ = 0.1
+γ = 1.0
 function obj(z)
     s = 0.0
-    for t = 1:1
+    for t = 1:T-1
         x⁺_nom = z[idx_x_nom[t+1]]
         u_nom = view(z,idx_u_nom[t])
         for i = 1:N
@@ -396,18 +394,18 @@ function ∇obj!(g,z)
     g .= 0.0
     ∇obj_nom!(view(g,idx_z_nom),view(z,idx_z_nom))
 
-    for t = 1:1
+    for t = 1:T-1
         x⁺_nom = z[idx_x_nom[t+1]]
         u_nom = view(z,idx_u_nom[t])
         for i = 1:N
             x = view(z,idx_x[i][t])
             u = view(z,idx_u[i][t])
 
-            g[idx_x[i][t]] += 2.0*Q[t+1]*(x - x⁺_nom)/N*γ
-            g[idx_u[i][t]] += 2.0*R[t]*(u - u_nom)/N*γ
+            g[idx_x[i][t]] += 2.0*Q[t+1]*(x - x⁺_nom)*γ/N
+            g[idx_u[i][t]] += 2.0*R[t]*(u - u_nom)γ/N
 
-            g[idx_x_nom[t+1]] -= 2.0*Q[t+1]*(x - x⁺_nom)/N*γ
-            g[idx_u_nom[t]] -= 2.0*R[t]*(u - u_nom)/N*γ
+            g[idx_x_nom[t+1]] -= 2.0*Q[t+1]*(x - x⁺_nom)*γ/N
+            g[idx_u_nom[t]] -= 2.0*R[t]*(u - u_nom)*γ/N
 
         end
     end
@@ -417,12 +415,12 @@ end
 x0 = rand(n_nlp)
 grad_f = zeros(n_nlp)
 ∇obj!(grad_f,x0)
-norm(grad_f - ForwardDiff.gradient(obj,x0))
+@assert norm(grad_f - ForwardDiff.gradient(obj,x0)) < 1.0e-14
 
 function con!(c,z)
     c .= 0.0
     β = 1.0
-    w = 1.0e-2
+    w = 1.0e-5
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
@@ -506,7 +504,7 @@ function ∇con_vec!(∇c,z)
     ∇c .= 0.0
 
     β = 1.0
-    w = 1.0e-2
+    w = 1.0e-5
 
     Im = Matrix(I,m,m)
     ∇tmp_x = zeros(n*N,n*N)
@@ -595,10 +593,10 @@ sparsity = collect([_sparsity_jacobian()...,_sparsity_jacobian_nom(r_shift=(N*(n
 ∇con_vec!(∇c_jac,x0)
 ∇c_fd = ForwardDiff.jacobian(con!,zeros(m_nlp),x0)
 for (i,k) in enumerate(sparsity)
-    println("$i")
+    # println("$i")
     ∇c[k[1],k[2]] = ∇c_jac[i]
 end
-norm(vec(∇c) - vec(∇c_fd))
+@assert norm(vec(∇c) - vec(∇c_fd)) < 1.0e-12
 
 z0 = rand(n_nlp)
 zl = -Inf*ones(n_nlp)
@@ -632,30 +630,33 @@ z_sol_s = solve(z0,prob,max_iter=1000)
 # z_sol_s = z0
 x_sol = [[z_sol_s[idx_x[i][t]] for t = 1:T-1] for i = 1:N]
 u_sol = [[z_sol_s[idx_u[i][t]] for t = 1:T-1] for i = 1:N]
-x_sol_nom = [z_sol_s[idx_x_nom[t]] for t = 1:T-1]
+x_sol_nom = [z_sol_s[idx_x_nom[t]] for t = 1:T]
 u_sol_nom = [z_sol_s[idx_u_nom[t]] for t = 1:T-1]
 
-plot(hcat(x_sol[1]...)',color=:blue,label="")
-plot!(hcat(x_sol[2]...)',color=:green,label="")
-plot!(hcat(x_sol[3]...)',color=:purple,label="")
-plot!(hcat(x_sol[4]...)',color=:orange,label="")
-plot!(hcat(x_sol[5]...)',color=:brown,label="")
-plot!(hcat(x_sol[6]...)',color=:cyan,label="")
-plot!(hcat(x_sol[7]...)',color=:magenta,label="")
-plot!(hcat(x_sol[8]...)',color=:yellow,label="")
+plot(hcat(x1[1],x_sol[1]...)',color=:blue,label="")
+plot!(hcat(x1[2],x_sol[2]...)',color=:green,label="")
+plot!(hcat(x1[3],x_sol[3]...)',color=:purple,label="")
+plot!(hcat(x1[4],x_sol[4]...)',color=:orange,label="")
+plot!(hcat(x1[5],x_sol[5]...)',color=:brown,label="")
+plot!(hcat(x1[6],x_sol[6]...)',color=:cyan,label="")
+plot!(hcat(x1[7],x_sol[7]...)',color=:magenta,label="")
+plot!(hcat(x1[8],x_sol[8]...)',color=:yellow,label="")
 
 plot!(hcat(x_sol_nom...)',color=:red,label="",width=2.0)
+plot!(hcat(x_nom...)',color=:black,label="",width=2.0)
 
+norm(vec(hcat(x_sol_nom...)) - vec(hcat(x_nom...)))
 
-plot(hcat(u_sol[1]...)',color=:blue,label="")
-plot!(hcat(u_sol[2]...)',color=:green,label="")
-plot!(hcat(u_sol[3]...)',color=:purple,label="")
-plot!(hcat(u_sol[4]...)',color=:orange,label="")
-plot!(hcat(u_sol[5]...)',color=:brown,label="")
-plot!(hcat(u_sol[6]...)',color=:cyan,label="")
-plot!(hcat(u_sol[7]...)',color=:magenta,label="")
-plot!(hcat(u_sol[8]...)',color=:yellow,label="")
-plot!(hcat(u_sol_nom...)',color=:red,label="",width=2.0)
+plot(hcat(u_sol[1]...)',color=:blue,label="",linetype=:steppost)
+plot!(hcat(u_sol[2]...)',color=:green,label="",linetype=:steppost)
+plot!(hcat(u_sol[3]...)',color=:purple,label="",linetype=:steppost)
+plot!(hcat(u_sol[4]...)',color=:orange,label="",linetype=:steppost)
+plot!(hcat(u_sol[5]...)',color=:brown,label="",linetype=:steppost)
+plot!(hcat(u_sol[6]...)',color=:cyan,label="",linetype=:steppost)
+plot!(hcat(u_sol[7]...)',color=:magenta,label="",linetype=:steppost)
+plot!(hcat(u_sol[8]...)',color=:yellow,label="",linetype=:steppost)
+plot!(hcat(u_sol_nom...)',color=:red,label="",linetype=:steppost,width=2.0)
+plot!(hcat(u_nom...)',color=:black,label="",linetype=:steppost,width=2.0)
 
 K_sample = [reshape(z_sol_s[idx_k[t]],m,n) for t = 1:T-1]
 K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
@@ -663,59 +664,70 @@ K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 
 # plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
 
-model_unc = Cartpole(1.0,0.215,0.5,9.81,dyn_c)
+model_unc = Cartpole(1.0,0.2,0.5,9.81,dyn_c)
 
 model_sim = model_unc
 
 T_sim = 100T
 μ = zeros(n)
-Σ = Diagonal(1.0e-5*ones(n))
+Σ = Diagonal(1.0e-3*ones(n))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 
 μ0 = zeros(n)
-Σ0 = Diagonal(1.0e-5*ones(n))
+Σ0 = Diagonal(1.0e-3*ones(n))
 W0 = Distributions.MvNormal(μ0,Σ0)
 w0 = rand(W0,1)
 
 z0_sim = vec(copy(x_nom[1]) + 1.0*w0[:,1])
 
 z_nom_sim, u_nom_sim = nominal_trajectories(x_nom,u_nom,T_sim,Δt)
+z_nom_sol_sim, u_nom_sol_sim = nominal_trajectories(x_sol_nom,u_sol_nom,T_sim,Δt)
+
 t_nom = range(0,stop=Δt*T,length=T)
 t_sim = range(0,stop=Δt*T,length=T_sim)
 
-plt = plot(t_nom,hcat(x_nom...)[1,:],title="States",legend=:topleft,color=:red,label="ref.",width=2.0,xlabel="time (s)")
-plt = plot!(t_nom,hcat(x_nom...)[2,:],color=:red,label="",width=2.0)
-# plt = plot!(t_nom,hcat(x_nom...)[3,:],color=:red,label="",width=2.0)
-# plt = plot!(t_nom,hcat(x_nom...)[4,:],color=:red,label="",width=2.0)
+plt1 = plot(t_nom,hcat(x_nom...)[1,:],title="States",legend=:topleft,color=:red,label="nominal",width=2.0,xlabel="time (s)")
+plt1 = plot!(t_nom,hcat(x_nom...)[2,:],color=:red,label="",width=2.0)
+# plt1 = plot!(t_nom,hcat(x_nom...)[3,:],color=:red,label="",width=2.0)
+# plt1 = plot!(t_nom,hcat(x_nom...)[4,:],color=:red,label="",width=2.0)
 
 z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)#,ul=ul*ones(m),uu=uu*ones(m))
-plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
-plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
-# plt = plot!(t_sim,hcat(z_tvlqr...)[3,:],color=:purple,label="",width=2.0)
-# plt = plot!(t_sim,hcat(z_tvlqr...)[4,:],color=:purple,label="",width=2.0)
+plt1 = plot!(t_sim,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
+plt1 = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
+# plt1 = plot!(t_sim,hcat(z_tvlqr...)[3,:],color=:purple,label="",width=2.0)
+# plt1 = plot!(t_sim,hcat(z_tvlqr...)[4,:],color=:purple,label="",width=2.0)
 
-z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,ul=ul*ones(m),uu=uu*ones(m))
-plt = plot!(t_sim,hcat(z_tvlqr...)[1,:],color=:cyan,label="tvlqr (bnds)",width=2.0)
-plt = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:cyan,label="",width=2.0)
-# plt = plot!(t_sim,hcat(z_tvlqr...)[3,:],color=:purple,label="",width=2.0)
-# plt = plot!(t_sim,hcat(z_tvlqr...)[4,:],color=:purple,label="",width=2.0)
+z_tvlqr_bnds, u_tvlqr_bnds, J_tvlqr_bnds, Jx_tvlqr_bnds, Ju_tvlqr_bnds = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,ul=ul*ones(m),uu=uu*ones(m))
+plt1 = plot!(t_sim,hcat(z_tvlqr_bnds...)[1,:],color=:cyan,label="tvlqr (bnds)",width=2.0)
+plt1 = plot!(t_sim,hcat(z_tvlqr_bnds...)[2,:],color=:cyan,label="",width=2.0)
+# plt1 = plot!(t_sim,hcat(z_tvlqr...)[3,:],color=:purple,label="",width=2.0)
+# plt1 = plot!(t_sim,hcat(z_tvlqr...)[4,:],color=:purple,label="",width=2.0)
 
-z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(K_sample,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,ul=ul*ones(m),uu=uu*ones(m))
-plt = plot!(t_sim,hcat(z_sample...)[1,:],color=:orange,label="sample (bnds)",width=2.0)
-plt = plot!(t_sim,hcat(z_sample...)[2,:],color=:orange,label="",width=2.0)
-# plt = plot!(t_sim,hcat(z_sample...)[3,:],color=:orange,label="",width=2.0)
-# plt = plot!(t_sim,hcat(z_sample...)[4,:],color=:orange,label="",width=2.0)
+plt2 = plot(t_nom,hcat(x_sol_nom...)[1,:],legend=:topleft,color=:red,label="nominal (sample)",width=2.0,xlabel="time (s)")
+plt2 = plot!(t_nom,hcat(x_sol_nom...)[2,:],color=:red,label="",width=2.0)
+z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(K_sample,x_sol_nom,u_sol_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,ul=ul*ones(m),uu=uu*ones(m))
+plt2 = plot!(t_sim,hcat(z_sample...)[1,:],color=:orange,label="sample (bnds)",width=2.0)
+plt2 = plot!(t_sim,hcat(z_sample...)[2,:],color=:orange,label="",width=2.0)
+# plt2 = plot!(t_sim,hcat(z_sample...)[3,:],color=:orange,label="",width=2.0)
+# plt2 = plot!(t_sim,hcat(z_sample...)[4,:],color=:orange,label="",width=2.0)
 
+
+plot(plt1,plt2,layout=(2,1))
 # plot(t_nom[1:end-1],vcat(K...)[:,1],xlabel="time (s)",title="Gains",label="tvlqr",width=2.0,color=:purple,linetype=:steppost)
 # plot!(t_nom[1:end-1],vcat(K...)[:,2],label="",width=2.0,color=:purple,linetype=:steppost)
 
 # plot!(t_nom[1:end-1],vcat(K_sample...)[:,1],legend=:bottom,label="sample",color=:orange,width=2.0,linetype=:steppost)
 # plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
 
-plot(t_sim[1:end-1],hcat(u_nom_sim...)[:],title="Controls",xlabel="time (s)",legend=:bottomright,color=:red,label="ref.",linetype=:steppost)
-plot!(t_sim[1:end-1],hcat(u_tvlqr...)[:],color=:cyan,label="tvlqr (bnds)",linetype=:steppost)
-plot!(t_sim[1:end-1],hcat(u_sample...)[:],color=:orange,label="sample (bnds)",linetype=:steppost)
+plt3 = plot(t_sim[1:end-1],hcat(u_nom_sim...)[:],title="Controls",xlabel="time (s)",legend=:bottomright,color=:red,label="nominal",linetype=:steppost)
+plt3 = plot!(t_sim[1:end-1],hcat(u_tvlqr...)[:],color=:cyan,label="tvlqr",linetype=:steppost)
+plt3 = plot!(t_sim[1:end-1],hcat(u_tvlqr_bnds...)[:],color=:purple,label="tvlqr (bnds)",linetype=:steppost)
+
+plt4 = plot(t_sim[1:end-1],hcat(u_nom_sol_sim...)[:],xlabel="time (s)",legend=:bottomright,color=:red,label="nominal (sample)",linetype=:steppost)
+plt4 = plot!(t_sim[1:end-1],hcat(u_sample...)[:],color=:orange,label="sample (bnds)",linetype=:steppost)
+
+plot(plt3,plt4,layout=(2,1))
 
 # objective value
 J_tvlqr
