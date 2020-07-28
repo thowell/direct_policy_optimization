@@ -8,8 +8,8 @@ println("number of threads: $(Threads.nthreads())")
 T = Float64
 
 # problem size
-n = 1000
-m = 500
+n = 100
+m = 50
 
 # problem data
 const W = Diagonal(@SVector rand(n))
