@@ -1,5 +1,3 @@
-include("../dynamics/pendulum.jl")
-
 # z = (x,u,h)
 # Z = [z1,...,zT-1,xT]
 abstract type Problem end

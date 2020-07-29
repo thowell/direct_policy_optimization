@@ -28,12 +28,12 @@ Q = Diagonal(ones(nx))
 R = Diagonal(ones(nu))
 K = TVLQR([A for t=1:T-1],[B for t=1:T-1],[Q for t=1:T],[R for t=1:T-1])
 
-# 4 of samples
-β = 1.0
-x11 = β*[1.0; 1.0]
-x12 = β*[1.0; -1.0]
-x13 = β*[-1.0; 1.0]
-x14 = β*[-1.0; -1.0]
+# 4 samples
+α = 1.0
+x11 = α*[1.0; 1.0]
+x12 = α*[1.0; -1.0]
+x13 = α*[-1.0; 1.0]
+x14 = α*[-1.0; -1.0]
 x1 = [x11,x12,x13,x14]
 
 N = length(x1)

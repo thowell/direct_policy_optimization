@@ -4,17 +4,26 @@ mutable struct Indices
     h
 end
 
-function init_indices(n,m,T)
+function init_indices(nx,nu,T;
+    time=true,shift=0)
     x = []
     u = []
     h = []
 
-    for t = 1:T-1
-        push!(x,(t-1)*(n+m+1) .+ (1:n))
-        push!(u,(t-1)*(n+m+1)+n .+ (1:m))
-        push!(h,(t-1)*(n+m+1)+n+m + 1)
+    if time
+        for t = 1:T
+            push!(x,shift+(t-1)*(nx+nu+1) .+ (1:nx))
+            t==T && continue
+            push!(u,shift+(t-1)*(nx+nu+1)+nx .+ (1:nu))
+            push!(h,shift+(t-1)*(nx+nu+1)+nx+nu + 1)
+        end
+    else
+        for t = 1:T
+            push!(x,shift+(t-1)*(nx+nu) .+ (1:nx))
+            t==T && continue
+            push!(u,shift+(t-1)*(nx+nu)+nx .+ (1:nu))
+        end
     end
-    push!(x,(T-1)*(n+m+1) .+ (1:n))
 
     return Indices(x,u,h)
 end
