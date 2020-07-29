@@ -1,7 +1,7 @@
 using Ipopt, MathOptInterface
 const MOI = MathOptInterface
 
-struct Problem <: MOI.AbstractNLPEvaluator
+struct ProblemIpopt <: MOI.AbstractNLPEvaluator
     n_nlp
     m_nlp
     obj
@@ -15,14 +15,14 @@ struct Problem <: MOI.AbstractNLPEvaluator
     primal_bounds
 end
 
-function Problem(n_nlp,m_nlp,obj,con!,enable_hessian;
+function ProblemIpopt(n_nlp,m_nlp,obj,con!,enable_hessian;
         idx_ineq=(1:0),
         sparsity_jac=sparsity_jacobian(n_nlp,m_nlp),
         reshape_jac=true,
         primal_bounds=primal_bounds(n_nlp))
     ∇obj!(g,z) = ForwardDiff.gradient!(g,obj,z)
     ∇con!(∇c,z) = ForwardDiff.jacobian!(∇c,con!,zeros(eltype(z),m_nlp),z)
-    Problem(n_nlp,m_nlp,obj,∇obj!,con!,∇con!,
+    ProblemIpopt(n_nlp,m_nlp,obj,∇obj!,con!,∇con!,
         idx_ineq,
         enable_hessian,
         sparsity_jac,
@@ -30,12 +30,12 @@ function Problem(n_nlp,m_nlp,obj,con!,enable_hessian;
         primal_bounds)
 end
 
-function Problem(n_nlp,m_nlp,obj,∇obj!,con!,∇con!,enable_hessian;
+function ProblemIpopt(n_nlp,m_nlp,obj,∇obj!,con!,∇con!,enable_hessian;
         idx_ineq=(1:0),
         sparsity_jac=sparsity_jacobian(n_nlp,m_nlp),
         reshape_jac=true,
         primal_bounds=primal_bounds(n_nlp))
-    Problem(n_nlp,m_nlp,obj,∇obj!,con!,∇con!,
+    ProblemIpopt(n_nlp,m_nlp,obj,∇obj!,con!,∇con!,
         idx_ineq,
         enable_hessian,
         sparsity_jac,

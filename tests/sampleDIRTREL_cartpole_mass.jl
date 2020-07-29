@@ -664,7 +664,7 @@ K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 
 # plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,width=2.0,label="β=$β",title="Gain matrix error")
 
-model_unc = Cartpole(1.0,0.22,0.5,9.81,dyn_c)
+model_unc = Cartpole(1.0,0.2,0.5,9.81,dyn_c)
 
 model_sim = model_unc
 
@@ -692,15 +692,15 @@ plt1 = plot!(t_nom,hcat(x_nom...)[2,:],color=:red,label="",width=2.0)
 # plt1 = plot!(t_nom,hcat(x_nom...)[3,:],color=:red,label="",width=2.0)
 # plt1 = plot!(t_nom,hcat(x_nom...)[4,:],color=:red,label="",width=2.0)
 
-z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)#,ul=ul*ones(m),uu=uu*ones(m))
-plt1 = plot!(t_sim,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
-plt1 = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
+# z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w)#,ul=ul*ones(m),uu=uu*ones(m))
+# plt1 = plot!(t_sim,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
+# plt1 = plot!(t_sim,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
 # plt1 = plot!(t_sim,hcat(z_tvlqr...)[3,:],color=:purple,label="",width=2.0)
 # plt1 = plot!(t_sim,hcat(z_tvlqr...)[4,:],color=:purple,label="",width=2.0)
 
 z_tvlqr_bnds, u_tvlqr_bnds, J_tvlqr_bnds, Jx_tvlqr_bnds, Ju_tvlqr_bnds = simulate_linear_controller(K,x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,ul=ul*ones(m),uu=uu*ones(m))
-plt1 = plot!(t_sim,hcat(z_tvlqr_bnds...)[1,:],color=:cyan,label="tvlqr (bnds)",width=2.0)
-plt1 = plot!(t_sim,hcat(z_tvlqr_bnds...)[2,:],color=:cyan,label="",width=2.0)
+plt1 = plot!(t_sim,hcat(z_tvlqr_bnds...)[1,:],color=:purple,label="tvlqr (bnds)",width=2.0)
+plt1 = plot!(t_sim,hcat(z_tvlqr_bnds...)[2,:],color=:purple,label="",width=2.0)
 # plt1 = plot!(t_sim,hcat(z_tvlqr...)[3,:],color=:purple,label="",width=2.0)
 # plt1 = plot!(t_sim,hcat(z_tvlqr...)[4,:],color=:purple,label="",width=2.0)
 
@@ -721,7 +721,7 @@ plot(plt1,plt2,layout=(2,1))
 # plot!(t_nom[1:end-1],vcat(K_sample...)[:,2],label="",color=:orange,width=2.0,linetype=:steppost)
 
 plt3 = plot(t_sim[1:end-1],hcat(u_nom_sim...)[:],title="Controls",xlabel="time (s)",legend=:bottomright,color=:red,label="nominal",linetype=:steppost)
-plt3 = plot!(t_sim[1:end-1],hcat(u_tvlqr...)[:],color=:cyan,label="tvlqr",linetype=:steppost)
+# plt3 = plot!(t_sim[1:end-1],hcat(u_tvlqr...)[:],color=:cyan,label="tvlqr",linetype=:steppost)
 plt3 = plot!(t_sim[1:end-1],hcat(u_tvlqr_bnds...)[:],color=:purple,label="tvlqr (bnds)",linetype=:steppost)
 
 plt4 = plot(t_sim[1:end-1],hcat(u_nom_sol_sim...)[:],xlabel="time (s)",legend=:bottomright,color=:red,label="nominal (sample)",linetype=:steppost)
@@ -730,16 +730,13 @@ plt4 = plot!(t_sim[1:end-1],hcat(u_sample...)[:],color=:orange,label="sample (bn
 plot(plt3,plt4,layout=(2,1))
 
 # objective value
-J_tvlqr
 J_tvlqr_bnds
 J_sample
 
 # state tracking
-Jx_tvlqr
 Jx_tvlqr_bnds
 Jx_sample
 
 # control tracking
-Ju_tvlqr
 Ju_tvlqr_bnds
 Ju_sample
