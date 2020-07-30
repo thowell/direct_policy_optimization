@@ -89,6 +89,14 @@ function resample(X; β=1.0,w=1.0)
     return Xs
 end
 
+function resample_vec(X,n,N,k; β=1.0,w=1.0)
+    xμ = sum([X[(i-1)*n .+ (1:n)] for i = 1:N])./N
+    Σμ = (0.5/(β^2))*sum([(X[(i-1)*n .+ (1:n)] - xμ)*(X[(i-1)*n .+ (1:n)] - xμ)' for i = 1:N]) + w*I
+    cols = fastsqrt(Σμ)
+    Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
+    return Xs[k]
+end
+
 function sample_dynamics_linear(X,U,A,B; β=1.0,w=1.0)
     N = length(X)
     X⁺ = []

@@ -1,75 +1,7 @@
-function obj_sample(z,idx_nom,idx_sample,Q,R,T,N)
-    J = 0.0
-
-    # sample
-    for t = 1:T-1
-        u_nom = view(z,idx_nom.u[t])
-        x⁺_nom = view(z,idx_nom.x[t+1])
-
-        for i = 1:N
-            ui = view(z,idx_sample[i].u[t])
-            xi⁺ = view(z,idx_sample[i].x[t+1])
-            println((xi⁺ - x⁺_nom)'*Q[t+1]*(xi⁺ - x⁺_nom))
-            J += (xi⁺ - x⁺_nom)'*Q[t+1]*(xi⁺ - x⁺_nom) + (ui - u_nom)'*R[t]*(ui - u_nom)
-        end
-    end
-
-    return J
-end
-
-function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,con,m_con,T,N,integration)
-    shift = 0
-
-    # dynamics + resampling (x1 is taken care of w/ primal bounds)
-    β = 1.0
-    w = 1.0e-1
-    for t = 2:T-1
-        h = view(z,idx_nom.h[t])
-        x⁺_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
-        xs⁺ = resample(x⁺_tmp,β=β,w=w) # resample
-
-        for i = 1:N
-            xi = view(z,idx_sample[i].x[t])
-            ui = view(z,idx_sample[i].u[t])
-            xi⁺ = view(z,idx_sample[i].x[t+1])
-
-            c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)
-            shift += nx
-            c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
-            shift += nx
-        end
-    end
-
-    # controller for samples
-    for t = 1:T-1
-        x_nom = view(z,idx_nom.x[t])
-        u_nom = view(z,idx_nom.u[t])
-        K = reshape(view(z,idx_K[t]),nu,nx)
-
-        for i = 1:N
-            xi = view(z,idx_sample[i].x[t])
-            ui = view(z,idx_sample[i].u[t])
-            c[shift .+ (1:nu)] = ui + K*(xi - x_nom) - u_nom
-            shift += nu
-        end
-    end
-
-    # stage constraints samples
-    for t = 2:T-1
-        for i = 1:N
-            xi = view(z,idx_sample[i].x[t])
-            ui = view(z,idx_sample[i].u[t])
-
-            con(view(c,shift .+ (1:m_con)),xi,ui)
-            shift += m_con
-        end
-    end
-
-    nothing
-end
-
 mutable struct SampleProblem <: Problem
     prob::TrajectoryOptimizationProblem
+
+    M_sample::Int # number of sample constraints
     N_nlp::Int # number of decision variables
     M_nlp::Int # number of constraints
 
@@ -79,19 +11,19 @@ mutable struct SampleProblem <: Problem
     idx_x_tmp
     idx_K
 
-    x1
-
     Q
     R
 
     N::Int # number of samples
     models
+    x1
     β
     w
+    γ
 end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R;
-        time=true,β=1.0,w=1.0)
+        time=true,β=1.0,w=1.0,γ=1.0)
 
     nx = prob.n
     nu = prob.m
@@ -99,11 +31,12 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R;
     N = length(models)
     @assert N == 2*nx
 
+    M_sample = N*2*nx*(T-1) + N*nu*(T-1) + N*prob.m_con*(T-2)
     N_nlp = prob.N + N*(nx*T + nu*(T-1)) + N*(nx*(T-1)) + nu*nx*(T-1)
-    M_nlp = prob.M + N*2*nx*(T-2) + N*nu*(T-1) + N*prob.m_con*(T-2)
+    M_nlp = prob.M + M_sample
 
     idx_nom = init_indices(nx,nu,T,time=time,shift=0)
-    idx_nom_z = vcat(idx_nom.x...,idx_nom.u...,idx_nom.h...)
+    idx_nom_z = 1:prob.N
     shift = nx*T + nu*(T-1) + (T-1)
     idx_sample = [init_indices(nx,nu,T,time=false,shift=shift + (i-1)*(nx*T + nu*(T-1))) for i = 1:N]
     shift += N*(nx*T + nu*(T-1))
@@ -111,8 +44,12 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R;
     shift += N*(nx*(T-1))
     idx_K = [shift + (t-1)*(nu*nx) .+ (1:nu*nx) for t = 1:T-1]
 
-    return SampleProblem(prob,N_nlp,M_nlp,idx_nom,idx_nom_z,
-        idx_sample,idx_x_tmp,idx_K,x1,Q,R,N,models,β,w)
+    return SampleProblem(prob,
+        M_sample,N_nlp,M_nlp,
+        idx_nom,idx_nom_z,
+        idx_sample,idx_x_tmp,idx_K,
+        Q,R,
+        N,models,x1,β,w,γ)
 end
 
 function pack(X0,U0,h0,prob::SampleProblem)
@@ -178,6 +115,8 @@ function primal_bounds(prob::SampleProblem)
         end
     end
 
+    #TODO sample goal constraints
+
     return Zl,Zu
 end
 
@@ -193,30 +132,30 @@ function constraint_bounds(prob::SampleProblem)
     cu[1:M_nom] = cu_nom
 
     # sample stage constraints
-    cu[prob.N*2*prob.prob.n*(prob.prob.T-2) + prob.N*prob.prob.m*(prob.prob.T-1) .+ (1:prob.N*prob.prob.m_con*(prob.prob.T-2))] .= Inf
+    cu[M_nom+prob.N*2*prob.prob.n*(prob.prob.T-2) + prob.N*prob.prob.m*(prob.prob.T-1) .+ (1:prob.N*prob.prob.m_con*(prob.prob.T-2))] .= Inf
 
     return cl,cu
 end
 
 function eval_objective(prob::SampleProblem,Z)
     (eval_objective(prob.prob,view(Z,prob.idx_nom_z))
-        + obj_sample(Z,prob.idx_nom,prob.idx_sample,prob.Q,prob.R,prob.prob.T,prob.N))
+        + obj_sample(Z,prob.idx_nom,prob.idx_sample,prob.Q,prob.R,prob.prob.T,
+            prob.N,prob.γ))
 end
 
-function eval_objective_gradient!(∇l,Z,prob::SampleProblem)
-    eval_objective_gradient!(view(∇l,prob.idx_nom_z),view(Z,prob.idx_nom_z),
+function eval_objective_gradient!(∇obj,Z,prob::SampleProblem)
+    ∇obj .= 0.0
+    eval_objective_gradient!(view(∇obj,prob.idx_nom_z),view(Z,prob.idx_nom_z),
         prob.prob)
-    tmp_obj(z) = obj_sample(Z,prob.idx_nom,prob.idx_sample,prob.Q,prob.R,prob.prob.T,prob.N)
-
-    ∇l += ForwardDiff.gradient(tmp_obj,Z)
+    ∇obj_sample!(∇obj,Z,prob.idx_nom,prob.idx_sample,prob.Q,prob.R,prob.prob.T,prob.N,prob.γ)
     return nothing
 end
 
 function eval_constraint!(c,Z,prob::SampleProblem)
    M_nom = prob.prob.M
-   mm = prob.M_nlp - M_nom
+   M_sample = prob.M_sample
    eval_constraint!(view(c,1:M_nom),view(Z,prob.idx_nom_z),prob.prob)
-   con_sample!(view(c,M_nom .+ (1:mm)),Z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
+   con_sample!(view(c,M_nom .+ (1:M_sample)),Z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
         prob.idx_K,prob.Q,prob.R,prob.models,prob.β,prob.w,prob.prob.con,
         prob.prob.m_con,prob.prob.T,prob.N,prob.prob.integration)
    return nothing
@@ -227,19 +166,31 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
     eval_constraint_jacobian!(view(∇c,1:len),view(Z,prob.idx_nom_z),prob.prob)
 
     M_nom = prob.prob.M
-    mm = prob.M_nlp - M_nom
+    M_sample = prob.M_sample
 
-    con_tmp(c,z) = con_sample!(c,z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
-         prob.idx_K,prob.Q,prob.R,prob.models,prob.β,prob.w,prob.prob.con,
-         prob.prob.m_con,prob.prob.T,prob.N,prob.prob.integration)
+    len_sample = length(sparsity_jacobian_sample(prob.idx_nom,
+        prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.prob.m_con,prob.prob.T,
+        prob.N))
 
-    ∇c[len .+ (1:prob.M_nlp*prob.N_nlp)] = vec(ForwardDiff.jacobian(con_tmp,zeros(prob.M_nlp),Z))
+    ∇con_sample_vec!(view(∇c,len .+ (1:len_sample)),
+         Z,prob.idx_nom,
+         prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.Q,prob.R,prob.models,
+         prob.β,prob.w,prob.prob.con,prob.prob.m_con,prob.prob.T,prob.N,
+         prob.prob.integration)
+
+    # con_tmp(c,z) = con_sample!(c,z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
+    #      prob.idx_K,prob.Q,prob.R,prob.models,prob.β,prob.w,prob.prob.con,
+    #      prob.prob.m_con,prob.prob.T,prob.N,prob.prob.integration)
+    #
+    # ∇c[len .+ (1:M_sample*prob.N_nlp)] = vec(ForwardDiff.jacobian(con_tmp,zeros(M_sample),Z))
     return nothing
 end
 
 function sparsity_jacobian(prob::SampleProblem)
     M_nom = prob.prob.M
-    mm = prob.M_nlp - M_nom
+    M_sample = prob.M_sample
     collect([sparsity_jacobian(prob.prob)...,
-        sparsity_jacobian(prob.N_nlp,mm; shift_r=prob.prob.M)...])
+        sparsity_jacobian_sample(prob.idx_nom,
+        prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.prob.m_con,
+        prob.prob.T,prob.N,r_shift=M_nom)...])
 end

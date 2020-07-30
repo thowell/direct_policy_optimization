@@ -1,8 +1,9 @@
 include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/dubins.jl")
 using Plots
+
 # Horizon
-T = 30
+T = 5
 
 # Bounds
 
@@ -42,8 +43,8 @@ end
 m_con_obstacles = 4
 
 # Objective
-Q = [t < T ? Diagonal(zeros(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
-R = [Diagonal(zeros(model.nu)) for t = 1:T-1]
+Q = [t < T ? Diagonal(rand(model.nx)) : Diagonal(rand(model.nx)) for t = 1:T]
+R = [Diagonal(rand(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
@@ -76,20 +77,7 @@ Z0 = pack(X0,U0,h0,prob)
 
 # NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0))
-prob.ul
-prob_sample = init_sample_problem(prob,[model for i = 1:2*nx],[x1 for i = 1:2*nx],Q_lqr,R_lqr)
-prob_sample_moi = init_MOI_Problem(prob_sample)
-Z0_sample = pack(X0,U0,h0,prob_sample)
-primal_bounds(prob_sample)
-constraint_bounds(prob_sample)
-eval_objective(prob_sample,rand(prob_sample.N_nlp))
-eval_objective_gradient!(zeros(prob_sample.N_nlp),rand(prob_sample.N_nlp),prob_sample)
-eval_constraint!(zeros(prob_sample.M_nlp),rand(prob_sample.N_nlp),prob_sample)
-∇c_vec = zeros(length(sparsity_jacobian(prob_sample.prob)) + prob_sample.N_nlp*prob_sample.M_nlp)
-eval_constraint_jacobian!(∇c_vec,zeros(prob_sample.N_nlp),prob_sample)
-
-sparsity_jacobian(prob_sample)
+# @time Z_nominal = solve(prob_moi,copy(Z0))
 
 solve(prob_sample_moi,Z0_sample)
 
