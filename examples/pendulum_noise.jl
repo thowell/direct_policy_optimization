@@ -45,7 +45,7 @@ prob_moi = init_MOI_Problem(prob)
 
 # Initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation for states
-U0 = [0.1*randn(model.nu) for t = 1:T-1] # random controls
+U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 tf0 = 2.0
 h0 = tf0/(T-1) # timestep
 
@@ -64,16 +64,16 @@ x11 = α*[1.0; 0.0]
 x12 = α*[-1.0; 0.0]
 x13 = α*[0.0; 1.0]
 x14 = α*[0.0; -1.0]
-x1 = [x11,x12,x13,x14]
+x1_sample = [x11,x12,x13,x14]
 
-N = length(x1)
+N = length(x1_sample)
 models = [model for i = 1:N]
 K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
 w = 1.0e-3
 γ = 1.0
 
-prob_sample = init_sample_problem(prob,models,x1,Q_lqr,R_lqr,β=β,w=w,γ=γ)
+prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,β=β,w=w,γ=γ)
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Z0_sample = pack(X0,U0,h0,K0,prob_sample)
@@ -110,13 +110,28 @@ savefig(plt,joinpath(@__DIR__,"results/pendulum_control_noise.png"))
 plt = plot(t_nominal,hcat(X_nominal...)[1,:],
     color=:purple,width=2.0,xlabel="time (s)",ylabel="state",
     label="θ (nominal)",title="Pendulum",legend=:topleft)
-plt = plot!(t_nominal,hcat(X_nominal...)[2,:],color=:purple,width=2.0,label="dθ (nominal)")
+plt = plot!(t_nominal,hcat(X_nominal...)[2,:],color=:purple,width=2.0,label="x (nominal)")
 plt = plot!(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="θ (sample)")
-plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="dθ (sample)")
+plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="x (sample)")
 savefig(plt,joinpath(@__DIR__,"results/pendulum_state_noise.png"))
 
-# Samples
-plt1 = plot(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="θ (sample)")
+# State samples
+plt1 = plot(t_sample,hcat(X_nom_sample...)[1,:],color=:red,width=2.0,title="",
+    label="");
+for i = 1:N
+    plt1 = plot!(t_sample,hcat(X_sample[i]...)[1,:],label="");
+end
 
+plt2 = plot(t_sample,hcat(X_nom_sample...)[2,:],color=:red,width=2.0,label="");
+for i = 1:N
+    plt2 = plot!(t_sample,hcat(X_sample[i]...)[2,:],label="");
+end
+plot(plt1,plt2,layout=(2,1),title=["θ" "x"],xlabel="time (s)")
 
-plt2 = plot(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="dθ (sample)")
+# Control samples
+plt3 = plot(t_sample[1:end-1],hcat(U_nom_sample...)[1,:],color=:red,width=2.0,
+    title="Control",label="",xlabel="time (s)");
+for i = 1:N
+    plt3 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)[1,:],label="");
+end
+display(plt3)
