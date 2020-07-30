@@ -75,7 +75,7 @@ prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [0.01*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob)
@@ -147,34 +147,39 @@ cy5 = [_cy + yc5 for _cy in cy]
 # plt = plot(Shape(cx3,cy3),color=:red,label="",linecolor=:red)
 # plt = plot!(Shape(cx4,cy4),color=:red,label="",linecolor=:red)
 plt = plot(Shape(cx5,cy5),color=:red,label="",linecolor=:red)
-plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=2.0,label="nominal",color=:purple,legend=:topleft)
-
+plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=2.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)",color=:purple,legend=:topleft)
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
-plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=2.0,label="sample",color=:orange,legend=:bottomright)
-# savefig(plt,joinpath(@__DIR__,"results/dubins_state.png"))
+plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=2.0,label="sample  (tf=$(round(sum(H_nom_sample),digits=3))s)",color=:orange,legend=:bottomright)
+savefig(plt,joinpath(@__DIR__,"results/dubins_trajectory.png"))
 
 # Control
 plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',color=:purple,width=2.0,
     title="Dubins",xlabel="time (s)",ylabel="control",label=["v (nominal)" "ω (nominal)"],
-    legend=:bottomright,linetype=:steppost)
+    legend=:bottom,linetype=:steppost)
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',color=:orange,
     width=2.0,label=["v (sample)" "ω (sample)"],linetype=:steppost)
-# savefig(plt,joinpath(@__DIR__,"results/dubins_control.png"))
+savefig(plt,joinpath(@__DIR__,"results/dubins_control.png"))
 
 # Samples
+
 # State samples
-plt1 = plot(t_sample,hcat(X_nom_sample...)',color=:red,width=2.0,title="",
-    label="");
+plt1 = plot(title="Sample states",legend=:bottom,xlabel="time (s)");
 for i = 1:N
     plt1 = plot!(t_sample,hcat(X_sample[i]...)',label="");
 end
+plt1 = plot!(t_sample,hcat(X_nom_sample...)',color=:red,width=2.0,
+    label=["nominal" "" ""])
 display(plt1)
+savefig(plt1,joinpath(@__DIR__,"results/dubins_sample_states.png"))
 
 # Control samples
-plt2 = plot(t_sample[1:end-1],hcat(U_nom_sample...)',color=:red,width=2.0,
-    label="",xlabel="time (s)");
+plt2 = plot(title="Sample controls",xlabel="time (s)",legend=:bottom);
 for i = 1:N
-    plt2 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)',label="");
+    plt2 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)',label="",
+        linetype=:steppost);
 end
+plt2 = plot!(t_sample[1:end-1],hcat(U_nom_sample...)',color=:red,width=2.0,
+    label=["nominal" ""],linetype=:steppost)
 display(plt2)
+savefig(plt2,joinpath(@__DIR__,"results/dubins_sample_controls.png"))
