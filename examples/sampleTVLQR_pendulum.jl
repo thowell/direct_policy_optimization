@@ -4,7 +4,7 @@ include("../dynamics/pendulum.jl")
 
 # Pendulum discrete-time dynamics (midpoint)
 Δt = 0.05
-function dynamics_discrete(x,u,Δt)
+function discrete_dynamics(model,x,u,Δt)
     midpoint(model,x,u,Δt)
 end
 
@@ -29,14 +29,14 @@ m_nom_nlp = nx*(T+1)
 
 z0_nom = 1.0e-5*randn(n_nom_nlp)
 for t = 1:T
-    z0_nom[x_idx[t]] = x_nom_ref[t]
+    z0_nom[x_nom_idx[t]] = x_nom_ref[t]
 end
 
 function obj_nom(z)
     s = 0.0
     for t = 1:T-1
-        x = z[x_idx[t]]
-        u = z[u_idx[t]]
+        x = z[x_nom_idx[t]]
+        u = z[u_nom_idx[t]]
         s += x'*Q_nom[t]*x + u'*R_nom[t]*u
     end
     x = z[x_nom_idx[T]]
@@ -53,7 +53,7 @@ function con_nom!(c,z)
         x = z[x_nom_idx[t]]
         u = z[u_nom_idx[t]]
         x⁺ = z[x_nom_idx[t+1]]
-        c[(t-1)*nx .+ (1:nx)] = x⁺ - dynamics_discrete(x,u,Δt)
+        c[(t-1)*nx .+ (1:nx)] = x⁺ - discrete_dynamics(model,x,u,Δt)
     end
     c[(T-1)*nx .+ (1:nx)] = z[x_nom_idx[1]] - x1_nom
     c[T*nx .+ (1:nx)] = z[x_nom_idx[T]] - xT_nom
@@ -90,6 +90,8 @@ for t = 1:T-1
     push!(A,ForwardDiff.jacobian(fx,x))
     push!(B,ForwardDiff.jacobian(fu,u))
 end
+A
+B
 
 Q = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0;100.0]) for t = 1:T]
 R = [Diagonal(ones(nu)) for t = 1:T-1]
@@ -134,7 +136,7 @@ function con!(c,z)
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_dynamics(xs,u,A[t],B[t],β=β,w=w)
+        xs⁺ = sample_dynamics_linear(xs,u,A[t],B[t],β=β,w=w)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         k = reshape(view(z,idx_k[t]),nu,nx)
 
@@ -156,5 +158,5 @@ K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("solution error: $(sum(K_error)/N)")
 
 plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,
-    ylims=(1.0e-16,1.0),width=2.0,label="β=$β",legend=:bottom,
+    ylims=(1.0e-16,1.0),width=2.0,legend=:bottom,
     title="Gain matrix error")

@@ -89,4 +89,4 @@ K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("solution error: $(sum(K_error)/N)")
 
 using Plots
-plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",ylims=(1.0e-16,1.0),yaxis=:log,width=2.0,label="β=$β",legend=:bottom,title="Gain matrix error")
+plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",ylims=(1.0e-16,1.0),yaxis=:log,width=2.0,legend=:bottom,title="Gain matrix error")

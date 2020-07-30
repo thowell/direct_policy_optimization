@@ -1,6 +1,7 @@
 include("../src/sample_trajectory_optimization.jl")
 include("../tests/ipopt.jl")
 include("../dynamics/pendulum.jl")
+using Plots
 
 # Pendulum discrete-time dynamics (midpoint)
 Δt = 0.05
@@ -29,14 +30,14 @@ m_nom_nlp = nx*(T+1)
 
 z0_nom = 1.0e-5*randn(n_nom_nlp)
 for t = 1:T
-    z0_nom[x_idx[t]] = x_nom_ref[t]
+    z0_nom[x_nom_idx[t]] = x_nom_ref[t]
 end
 
 function obj_nom(z)
     s = 0.0
     for t = 1:T-1
-        x = z[x_idx[t]]
-        u = z[u_idx[t]]
+        x = z[x_nom_idx[t]]
+        u = z[u_nom_idx[t]]
         s += x'*Q_nom[t]*x + u'*R_nom[t]*u
     end
     x = z[x_nom_idx[T]]
@@ -53,7 +54,7 @@ function con_nom!(c,z)
         x = z[x_nom_idx[t]]
         u = z[u_nom_idx[t]]
         x⁺ = z[x_nom_idx[t+1]]
-        c[(t-1)*nx .+ (1:nx)] = x⁺ - dynamics_discrete(x,u,Δt)
+        c[(t-1)*nx .+ (1:nx)] = x⁺ - discrete_dynamics(model,x,u,Δt)
     end
     c[(T-1)*nx .+ (1:nx)] = z[x_nom_idx[1]] - x1_nom
     c[T*nx .+ (1:nx)] = z[x_nom_idx[T]] - xT_nom
@@ -84,8 +85,8 @@ B = []
 for t = 1:T-1
     x = x_nom[t]
     u = u_nom[t]
-    fx(z) = dynamics(z,u,Δt)
-    fu(z) = dynamics(x,z,Δt)
+    fx(z) = discrete_dynamics(model,z,u,Δt)
+    fu(z) = discrete_dynamics(model,x,z,Δt)
 
     push!(A,ForwardDiff.jacobian(fx,x))
     push!(B,ForwardDiff.jacobian(fu,u))
@@ -148,16 +149,21 @@ end
 
 prob = ProblemIpopt(n_nlp,m_nlp,obj,con!,true)
 
-z0 = rand(n_nlp)
-z_sol_s = solve(z0,prob)
+z0 = randn(n_nlp)
+for t = 1:T-1
+    for i = 1:N
+        z0[idx_x[i][t]] = x_nom_ref[t+1]
+        # z0[idx_u[i][t]] = u_nom[t]
+    end
+end
+z_sol_s = solve(copy(z0),prob)
 
 K_sample = [reshape(z_sol_s[idx_k[t]],nu,nx) for t = 1:T-1]
 K_difference = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("solution difference: $(sum(K_difference)/N)")
 
-using Plots
 plot(K_difference,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,
-    width=2.0,label="β=$β",title="Gain matrix difference",
+    width=2.0,title="Gain matrix difference",
     legend=:bottomright)
 
 # Simulate controllers
@@ -171,7 +177,7 @@ W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 
 μ0 = zeros(nx)
-Σ0 = Diagonal(1.0e-2*ones(nx))
+Σ0 = Diagonal(1.0e-1*ones(nx))
 W0 = Distributions.MvNormal(μ0,Σ0)
 w0 = rand(W0,1)
 
