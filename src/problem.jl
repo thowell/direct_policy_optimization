@@ -39,7 +39,7 @@ function init_problem(n,m,T,x1,xT,model,obj;
 
     idx = init_indices(n,m,T)
     N = n*T + m*(T-1) + (T-1)
-    M = n*(T-1) + (T-2) + m_con*(T-2)
+    M = n*(T-1) + (T-2) + m_con*(T-1)
 
     return TrajectoryOptimizationProblem(n,m,T,N,M,
         x1,xT,
@@ -123,7 +123,7 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
 
     cl = zeros(M)
     cu = zeros(M)
-    cu[n*(T-1) + (T-2) .+ (1:prob.m_con*(T-2))] = Inf*ones(prob.m_con*(T-2))
+    cu[n*(T-1) + (T-2) .+ (1:prob.m_con*(T-1))] .= Inf
 
     return cl, cu
 end
@@ -145,7 +145,7 @@ function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
     dynamics_constraints!(view(c,1:(n*(T-1) + (T-2))),Z,
         prob.idx,prob.n,prob.m,prob.T,prob.model,prob.integration)
 
-    prob.m_con > 0 && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:prob.m_con*(T-2))),
+    prob.m_con > 0 && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:prob.m_con*(T-1))),
         Z,prob.idx,T,prob.con,prob.m_con)
 
     return nothing

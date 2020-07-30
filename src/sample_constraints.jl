@@ -35,7 +35,7 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,con,
 
     # stage constraints samples
     if m_con > 0
-        for t = 2:T-1
+        for t = 1:T-1
             for i = 1:N
                 xi = view(z,idx_sample[i].x[t])
                 ui = view(z,idx_sample[i].u[t])
@@ -286,7 +286,7 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
     # stage constraints samples
     c_stage_tmp = zeros(m_con)
     if m_con > 0
-        for t = 2:T-1
+        for t = 1:T-1
             for i = 1:N
                 xi = view(z,idx_sample[i].x[t])
                 ui = view(z,idx_sample[i].u[t])
@@ -454,9 +454,9 @@ function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,m_con,T,N;r
     end
 
     # stage constraints samples
-    # c_stage_tmp = zeros(m_con)
+    c_stage_tmp = zeros(m_con)
     if m_con > 0
-        for t = 2:T-1
+        for t = 1:T-1
             for i = 1:N
                 # xi = view(z,idx_sample[i].x[t])
                 # ui = view(z,idx_sample[i].u[t])

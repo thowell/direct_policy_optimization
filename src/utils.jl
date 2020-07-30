@@ -82,7 +82,7 @@ function resample(X; β=1.0,w=1.0)
     nx = length(X[1])
 
     xμ = sum(X)./N
-    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + w*I
+    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + Diagonal(w)
     cols = fastsqrt(Σμ)
     Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:nx]
 
@@ -91,7 +91,7 @@ end
 
 function resample_vec(X,n,N,k; β=1.0,w=1.0)
     xμ = sum([X[(i-1)*n .+ (1:n)] for i = 1:N])./N
-    Σμ = (0.5/(β^2))*sum([(X[(i-1)*n .+ (1:n)] - xμ)*(X[(i-1)*n .+ (1:n)] - xμ)' for i = 1:N]) + w*I
+    Σμ = (0.5/(β^2))*sum([(X[(i-1)*n .+ (1:n)] - xμ)*(X[(i-1)*n .+ (1:n)] - xμ)' for i = 1:N]) + Diagonal(w)
     cols = fastsqrt(Σμ)
     Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
     return Xs[k]

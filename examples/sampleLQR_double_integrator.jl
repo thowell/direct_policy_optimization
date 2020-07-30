@@ -63,7 +63,7 @@ end
 
 function con!(c,z)
     β = 1.0
-    w = 1.0e-1
+    w = 1.0e-1*ones(nx)
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]

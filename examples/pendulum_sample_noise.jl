@@ -70,7 +70,7 @@ N = length(x1_sample)
 models = [model for i = 1:N]
 K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-3
+w = 1.0e-3*ones(model.nx)
 γ = 1.0
 
 prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,β=β,w=w,γ=γ)
