@@ -52,7 +52,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R;
         N,models,x1,β,w,γ)
 end
 
-function pack(X0,U0,h0,prob::SampleProblem)
+function pack(X0,U0,h0,K0,prob::SampleProblem)
     Z0 = zeros(prob.N_nlp)
     Z0[prob.idx_nom_z] = pack(X0,U0,h0,prob.prob)
     T = prob.prob.T
@@ -65,6 +65,10 @@ function pack(X0,U0,h0,prob::SampleProblem)
             Z0[prob.idx_sample[i].u[t]] = U0[t]
             Z0[prob.idx_x_tmp[i].x[t]] = X0[t+1]
         end
+    end
+
+    for t = 1:T-1
+        Z0[prob.idx_K[t]] = K0[t]
     end
     return Z0
 end
