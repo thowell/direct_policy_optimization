@@ -1,6 +1,5 @@
 include("../src/sample_trajectory_optimization.jl")
-include("../dynamics/dubins.jl")
-include("../dynamics/obstacles.jl")
+include("../dynamics/rocket.jl")
 using Plots
 
 # Horizon
@@ -9,44 +8,18 @@ T = 30
 # Bounds
 
 # ul <= u <= uu
-uu = 5.0
-ul = -5.0
+uu = [6500.0;130;15.0]
+ul = [0.0;-130.0;15.0]
 
 # h = h0 (fixed timestep)
-tf0 = 1.0
+tf0 = 30.0
 h0 = tf0/(T-1)
 hu = 5*h0
 hl = 0.0
 
 # Initial and final states
-x1 = [0.0; 0.0; 0.0]
-xT = [1.0; 1.0; 0.0]
-
-# Circle obstacle
-r = 0.1
-xc1 = 0.85
-yc1 = 0.3
-xc2 = 0.375
-yc2 = 0.75
-xc3 = 0.25
-yc3 = 0.25
-xc4 = 0.75
-yc4 = 0.75
-xc5 = 0.5
-yc5 = 0.5
-
-# Constraints
-function con_obstacles!(c,x,u)
-    # c[1] = circle_obs(x[1],x[2],xc1,yc1,r)
-    # c[2] = circle_obs(x[1],x[2],xc2,yc2,r)
-    # c[1] = circle_obs(x[1],x[2],xc3,yc3,r)
-    # c[2] = circle_obs(x[1],x[2],xc4,yc4,r)
-    c[1] = circle_obs(x[1],x[2],xc5,yc5,r)
-    # c[1:2] = uu*ones(model.nu) - u
-    # c[3:4] = u - ul*ones(model.nu)
-    nothing
-end
-m_con_obstacles = 1
+x1 = [100.0; 100.0; 5.0; 10.0; 10.0; 0.1]
+xT = [0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
 
 # Objective
 Q = [t < T ? Diagonal(zeros(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
@@ -66,9 +39,7 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
                     integration=rk3_implicit,
-                    goal_constraint=true,
-                    con=con_obstacles!,
-                    m_con=m_con_obstacles
+                    goal_constraint=true
                     )
 
 # MathOptInterface problem
@@ -87,13 +58,19 @@ Z0 = pack(X0,U0,h0,prob)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 # Sample
-α = 2.5e-4
-x11 = α*[1.0; 0.0; 0.0]
-x12 = α*[-1.0; 0.0; 0.0]
-x13 = α*[0.0; 1.0; 0.0]
-x14 = α*[0.0; -1.0; 0.0]
-x15 = α*[0.0; 0.0; 1.0]
-x16 = α*[0.0; 0.0; -1.0]
+α = 1.0e-4
+x11 = α*[1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+x12 = α*[-1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+x13 = α*[0.0; 1.0; 0.0; 0.0; 0.0; 0.0]
+x14 = α*[0.0; -1.0; 0.0; 0.0; 0.0; 0.0]
+x15 = α*[0.0; 0.0; 1.0; 0.0; 0.0; 0.0]
+x16 = α*[0.0; 0.0; -1.0; 0.0; 0.0; 0.0]
+x17 = α*[0.0; 0.0; 0.0; 1.0; 0.0; 0.0]
+x18 = α*[0.0; 0.0; 0.0; -1.0; 0.0; 0.0]
+x19 = α*[0.0; 0.0; 0.0; 0.0; 1.0; 0.0]
+x110 = α*[0.0; 0.0; 0.0; 0.0; -1.0; 0.0]
+x111 = α*[0.0; 0.0; 0.0; 0.0; 0.0; 1.0]
+x112 = α*[0.0; 0.0; 0.0; 0.0; 0.0; -1.0]
 x1_sample = [x11,x12,x13,x14,x15,x16]
 
 N = length(x1_sample)

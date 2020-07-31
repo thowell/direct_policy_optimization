@@ -6,30 +6,28 @@ function matrix_sqrt(A)
             e.values[i] = 1.0e-3
         end
     end
-    # return e.vectors*Diagonal(sqrt.(e.values))*inv(e.vectors)
-    return Diagonal(sqrt.(e.values))*e.vectors'
+    return e.vectors*Diagonal(sqrt.(e.values))*inv(e.vectors)
 end
 
 function fastsqrt(A)
     #FASTSQRT computes the square root of a matrix A with Denman-Beavers iteration
+    n = size(A,1)
+    Ep = 1e-8*Diagonal(ones(n))
 
-    #S = sqrtm(A);
-    Ep = 1e-8*Matrix(I,size(A))
+    # if count(diag(A) .> 0.0) != size(A,1)
+    #     S = diagm(sqrt.(diag(A)));
+    #     return S
+    # end
 
-    if count(diag(A) .> 0.0) != size(A,1)
-        S = diagm(sqrt.(diag(A)));
-        return S
-    end
-
-    In = Matrix(1.0*I,size(A));
+    In = Diagonal(ones(n))
     S = A;
-    T = Matrix(1.0*I,size(A));
+    T = Diagonal(ones(n))
 
-    T = .5*(T + inv(S+Ep));
-    S = .5*(S+In);
-    for k = 1:10
-        Snew = .5*(S + inv(T+Ep));
-        T = .5*(T + inv(S+Ep));
+    T = 0.5*(T + inv(S+Ep));
+    S = 0.5*(S+In);
+    for k = 1:5
+        Snew = 0.5*(S + inv(T+Ep));
+        T = 0.5*(T + inv(S+Ep));
         S = Snew;
     end
     return S
