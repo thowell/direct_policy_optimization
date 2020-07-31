@@ -1,29 +1,37 @@
+"""
+Simple 2D rocket model with fluid slosh (modeled as pendulum)
+"""
 mutable struct Rocket{T}
-	m::T
-	J::T
+	mr::T
+	Jr::T
+	mf::T
 	g::T
 
 	l1::T
 	l2::T
-	ln::T
-	ls::T
+	l3::T
+
+	nx::Int
+	nu::Int
 end
 
 function dynamics(model::Rocket,x,u)
 	θ = x[3]
+	ψ = x[4]
 	FE = u[1]
-	FS = u[2]
+	FT = u[2]
 	φ = u[3]
 
-	return @SVector [x[4],
-					 x[5],
+	return @SVector [x[5],
 					 x[6],
-					 (FE*cos(φ)*sin(θ) + FE*cos(θ)*sin(φ) + FS*cos(θ))/model.m,
-					 FE*cos(φ)*cos(θ) - FE*sin(φ)*sin(θ) - FS*sin(θ) - model.m*model.g,
-					 (-FE*sin(φ)*(model.l1 + model.ln*cos(φ)) + model.l2*FS)/model.J]
+					 x[7],
+					 x[8],
+					 (-FT*cos(θ) - FE*cos(φ)*sin(θ) + FE*cos(θ)*sin(φ))/model.mr,
+					 (-FT*sin(θ) + FE*cos(φ)*cos(θ) + FE*sin(φ)*sin(θ) - (model.mr + model.mf)*model.g)/model.mr,
+					 (FT*model.l2 - FE*sin(φ)*model.l1 - model.mf*model.g*sin(ψ)*model.l3)/model.Jr,
+					 (-model.mf*model.g*sin(ψ)*model.l3)/(model.mf*model.l3*model.l3)]
 end
-"""
-https://project-archive.inf.ed.ac.uk/msc/20172139/msc_proj.pdf
-https://www.reddit.com/r/spacex/comments/1xhuok/legbased_stability_and_moments_of_inertia/
-"""
-model = Rocket(20.0e3,75.0e3,9.81,35.0,35.0,1.0,1.5)
+
+nx = 8
+nu = 3
+model = Rocket(1.0,1.0,0.1,9.81,1.0,1.0,0.1,nx,nu)
