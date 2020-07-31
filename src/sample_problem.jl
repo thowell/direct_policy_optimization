@@ -37,7 +37,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R;
 
     idx_nom = init_indices(nx,nu,T,time=time,shift=0)
     idx_nom_z = 1:prob.N
-    shift = nx*T + nu*(T-1) + (T-1)
+    shift = nx*T + nu*(T-1) + (T-1)*true
     idx_sample = [init_indices(nx,nu,T,time=false,shift=shift + (i-1)*(nx*T + nu*(T-1))) for i = 1:N]
     shift += N*(nx*T + nu*(T-1))
     idx_x_tmp = [init_indices(nx,0,T-1,time=false,shift=shift + (i-1)*(nx*(T-1))) for i = 1:N]
@@ -97,7 +97,7 @@ function primal_bounds(prob::SampleProblem)
     Zu = Inf*ones(prob.N_nlp)
 
     # nominal bounds
-    Zl_nom,Zu_nom = primal_bounds(prob.prob)
+    Zl_nom, Zu_nom = primal_bounds(prob.prob)
     Zl[prob.idx_nom_z] = Zl_nom
     Zu[prob.idx_nom_z] = Zu_nom
 
@@ -136,8 +136,9 @@ function constraint_bounds(prob::SampleProblem)
     cu[1:M_nom] = cu_nom
 
     # sample stage constraints
-    cu[M_nom+prob.N*2*prob.prob.n*(prob.prob.T-1) + prob.N*prob.prob.m*(prob.prob.T-1) .+ (1:prob.N*prob.prob.m_con*(prob.prob.T-1))] .= Inf
-
+    if prob.prob.m_con > 0
+        cu[M_nom+prob.N*2*prob.prob.n*(prob.prob.T-1) + prob.N*prob.prob.m*(prob.prob.T-1) .+ (1:prob.N*prob.prob.m_con*(prob.prob.T-1))] .= Inf
+    end
     return cl,cu
 end
 
