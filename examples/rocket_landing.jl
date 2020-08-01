@@ -154,39 +154,39 @@ plt = plot(x_nom_pos,z_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 z_sample_pos = [X_nom_sample[t][2] for t = 1:T]
 plt = plot!(x_sample_pos,z_sample_pos,aspect_ratio=:equal,width=2.0,label="sample  (tf=$(round(sum(H_nom_sample),digits=3))s)",color=:orange,legend=:bottomright)
-# savefig(plt,joinpath(@__DIR__,"results/rocket_trajectory.png"))
+savefig(plt,joinpath(@__DIR__,"results/rocket_trajectory.png"))
 
 # Control
 plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',width=2.0,
     title="Rocket",xlabel="time (s)",ylabel="control",
     label=["FE (nominal)" "FT (nominal)" "φ (nominal)"],color=:purple,
-    legend=:bottom,linetype=:steppost)
+    legend=:top,linetype=:steppost)
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',color=:orange,
     width=2.0,label=["FE (sample nominal)" "FT (sample nominal)" "φ (sample nominal)"],linetype=:steppost)
-# savefig(plt,joinpath(@__DIR__,"results/dubins_control.png"))
+savefig(plt,joinpath(@__DIR__,"results/rocket_control.png"))
 #
 # # Samples
 
 # State samples
-plt1 = plot(title="Sample states",legend=:bottom,xlabel="time (s)");
+plt1 = plot(title="Sample states",legend=:topright,xlabel="time (s)");
 for i = 1:N
-    plt1 = plot!(t_sample,hcat(X_sample[i]...)[1:4,:]',label="");
+    plt1 = plot!(t_sample,hcat(X_sample[i]...)[1:3,:]',label="");
 end
-plt1 = plot!(t_sample,hcat(X_nom_sample...)[1:4,:]',color=:red,width=2.0,
-    label="")
+plt1 = plot!(t_sample,hcat(X_nom_sample...)[1:3,:]',color=:red,width=2.0,
+    label=label=["x" "z" "θ"])
 display(plt1)
-# savefig(plt1,joinpath(@__DIR__,"results/dubins_sample_states.png"))
+savefig(plt1,joinpath(@__DIR__,"results/rocket_sample_states.png"))
 
 # Control samples
-plt2 = plot(title="Sample controls",xlabel="time (s)",legend=:bottom);
+plt2 = plot(title="Sample controls",xlabel="time (s)",legend=:topleft);
 for i = 1:N
     plt2 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)',label="",
         linetype=:steppost);
 end
 plt2 = plot!(t_sample[1:end-1],hcat(U_nom_sample...)',color=:red,width=2.0,
-    label=["nominal" ""],linetype=:steppost)
+    label=["FE (sample nominal)" "FT (sample nominal)" "φ (sample nominal)"],linetype=:steppost)
 display(plt2)
-# savefig(plt2,joinpath(@__DIR__,"results/dubins_sample_controls.png"))
+savefig(plt2,joinpath(@__DIR__,"results/rocket_sample_controls.png"))
 
 using Colors
 using CoordinateTransformations
@@ -210,5 +210,5 @@ for t = 1:T
         settransform!(vis["rocket"], compose(Translation(X_nom[t][1],0.0,X_nom[t][2]),LinearMap(RotY(X_nom[t][3]))))
     end
 end
-# settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
 MeshCat.setanimation!(vis,anim)
+# settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
