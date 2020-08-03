@@ -71,3 +71,24 @@ uu_friction[1] = 10.0
 
 stage_friction_ineq = (3:5)
 (model.mc + model.mp)*model.g
+
+mutable struct PenaltyObjective{T} <: Objective
+    α::T
+end
+
+function objective(Z,l::PenaltyObjective,model::CartpoleFriction,idx,T)
+    J = 0
+    for t = 1:T-1
+        s = Z[idx.u[t][7]]
+        J += s
+    end
+    return l.α*J
+end
+
+function objective_gradient!(∇l,Z,l::PenaltyObjective,model::CartpoleFriction,idx,T)
+    for t = 1:T-1
+        u = Z[idx.u[t][7]]
+        ∇l[idx.u[t][7]] += l.α
+    end
+    return nothing
+end

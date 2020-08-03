@@ -2,6 +2,21 @@
 
 abstract type Objective end
 
+mutable struct MultiObjective <: Objective
+    obj::Vector{Objective}
+end
+
+function objective(Z,obj::MultiObjective,model,idx,T)
+    return sum([objective(Z,o,model,idx,T) for o in obj.obj])
+end
+
+function objective_gradient!(∇l,Z,obj::MultiObjective,model,idx,T)
+    for o in obj.obj
+        objective_gradient!(∇l,Z,o,model,idx,T)
+    end
+    return nothing
+end
+
 mutable struct QuadraticTrackingObjective <: Objective
     Q
     R
@@ -57,7 +72,6 @@ function objective_gradient!(∇l,Z,l::QuadraticTrackingObjective,model,idx,T)
     R = l.R
     c = l.c
 
-    ∇l .= 0.0
     for t = 1:T-1
         x = Z[idx.x[t]]
         u = Z[idx.u[t]]

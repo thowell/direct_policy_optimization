@@ -3,7 +3,7 @@ include("../dynamics/cartpole.jl")
 using Plots
 
 model = model_friction
-
+model.μ = 0.5
 # Horizon
 T = 51
 
@@ -21,17 +21,20 @@ xT = [0.0; π; 0.0; 0.0]
 
 # Objective
 Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
-R = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,1000.0]) for t = 1:T-1]
+R = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
-    [xT for t=1:T],[zeros(model.nu) for t=1:T]) # NOTE: there is a discrepancy between paper and DRAKE
+    [xT for t=1:T],[zeros(model.nu) for t=1:T])
+penalty_obj = PenaltyObjective(5.0)
+
+multi_obj = MultiObjective([obj,penalty_obj])
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0;1.0]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+prob = init_problem(model.nx,model.nu,T,x1,xT,model,multi_obj,
                     ul=[ul_friction for t=1:T-1],
                     uu=[uu_friction for t=1:T-1],
                     hl=[hl for t=1:T-1],

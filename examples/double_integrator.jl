@@ -28,6 +28,11 @@ R = [Diagonal(zeros(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
+multi_obj = MultiObjective([obj])
+
+for (i,o) in enumerate(multi_obj.obj)
+    println(i)
+end
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
@@ -35,7 +40,7 @@ R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
 
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+prob = init_problem(model.nx,model.nu,T,x1,xT,model,multi_obj,
                     xl=[[-Inf;-0.75] for t = 1:T],
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],

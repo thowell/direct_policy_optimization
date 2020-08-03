@@ -140,6 +140,7 @@ function eval_objective(prob::TrajectoryOptimizationProblem,Z)
 end
 
 function eval_objective_gradient!(∇l,Z,prob::TrajectoryOptimizationProblem)
+    ∇l .= 0.0
     objective_gradient!(∇l,Z,prob.obj,prob.model,prob.idx,prob.T)
     return nothing
 end
