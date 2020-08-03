@@ -8,8 +8,8 @@ function kinematics(model,q)
 	pe = [model.l1*sin(θ1) + model.l2*sin(θ1 - q[3]),
 		  model.l1*cos(θ1) + model.l2*cos(θ1 - q[3])]
 
-	pf = [model.l1*sin(θ2) + model.l2*sin(θ2 - q[4]),
-		  model.l1*cos(θ2) + model.l2*cos(θ2 - q[4]) - pe[2]]
+	pf = [pe[1] - (model.l1*sin(θ2) + model.l2*sin(θ2 - q[4])),
+		  pe[2] - (model.l1*cos(θ2) + model.l2*cos(θ2 - q[4]))]
 
     return pf
 end
@@ -17,10 +17,10 @@ end
 function transformation_to_urdf_left_pinned(q,v)
 	x = [q...,v...]
 	robot_world_angle = (x[1] + x[3] + x[5]) - pi/2
-	# robot_world_angvel = (x[6] + x[8] + x[10])
+	robot_world_angvel = (x[6] + x[8] + x[10])
 	robot_position = [robot_world_angle; x[3]; -x[1]+pi/2; pi/2-x[2]; x[4]]
-	# robot_velocity = [robot_world_angvel; x[8]; -x[6] ; -x[7]; x[9]]
-	return robot_position#, robot_velocity
+	robot_velocity = [robot_world_angvel; x[8]; -x[6] ; -x[7]; x[9]]
+	return robot_position, robot_velocity
 end
 
 function transformation_to_urdf_right_pinned(q,v)

@@ -25,20 +25,33 @@ v_final = [2.47750069399969,3.99102008940145,-1.91724136219709,-3.95094757056324
 x1 = [q_init;v_init]
 xT = [q_final;v_final]
 
+pfz_init = kinematics(model,q_init)[2]
+
+function c_stage!(c,x,u,t,model)
+    c[1] = kinematics(model,x[1:5])[2] - pfz_init
+    nothing
+end
+
+m_stage = 1
+
 # Objective
-Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(ones(model.nx)) for t = 1:T]
-R = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
+Q = [t < T ? Diagonal([zeros(5);zeros(5)]) : Diagonal(zeros(model.nx)) for t = 1:T]
+R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
+penalty_obj = PenaltyObjective(1.0,0.05)
+multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+prob = init_problem(model.nx,model.nu,T,x1,xT,model,multi_obj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    goal_constraint=true
+                    goal_constraint=true,
+                    stage_constraints=true,
+                    m_stage=[m_stage for t=1:T-1]
                     )
 
 # MathOptInterface problem
@@ -46,7 +59,7 @@ prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob)
@@ -58,7 +71,7 @@ Z0 = pack(X0,U0,h0,prob)
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
 
 Q_nominal = [X_nominal[t][1:5] for t = 1:T]
-Q_nominal_urdf_left = [transformation_to_urdf_left_pinned(X_nominal[t][1:5],X_nominal[t][5 .+ (1:5)]) for t = 1:T]
+Q_nominal_urdf_left = [transformation_to_urdf_left_pinned(X_nominal[t][1:5],X_nominal[t][5 .+ (1:5)])[1] for t = 1:T]
 foot_traj = [kinematics(model,Q_nominal[t]) for t = 1:T]
 
 # Time trajectories
@@ -68,13 +81,13 @@ for t = 2:T
 end
 
 # Visualize trajectory
-using RigidBodyDynamics
-using MeshCat, MeshCatMechanisms
-urdf = "/home/taylor/Research/sample_trajectory_optimization/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
-mechanism = parse_urdf(urdf,floating=false)
-vis = Visualizer()
-open(vis)
-mvis = MechanismVisualizer(mechanism, URDFVisuals(urdf,package_path=[dirname(dirname(urdf))]), vis)
+# using RigidBodyDynamics
+# using MeshCat, MeshCatMechanisms
+# urdf = "/home/taylor/Research/sample_trajectory_optimization/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
+# mechanism = parse_urdf(urdf,floating=false)
+# vis = Visualizer()
+# open(vis)
+# mvis = MechanismVisualizer(mechanism, URDFVisuals(urdf,package_path=[dirname(dirname(urdf))]), vis)
 
 animation = MeshCat.Animation(mvis,t_nominal,Q_nominal_urdf_left)
 setanimation!(mvis,animation)
@@ -87,4 +100,4 @@ plot(t_nominal[1:end-1],hcat(U_nominal...)',width=2.0,linetype=:steppost,
 foot_x = [foot_traj[t][1] for t=1:T]
 foot_y = [foot_traj[t][2] for t=1:T]
 
-plot(foot_x,foot_y)
+plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0)
