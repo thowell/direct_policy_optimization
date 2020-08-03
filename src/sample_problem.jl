@@ -31,7 +31,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R;
     N = length(models)
     @assert N == 2*nx
 
-    M_sample = N*2*nx*(T-1) + N*nu*(T-1) + N*prob.m_con*(T-1)
+    M_sample = N*2*nx*(T-1) + N*nu*(T-1) + N*prob.m_stage*(T-1)
     N_nlp = prob.N + N*(nx*T + nu*(T-1)) + N*(nx*(T-1)) + nu*nx*(T-1)
     M_nlp = prob.M + M_sample
 
@@ -136,8 +136,8 @@ function constraint_bounds(prob::SampleProblem)
     cu[1:M_nom] = cu_nom
 
     # sample stage constraints
-    if prob.prob.m_con > 0
-        cu[M_nom+prob.N*2*prob.prob.n*(prob.prob.T-1) + prob.N*prob.prob.m*(prob.prob.T-1) .+ (1:prob.N*prob.prob.m_con*(prob.prob.T-1))] .= Inf
+    if prob.prob.m_stage > 0
+        cu[M_nom+prob.N*2*prob.prob.n*(prob.prob.T-1) + prob.N*prob.prob.m*(prob.prob.T-1) .+ (1:prob.N*prob.prob.m_stage*(prob.prob.T-1))] .= Inf
     end
     return cl,cu
 end
@@ -162,7 +162,7 @@ function eval_constraint!(c,Z,prob::SampleProblem)
    eval_constraint!(view(c,1:M_nom),view(Z,prob.idx_nom_z),prob.prob)
    con_sample!(view(c,M_nom .+ (1:M_sample)),Z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
         prob.idx_K,prob.Q,prob.R,prob.models,prob.β,prob.w,
-        prob.prob.m_con,prob.prob.T,prob.N,prob.prob.integration)
+        prob.prob.m_stage,prob.prob.T,prob.N,prob.prob.integration)
    return nothing
 end
 
@@ -174,18 +174,18 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
     M_sample = prob.M_sample
 
     len_sample = length(sparsity_jacobian_sample(prob.idx_nom,
-        prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.prob.m_con,prob.prob.T,
+        prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.prob.m_stage,prob.prob.T,
         prob.N))
 
     ∇con_sample_vec!(view(∇c,len .+ (1:len_sample)),
          Z,prob.idx_nom,
          prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.Q,prob.R,prob.models,
-         prob.β,prob.w,prob.prob.m_con,prob.prob.T,prob.N,
+         prob.β,prob.w,prob.prob.m_stage,prob.prob.T,prob.N,
          prob.prob.integration)
 
     # con_tmp(c,z) = con_sample!(c,z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
     #      prob.idx_K,prob.Q,prob.R,prob.models,prob.β,prob.w,prob.prob.con,
-    #      prob.prob.m_con,prob.prob.T,prob.N,prob.prob.integration)
+    #      prob.prob.m_stage,prob.prob.T,prob.N,prob.prob.integration)
     #
     # ∇c[len .+ (1:M_sample*prob.N_nlp)] = vec(ForwardDiff.jacobian(con_tmp,zeros(M_sample),Z))
     return nothing
@@ -196,6 +196,6 @@ function sparsity_jacobian(prob::SampleProblem)
     M_sample = prob.M_sample
     collect([sparsity_jacobian(prob.prob)...,
         sparsity_jacobian_sample(prob.idx_nom,
-        prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.prob.m_con,
+        prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.prob.m_stage,
         prob.prob.T,prob.N,r_shift=M_nom)...])
 end

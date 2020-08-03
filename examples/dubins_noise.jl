@@ -46,7 +46,7 @@ function c_stage!(c,x,u,t)
     # c[3:4] = u - ul*ones(model.nu)
     nothing
 end
-m_con_obstacles = 1
+m_stage_obstacles = 1
 
 # Objective
 Q = [t < T ? Diagonal(zeros(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
@@ -68,7 +68,7 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     integration=rk3_implicit,
                     goal_constraint=true,
                     stage_constraints=true,
-                    m_con=m_con_obstacles
+                    m_stage=m_stage_obstacles
                     )
 
 # MathOptInterface problem

@@ -124,7 +124,7 @@ plt = plot(t_nominal[1:T-1],Array(hcat(U_nominal...))',
     linetype=:steppost)
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',
     color=:orange,width=2.0,label="sample",linetype=:steppost)
-savefig(plt,joinpath(@__DIR__,"results/pendulum_control_noise.png"))
+savefig(plt,joinpath(@__DIR__,"results/pendulum_stagetrol_noise.png"))
 
 # States
 plt = plot(t_nominal,hcat(X_nominal...)[1,:],

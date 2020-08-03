@@ -40,7 +40,7 @@ function con_obstacles!(c,x,u)
     c[4] = circle_obs(x[1],x[2],xc4,yc4,r)
     nothing
 end
-m_con_obstacles = 4
+m_stage_obstacles = 4
 
 # Objective
 Q = [t < T ? Diagonal(rand(model.nx)) : Diagonal(rand(model.nx)) for t = 1:T]
@@ -62,7 +62,7 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     integration=rk3_implicit,
                     goal_constraint=true,
                     con=con_obstacles!,
-                    m_con=m_con_obstacles
+                    m_stage=m_stage_obstacles
                     )
 
 # MathOptInterface problem
@@ -85,7 +85,7 @@ solve(prob_sample_moi,Z0_sample)
 nx = model.nx
 nu = model.nu
 N = 2*nx
-m_stage = prob.m_con
+m_stage = prob.m_stage
 
 idx_nom = init_indices(nx,nu,T,time=true,shift=0)
 idx_nom_z = vcat(idx_nom.x...,idx_nom.u...,idx_nom.h...)
@@ -124,7 +124,7 @@ z0 = rand(n_nlp)
 z0
 obj_sample(z0,idx_nom,idx_sample,Q,R,T,N)
 
-function con_sample!(c,z,idx_nom,idx_sample,idx_K,Q,R,models,β,w,con,m_con,T,N,integration)
+function con_sample!(c,z,idx_nom,idx_sample,idx_K,Q,R,models,β,w,con,m_stage,T,N,integration)
     shift = 0
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
@@ -167,8 +167,8 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_K,Q,R,models,β,w,con,m_con,T,N,
             xi = view(z,idx_sample[i].x[t])
             ui = view(z,idx_sample[i].u[t])
 
-            con(view(c,shift .+ (1:m_con)),xi,ui)
-            shift += m_con
+            con(view(c,shift .+ (1:m_stage)),xi,ui)
+            shift += m_stage
         end
     end
 
@@ -178,4 +178,4 @@ end
 z0 = rand(n_nlp)
 obj_sample(z0)
 c0 = zeros(m_sample_nlp)
-con_sample!(c0,z0,idx_nom,idx_sample,idx_K,Q,R,[model for i = 1:2:nx],1.0,1.0e-1,prob.con,prob.m_con,T,N,prob.integration)
+con_sample!(c0,z0,idx_nom,idx_sample,idx_K,Q,R,[model for i = 1:2:nx],1.0,1.0e-1,prob.con,prob.m_stage,T,N,prob.integration)

@@ -22,7 +22,7 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     obj    # objective
     goal_constraint
     stage_constraints
-    m_con
+    m_stage
 end
 
 function init_problem(n,m,T,x1,xT,model,obj;
@@ -35,11 +35,11 @@ function init_problem(n,m,T,x1,xT,model,obj;
         integration=rk3_implicit,
         goal_constraint::Bool=true,
         stage_constraints::Bool=false,
-        m_con=0)
+        m_stage=0)
 
     idx = init_indices(n,m,T)
     N = n*T + m*(T-1) + (T-1)
-    M = n*(T-1) + (T-2) + m_con*(T-1)
+    M = n*(T-1) + (T-2) + m_stage*(T-1)
 
     return TrajectoryOptimizationProblem(n,m,T,N,M,
         x1,xT,
@@ -51,7 +51,7 @@ function init_problem(n,m,T,x1,xT,model,obj;
         obj,
         goal_constraint,
         stage_constraints,
-        m_con)
+        m_stage)
 end
 
 function pack(X0,U0,h0,prob::TrajectoryOptimizationProblem)
@@ -123,7 +123,7 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
 
     cl = zeros(M)
     cu = zeros(M)
-    cu[n*(T-1) + (T-2) .+ (1:prob.m_con*(T-1))] .= Inf
+    cu[n*(T-1) + (T-2) .+ (1:prob.m_stage*(T-1))] .= Inf
 
     return cl, cu
 end
@@ -145,8 +145,8 @@ function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
     dynamics_constraints!(view(c,1:(n*(T-1) + (T-2))),Z,
         prob.idx,prob.n,prob.m,prob.T,prob.model,prob.integration)
 
-    prob.m_con > 0 && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:prob.m_con*(T-1))),
-        Z,prob.idx,T,prob.m_con)
+    prob.stage_constraints > 0 && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:prob.m_stage*(T-1))),
+        Z,prob.idx,T,prob.m_stage)
 
     return nothing
 end
@@ -155,9 +155,9 @@ function eval_constraint_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     len_dyn_jac = length(sparsity_dynamics_jacobian(prob.idx,prob.n,prob.m,prob.T))
     sparse_dynamics_constraints_jacobian!(view(∇c,1:len_dyn_jac),Z,
         prob.idx,prob.n,prob.m,prob.T,prob.model,prob.integration)
-    len_stage_jac = length(stage_constraint_sparsity(prob.idx,prob.T,prob.m_con))
+    len_stage_jac = length(stage_constraint_sparsity(prob.idx,prob.T,prob.m_stage))
 
-    prob.m_con > 0 && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob.idx,prob.T,prob.m_con)
+    prob.stage_constraints > 0 && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob.idx,prob.T,prob.m_stage)
 
     return nothing
 end
@@ -167,6 +167,6 @@ function sparsity_jacobian(prob::TrajectoryOptimizationProblem)
     m = prob.m
     T = prob.T
     sparsity_dynamics = sparsity_dynamics_jacobian(prob.idx,prob.n,prob.m,prob.T)
-    sparsity_stage = stage_constraint_sparsity(prob.idx,prob.T,prob.m_con,shift_r=(n*(T-1) + (T-2)))
+    sparsity_stage = stage_constraint_sparsity(prob.idx,prob.T,prob.m_stage,shift_r=(n*(T-1) + (T-2)))
     collect([sparsity_dynamics...,sparsity_stage...])
 end

@@ -57,7 +57,7 @@ function con!(c,x,u)
     # c[3:4] = u - ul*ones(model.nu)
     nothing
 end
-m_con = 1
+m_stage = 1
 
 # Objective
 Q = [t < T ? Diagonal([1.0e-1*ones(7);1.0e-3*ones(6)]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
@@ -80,7 +80,7 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     integration=rk3_implicit,
                     goal_constraint=true,
                     con=con!,
-                    m_con=m_con
+                    m_stage=m_stage
                     )
 
 # MathOptInterface problem
