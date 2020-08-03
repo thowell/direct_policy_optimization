@@ -140,7 +140,7 @@ function constraint_bounds(prob::SampleProblem)
         m_shift = 0
         for t = 1:T-1
             for i = 1:prob.N
-                cu[M_nom+prob.N*2*prob.prob.n*(prob.prob.T-1) + prob.N*prob.prob.m*(prob.prob.T-1) + m_shift .+ (1:prob.prob.m_stage[t])] .= Inf
+                cu[(M_nom+prob.N*2*prob.prob.n*(prob.prob.T-1) + prob.N*prob.prob.m*(prob.prob.T-1) + m_shift .+ (1:prob.prob.m_stage[t]))[prob.prob.stage_ineq[t]]] .= Inf
                 m_shift += prob.prob.m_stage[t]
             end
         end

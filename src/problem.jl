@@ -23,6 +23,7 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     goal_constraint
     stage_constraints
     m_stage
+    stage_ineq
 end
 
 function init_problem(n,m,T,x1,xT,model,obj;
@@ -35,7 +36,8 @@ function init_problem(n,m,T,x1,xT,model,obj;
         integration=rk3_implicit,
         goal_constraint::Bool=true,
         stage_constraints::Bool=false,
-        m_stage=[0 for t=1:T-1])
+        m_stage=[0 for t=1:T-1],
+        stage_ineq=[(1:m_stage[t]) for t=1:T-1])
 
     idx = init_indices(n,m,T)
     N = n*T + m*(T-1) + (T-1)
@@ -51,7 +53,8 @@ function init_problem(n,m,T,x1,xT,model,obj;
         obj,
         goal_constraint,
         stage_constraints,
-        m_stage)
+        m_stage,
+        stage_ineq)
 end
 
 function pack(X0,U0,h0,prob::TrajectoryOptimizationProblem)
@@ -126,7 +129,7 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
 
     m_shift = 0
     for t = 1:T-1
-        cu[n*(T-1) + (T-2) + m_shift .+ (1:prob.m_stage[t])] .= Inf
+        cu[(n*(T-1) + (T-2) + m_shift .+ (1:prob.m_stage[t]))[prob.stage_ineq[t]]] .= Inf
         m_shift += prob.m_stage[t]
     end
 
