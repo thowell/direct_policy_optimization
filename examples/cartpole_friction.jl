@@ -2,15 +2,12 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/cartpole.jl")
 using Plots
 
+model = model_friction
 
 # Horizon
 T = 51
 
 # Bounds
-
-# ul <= u <= uu
-uu = 10.0
-ul = -10.0
 
 # h = h0 (fixed timestep)
 tf0 = 5.0
@@ -24,22 +21,25 @@ xT = [0.0; π; 0.0; 0.0]
 
 # Objective
 Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
-R = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
+R = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,1000.0]) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T]) # NOTE: there is a discrepancy between paper and DRAKE
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0;1.0]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
-R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
+R_lqr = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
-                    ul=[ul*ones(model.nu) for t=1:T-1],
-                    uu=[uu*ones(model.nu) for t=1:T-1],
+                    ul=[ul_friction for t=1:T-1],
+                    uu=[uu_friction for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    goal_constraint=true)
+                    goal_constraint=true,
+                    stage_constraints=true,
+                    m_stage=[m_stage_friction for t=1:T-1],
+                    stage_ineq=[stage_friction_ineq for t=1:T-1])
 
 # MathOptInterface problem
 prob_moi = init_MOI_Problem(prob)
@@ -66,9 +66,10 @@ for t = 2:T
 end
 
 # Plots results
-
+S_nominal = [U_nominal[t][7] for t=1:T-1]
+b_nominal = [U_nominal[t][2] - U_nominal[t][3] for t=1:T-1]
 # Control
-plt = plot(t_nominal[1:T-1],Array(hcat(U_nominal...))',color=:purple,width=2.0,
+plt = plot(t_nominal[1:T-1],hcat(U_nominal...)[1:1,:]',color=:purple,width=2.0,
     title="Cartpole",xlabel="time (s)",ylabel="control",label="nominal",
     legend=:topright,linetype=:steppost)
 # plt = plot!(t_robust[1:T-1],Array(hcat(U_robust...))',color=:orange,

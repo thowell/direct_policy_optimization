@@ -39,7 +39,7 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_st
             for i = 1:N
                 xi = view(z,idx_sample[i].x[t])
                 ui = view(z,idx_sample[i].u[t])
-                c_stage!(view(c,shift .+ (1:m_stage[t])),xi,ui,t)
+                c_stage!(view(c,shift .+ (1:m_stage[t])),xi,ui,t,models[i])
                 shift += m_stage[t]
             end
         end
@@ -293,21 +293,21 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
 
                 # con(view(c,shift .+ (1:m_stage)),xi,ui)
 
-                con_x(c,a) = c_stage!(c,a,ui,t)
-                con_u(c,a) = c_stage!(c,xi,a,t)
+                cx(c,a) = c_stage!(c,a,ui,t,models[i])
+                cu(c,a) = c_stage!(c,xi,a,t,models[i])
 
                 r_idx = shift .+ (1:m_stage[t])
 
                 c_idx = idx_sample[i].x[t]
                 # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(con_x,c_stage_tmp,xi)
                 len = length(r_idx)*length(c_idx)
-                ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(con_x,c_stage_tmp,xi))
+                ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(cx,c_stage_tmp,xi))
                 s += len
 
                 c_idx = idx_sample[i].u[t]
                 # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(con_u,c_stage_tmp,ui)
                 len = length(r_idx)*length(c_idx)
-                ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(con_u,c_stage_tmp,ui))
+                ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(cu,c_stage_tmp,ui))
                 s += len
 
                 shift += m_stage[t]

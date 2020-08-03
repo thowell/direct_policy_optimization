@@ -36,7 +36,7 @@ xc5 = 0.5
 yc5 = 0.5
 
 # Constraints
-function c_stage!(c,x,u,t)
+function c_stage!(c,x,u,t,model)
     # c[1] = circle_obs(x[1],x[2],xc1,yc1,r)
     # c[2] = circle_obs(x[1],x[2],xc2,yc2,r)
     # c[1] = circle_obs(x[1],x[2],xc3,yc3,r)

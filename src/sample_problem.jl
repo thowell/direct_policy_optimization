@@ -120,6 +120,11 @@ function primal_bounds(prob::SampleProblem)
         end
     end
 
+    for i = 1:prob.N
+        Zl[prob.idx_sample[i].x[T]] = prob.prob.xl[T]
+        Zu[prob.idx_sample[i].x[T]] = prob.prob.xu[T]
+    end
+
     #TODO sample goal constraints
 
     return Zl,Zu

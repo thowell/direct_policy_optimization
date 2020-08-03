@@ -11,8 +11,8 @@ h0 = tf0/(T-1) # timestep
 
 # Bounds
 # xl <= x <= xu
-xl_traj = [t != TT ? -Inf*ones(model.nx) : zeros(model.nx) for t = 1:T]
-xu_traj = [t != TT ? Inf*ones(model.nx) : zeros(model.nx) for t = 1:T]
+xl_traj = [t != TT ? [-Inf; -2.0] : zeros(model.nx) for t = 1:T]
+xu_traj = [t != TT ? [Inf; 2.0] : zeros(model.nx) for t = 1:T]
 
 # ul <= u <= uu
 uu = 10.0
@@ -52,7 +52,7 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
 prob_moi = init_MOI_Problem(prob)
 
 # Initialization
-X0 = [linear_interp(x1,zeros(model.nx),10)...,linear_interp(zeros(model.nx),x1,10)...]# linear interpolation for states
+X0 = [linear_interp(x1,zeros(model.nx),TT)...,linear_interp(zeros(model.nx),x1,T-TT)...]# linear interpolation for states
 U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
@@ -85,11 +85,11 @@ end
 K = TVLQR(A,B,Q_lqr,R_lqr)
 
 # Samples
-N = length(x1_sample)
+N = 2*model.nx
 models = [model for i = 1:N]
 K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-2*ones(model.nx)
+w = 1.0e-1*ones(model.nx)
 γ = 1.0
 
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
@@ -102,8 +102,8 @@ prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[1].x[11]]
 # remove mid-time goal constraint from sample trajectories
 # for t = 1:T-1
 for i = 1:N
-    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[TT]] .= -Inf
-    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[TT]] .= Inf
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[TT]] = [-Inf; -2.0]
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[TT]] = [Inf; 2.0]
 end
 # end
 

@@ -153,7 +153,7 @@ function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
         prob.idx,prob.n,prob.m,prob.T,prob.model)
 
     prob.stage_constraints > 0 && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:sum(prob.m_stage))),
-        Z,prob.idx,T,prob.m_stage)
+        Z,prob.idx,T,prob.m_stage,prob.model)
 
     return nothing
 end
@@ -164,7 +164,8 @@ function eval_constraint_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
         prob.idx,prob.n,prob.m,prob.T,prob.model)
     len_stage_jac = length(stage_constraint_sparsity(prob.idx,prob.T,prob.m_stage))
 
-    prob.stage_constraints > 0 && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob.idx,prob.T,prob.m_stage)
+    prob.stage_constraints > 0 && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),
+        Z,prob.idx,prob.T,prob.m_stage,prob.model)
 
     return nothing
 end
