@@ -34,13 +34,13 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_st
     end
 
     # stage constraints samples
-    if m_stage > 0
-        for t = 1:T-1
+    for t = 1:T-1
+        if m_stage[t] > 0
             for i = 1:N
                 xi = view(z,idx_sample[i].x[t])
                 ui = view(z,idx_sample[i].u[t])
-                c_stage!(view(c,shift .+ (1:m_stage)),xi,ui,t)
-                shift += m_stage
+                c_stage!(view(c,shift .+ (1:m_stage[t])),xi,ui,t)
+                shift += m_stage[t]
             end
         end
     end
@@ -284,9 +284,9 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
     end
 
     # stage constraints samples
-    c_stage_tmp = zeros(m_stage)
-    if m_stage > 0
-        for t = 1:T-1
+    for t = 1:T-1
+        if m_stage[t] > 0
+            c_stage_tmp = zeros(m_stage[t])
             for i = 1:N
                 xi = view(z,idx_sample[i].x[t])
                 ui = view(z,idx_sample[i].u[t])
@@ -296,7 +296,7 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
                 con_x(c,a) = c_stage!(c,a,ui,t)
                 con_u(c,a) = c_stage!(c,xi,a,t)
 
-                r_idx = shift .+ (1:m_stage)
+                r_idx = shift .+ (1:m_stage[t])
 
                 c_idx = idx_sample[i].x[t]
                 # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(con_x,c_stage_tmp,xi)
@@ -310,7 +310,7 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
                 ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(con_u,c_stage_tmp,ui))
                 s += len
 
-                shift += m_stage
+                shift += m_stage[t]
             end
         end
     end
@@ -454,9 +454,10 @@ function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,m_stage,T,N
     end
 
     # stage constraints samples
-    c_stage_tmp = zeros(m_stage)
-    if m_stage > 0
-        for t = 1:T-1
+
+    for t = 1:T-1
+        c_stage_tmp = zeros(m_stage[t])
+        if m_stage[t] > 0
             for i = 1:N
                 # xi = view(z,idx_sample[i].x[t])
                 # ui = view(z,idx_sample[i].u[t])
@@ -466,7 +467,7 @@ function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,m_stage,T,N
                 # con_x(c,a) = con(c,a,ui)
                 # con_u(c,a) = con(c,xi,a)
 
-                r_idx = r_shift + shift .+ (1:m_stage)
+                r_idx = r_shift + shift .+ (1:m_stage[t])
 
                 c_idx = idx_sample[i].x[t]
                 # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(con_x,c_stage_tmp,xi)
@@ -482,7 +483,7 @@ function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,m_stage,T,N
                 s += len
                 row_col!(row,col,r_idx,c_idx)
 
-                shift += m_stage
+                shift += m_stage[t]
             end
         end
     end

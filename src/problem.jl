@@ -35,11 +35,11 @@ function init_problem(n,m,T,x1,xT,model,obj;
         integration=rk3_implicit,
         goal_constraint::Bool=true,
         stage_constraints::Bool=false,
-        m_stage=0)
+        m_stage=[0 for t=1:T-1])
 
     idx = init_indices(n,m,T)
     N = n*T + m*(T-1) + (T-1)
-    M = n*(T-1) + (T-2) + m_stage*(T-1)
+    M = n*(T-1) + (T-2) + sum(m_stage)
 
     return TrajectoryOptimizationProblem(n,m,T,N,M,
         x1,xT,
@@ -123,7 +123,12 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
 
     cl = zeros(M)
     cu = zeros(M)
-    cu[n*(T-1) + (T-2) .+ (1:prob.m_stage*(T-1))] .= Inf
+
+    m_shift = 0
+    for t = 1:T-1
+        cu[n*(T-1) + (T-2) + m_shift .+ (1:prob.m_stage[t])] .= Inf
+        m_shift += prob.m_stage[t]
+    end
 
     return cl, cu
 end
@@ -145,7 +150,7 @@ function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
     dynamics_constraints!(view(c,1:(n*(T-1) + (T-2))),Z,
         prob.idx,prob.n,prob.m,prob.T,prob.model,prob.integration)
 
-    prob.stage_constraints > 0 && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:prob.m_stage*(T-1))),
+    prob.stage_constraints > 0 && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:sum(prob.m_stage))),
         Z,prob.idx,T,prob.m_stage)
 
     return nothing

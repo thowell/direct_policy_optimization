@@ -68,7 +68,7 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     integration=rk3_implicit,
                     goal_constraint=true,
                     stage_constraints=true,
-                    m_stage=m_stage_obstacles
+                    m_stage=[m_stage_obstacles for t=1:T-1]
                     )
 
 # MathOptInterface problem

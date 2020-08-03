@@ -31,7 +31,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R;
     N = length(models)
     @assert N == 2*nx
 
-    M_sample = N*2*nx*(T-1) + N*nu*(T-1) + N*prob.m_stage*(T-1)
+    M_sample = N*2*nx*(T-1) + N*nu*(T-1) + N*sum(prob.m_stage)
     N_nlp = prob.N + N*(nx*T + nu*(T-1)) + N*(nx*(T-1)) + nu*nx*(T-1)
     M_nlp = prob.M + M_sample
 
@@ -136,8 +136,14 @@ function constraint_bounds(prob::SampleProblem)
     cu[1:M_nom] = cu_nom
 
     # sample stage constraints
-    if prob.prob.m_stage > 0
-        cu[M_nom+prob.N*2*prob.prob.n*(prob.prob.T-1) + prob.N*prob.prob.m*(prob.prob.T-1) .+ (1:prob.N*prob.prob.m_stage*(prob.prob.T-1))] .= Inf
+    if prob.prob.stage_constraints > 0
+        m_shift = 0
+        for t = 1:T-1
+            for i = 1:prob.N
+                cu[M_nom+prob.N*2*prob.prob.n*(prob.prob.T-1) + prob.N*prob.prob.m*(prob.prob.T-1) + m_shift .+ (1:prob.prob.m_stage[t])] .= Inf
+                m_shift += prob.prob.m_stage[t]
+            end
+        end
     end
     return cl,cu
 end
