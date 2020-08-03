@@ -88,7 +88,8 @@ function unpack(Z0,prob::SampleProblem)
 end
 
 function init_MOI_Problem(prob::SampleProblem)
-    return MOIProblem(prob.N_nlp,prob.M_nlp,prob,false)
+    return MOIProblem(prob.N_nlp,prob.M_nlp,prob,
+        primal_bounds(prob),constraint_bounds(prob),false)
 end
 
 
@@ -168,7 +169,7 @@ function eval_constraint!(c,Z,prob::SampleProblem)
    eval_constraint!(view(c,1:M_nom),view(Z,prob.idx_nom_z),prob.prob)
    con_sample!(view(c,M_nom .+ (1:M_sample)),Z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
         prob.idx_K,prob.Q,prob.R,prob.models,prob.β,prob.w,
-        prob.prob.m_stage,prob.prob.T,prob.N,prob.prob.integration)
+        prob.prob.m_stage,prob.prob.T,prob.N)
    return nothing
 end
 
@@ -186,8 +187,7 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
     ∇con_sample_vec!(view(∇c,len .+ (1:len_sample)),
          Z,prob.idx_nom,
          prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.Q,prob.R,prob.models,
-         prob.β,prob.w,prob.prob.m_stage,prob.prob.T,prob.N,
-         prob.prob.integration)
+         prob.β,prob.w,prob.prob.m_stage,prob.prob.T,prob.N)
 
     # con_tmp(c,z) = con_sample!(c,z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
     #      prob.idx_K,prob.Q,prob.R,prob.models,prob.β,prob.w,prob.prob.con,

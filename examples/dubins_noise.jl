@@ -65,7 +65,6 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    integration=rk3_implicit,
                     goal_constraint=true,
                     stage_constraints=true,
                     m_stage=[m_stage_obstacles for t=1:T-1]

@@ -1,23 +1,30 @@
 include("../src/sample_trajectory_optimization.jl")
-include("../dynamics/pendulum.jl")
+include("../dynamics/double_integrator.jl")
 using Plots
 
+# Horizon
+T = 21
+
+TT = 11
+tf0 = 2.0
+h0 = tf0/(T-1) # timestep
+
 # Bounds
+# xl <= x <= xu
+xl_traj = [t != TT ? -Inf*ones(model.nx) : zeros(model.nx) for t = 1:T]
+xu_traj = [t != TT ? Inf*ones(model.nx) : zeros(model.nx) for t = 1:T]
 
 # ul <= u <= uu
-uu = 3.0
-ul = -3.0
+uu = 10.0
+ul = -10.0
 
 # hl <= h <= hu
-hu = Inf
-hl = 0.0
+hu = h0
+hl = h0
 
 # Initial and final states
-x1 = [0.0; 0.0]
-xT = [π; 0.0]
-
-# Horizon
-T = 51
+x1 = [1.0; 0.0]
+xT = x1
 
 # Objective (minimum time)
 Q = [Diagonal(zeros(model.nx)) for t = 1:T]
@@ -27,12 +34,14 @@ obj = QuadraticTrackingObjective(Q,R,c,
     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
+Q_lqr = [t < T ? Diagonal([10.0;1.0]) : Diagonal([10.0; 1.0]) for t = 1:T]
 R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
 
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
@@ -43,10 +52,8 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
 prob_moi = init_MOI_Problem(prob)
 
 # Initialization
-X0 = linear_interp(x1,xT,T) # linear interpolation for states
+X0 = [linear_interp(x1,zeros(model.nx),10)...,linear_interp(zeros(model.nx),x1,10)...]# linear interpolation for states
 U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
-tf0 = 2.0
-h0 = tf0/(T-1) # timestep
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob)
@@ -66,9 +73,9 @@ for t = 1:T-1
     h = H_nominal[t]
     x⁺ = X_nominal[t+1]
 
-    fx(z) = discrete_dynamics(model,x⁺,z,u,h)
-    fu(z) = discrete_dynamics(model,x⁺,x,z,h)
-    fx⁺(z) = discrete_dynamics(model,z,x,u,h)
+    fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
+    fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
+    fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
 
     A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
     push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
@@ -80,23 +87,25 @@ K = TVLQR(A,B,Q_lqr,R_lqr)
 # Samples
 N = length(x1_sample)
 models = [model for i = 1:N]
+K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-2*ones(model.nx)
 γ = 1.0
 
-α = 1.0e-3
-x11 = α*[1.0; 0.0]
-x12 = α*[-1.0; 0.0]
-x13 = α*[0.0; 1.0]
-x14 = α*[0.0; -1.0]
-x1_sample = resample([x11,x12,x13,x14],β=β,w=w)
+x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
 prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,β=β,w=w,γ=γ)
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-K0 = [rand(model.nu,model.nx) for t = 1:T-1]
+prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[1].x[11]]
 
-Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
+# remove mid-time goal constraint from sample trajectories
+# for t = 1:T-1
+for i = 1:N
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[TT]] .= -Inf
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[TT]] .= Inf
+end
+# end
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,Z0_sample)
@@ -119,21 +128,21 @@ display("time (sample nominal): $(sum(H_nom_sample))s")
 
 # Control
 plt = plot(t_nominal[1:T-1],Array(hcat(U_nominal...))',
-    color=:purple,width=2.0,title="Pendulum",xlabel="time (s)",
+    color=:purple,width=2.0,title="Double Integrator",xlabel="time (s)",
     ylabel="control",label="nominal",linelegend=:topleft,
     linetype=:steppost)
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',
     color=:orange,width=2.0,label="sample",linetype=:steppost)
-savefig(plt,joinpath(@__DIR__,"results/pendulum_stagetrol_noise.png"))
+# savefig(plt,joinpath(@__DIR__,"results/double_integrator_control.png"))
 
 # States
 plt = plot(t_nominal,hcat(X_nominal...)[1,:],
     color=:purple,width=2.0,xlabel="time (s)",ylabel="state",
-    label="θ (nominal)",title="Pendulum",legend=:topleft)
+    label="θ (nominal)",title="Double Integrator",legend=:topleft)
 plt = plot!(t_nominal,hcat(X_nominal...)[2,:],color=:purple,width=2.0,label="x (nominal)")
 plt = plot!(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="θ (sample)")
 plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="x (sample)")
-savefig(plt,joinpath(@__DIR__,"results/pendulum_state_noise.png"))
+# savefig(plt,joinpath(@__DIR__,"results/double_integrator_state.png"))
 
 # State samples
 plt1 = plot(t_sample,hcat(X_nom_sample...)[1,:],color=:red,width=2.0,title="",
@@ -146,14 +155,15 @@ plt2 = plot(t_sample,hcat(X_nom_sample...)[2,:],color=:red,width=2.0,label="");
 for i = 1:N
     plt2 = plot!(t_sample,hcat(X_sample[i]...)[2,:],label="");
 end
-plt12 = plot(plt1,plt2,layout=(2,1),title=["θ" "x"],xlabel="time (s)")
-savefig(plt,joinpath(@__DIR__,"results/pendulum_sample_state.png"))
+plt12 = plot(plt1,plt2,layout=(2,1),title=["x" "ẋ"],xlabel="time (s)")
+# savefig(plt,joinpath(@__DIR__,"results/double_integrator_sample_state.png"))
 
 # Control samples
 plt3 = plot(t_sample[1:end-1],hcat(U_nom_sample...)[1,:],color=:red,width=2.0,
-    title="Control",label="",xlabel="time (s)");
+    title="Control",label="",xlabel="time (s)",linetype=:steppost);
 for i = 1:N
-    plt3 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)[1,:],label="");
+    plt3 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)[1,:],label="",
+        linetype=:steppost);
 end
 display(plt3)
-savefig(plt,joinpath(@__DIR__,"results/pendulum_sample_control.png"))
+# savefig(plt,joinpath(@__DIR__,"results/double_integrator_sample_control.png"))

@@ -77,7 +77,6 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    integration=rk3_implicit,
                     goal_constraint=true,
                     con=con!,
                     m_stage=m_stage
@@ -107,9 +106,9 @@ for t = 1:T-1
     h = H_nom[t]
     x⁺ = X_nom[t+1]
 
-    fx(z) = prob.integration(model,x⁺,z,u,h)
-    fu(z) = prob.integration(model,x⁺,x,z,h)
-    fx⁺(z) = prob.integration(model,z,x,u,h)
+    fx(z) = discrete_dynamics(model,x⁺,z,u,h)
+    fu(z) = discrete_dynamics(model,x⁺,x,z,h)
+    fx⁺(z) = discrete_dynamics(model,z,x,u,h)
 
     A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
     push!(A,-A⁺\ForwardDiff.jacobian(fx,x))

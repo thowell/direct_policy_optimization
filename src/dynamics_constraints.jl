@@ -1,4 +1,4 @@
-function dynamics_constraints!(c,Z,idx,n,m,T,model,integration)
+function dynamics_constraints!(c,Z,idx,n,m,T,model)
     # note: x1 and xT constraints are handled as simple bound constraints
     #       e.g., x1 <= x <= x1, xT <= x <= xT
 
@@ -11,7 +11,7 @@ function dynamics_constraints!(c,Z,idx,n,m,T,model,integration)
         h = Z[idx.h[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        c[(t-1)*n .+ (1:n)] = integration(model,x⁺,x,u,h)
+        c[(t-1)*n .+ (1:n)] = discrete_dynamics(model,x⁺,x,u,h,t)
 
         if t < T-1
             h⁺ = Z[idx.h[t+1]]
@@ -22,7 +22,7 @@ function dynamics_constraints!(c,Z,idx,n,m,T,model,integration)
     return nothing
 end
 
-function dynamics_constraints_jacobian!(∇c,Z,idx,n,m,T,model,integration)
+function dynamics_constraints_jacobian!(∇c,Z,idx,n,m,T,model)
     # note: x1 and xT constraints are handled as simple bound constraints
     #       e.g., x1 <= x <= x1, xT <= x <= xT
 
@@ -37,10 +37,10 @@ function dynamics_constraints_jacobian!(∇c,Z,idx,n,m,T,model,integration)
         h = Z[idx.h[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        dyn_x(z) = integration(model,x⁺,z,u,h)
-        dyn_u(z) = integration(model,x⁺,x,z,h)
-        dyn_h(z) = integration(model,x⁺,x,u,z)
-        dyn_x⁺(z) = integration(model,z,x,u,h)
+        dyn_x(z) = discrete_dynamics(model,x⁺,z,u,h,t)
+        dyn_u(z) = discrete_dynamics(model,x⁺,x,z,h,t)
+        dyn_h(z) = discrete_dynamics(model,x⁺,x,u,z,t)
+        dyn_x⁺(z) = discrete_dynamics(model,z,x,u,h,t)
 
         r_idx = (t-1)*n .+ (1:n)
 
@@ -60,7 +60,7 @@ function dynamics_constraints_jacobian!(∇c,Z,idx,n,m,T,model,integration)
     return nothing
 end
 
-function sparse_dynamics_constraints_jacobian!(∇c,Z,idx,n,m,T,model,integration)
+function sparse_dynamics_constraints_jacobian!(∇c,Z,idx,n,m,T,model)
     # note: x1 and xT constraints are handled as simple bound constraints
     #       e.g., x1 <= x <= x1, xT <= x <= xT
 
@@ -75,10 +75,10 @@ function sparse_dynamics_constraints_jacobian!(∇c,Z,idx,n,m,T,model,integratio
         h = Z[idx.h[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        dyn_x(z) = integration(model,x⁺,z,u,h)
-        dyn_u(z) = integration(model,x⁺,x,z,h)
-        dyn_h(z) = integration(model,x⁺,x,u,z)
-        dyn_x⁺(z) = integration(model,z,x,u,h)
+        dyn_x(z) = discrete_dynamics(model,x⁺,z,u,h,t)
+        dyn_u(z) = discrete_dynamics(model,x⁺,x,z,h,t)
+        dyn_h(z) = discrete_dynamics(model,x⁺,x,u,z,t)
+        dyn_x⁺(z) = discrete_dynamics(model,z,x,u,h,t)
 
         r_idx = (t-1)*n .+ (1:n)
 

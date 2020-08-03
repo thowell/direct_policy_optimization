@@ -1,6 +1,6 @@
 function obj_sample(z,idx_nom,idx_sample,Q,R,T,N,γ)
     J = 0.0
-
+    #TODO consider no initial condition -> fix this cost
     # sample
     for t = 1:T-1
         u_nom = view(z,idx_nom.u[t])

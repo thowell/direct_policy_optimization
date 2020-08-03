@@ -4,7 +4,7 @@ using Plots
 
 # Horizon
 T = 10
-
+prob
 # Initial and final states
 x1 = [0.5; model.l2 + 1.0; 0.0; 0.0; 0.0; 0.1; 0.0; 0.0]
 xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
@@ -51,7 +51,6 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     uu=[uu for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    integration=rk3_implicit,
                     goal_constraint=true
                     )
 
@@ -79,9 +78,9 @@ for t = 1:T-1
     h = H_nom[t]
     x⁺ = X_nom[t+1]
 
-    fx(z) = prob.integration(model,x⁺,z,u,h)
-    fu(z) = prob.integration(model,x⁺,x,z,h)
-    fx⁺(z) = prob.integration(model,z,x,u,h)
+    fx(z) = discrete_dynamics(model,x⁺,z,u,h)
+    fu(z) = discrete_dynamics(model,x⁺,x,z,h)
+    fx⁺(z) = discrete_dynamics(model,z,x,u,h)
 
     A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
     push!(A,-A⁺\ForwardDiff.jacobian(fx,x))

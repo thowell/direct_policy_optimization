@@ -14,6 +14,10 @@ function discrete_linear(model,x⁺,x,u,h)
     x⁺ - (A*x + B*u)
 end
 
-function midpoint(model,z,u,Δt)
-    z + Δt*dynamics(model,z + 0.5*Δt*dynamics(model,z,u),u)
+function midpoint(model,x,u,Δt)
+    x + Δt*dynamics(model,x + 0.5*Δt*dynamics(model,x,u),u)
+end
+
+function discrete_dynamics(model,x⁺,x,u,h,t)
+    rk3_implicit(model,x⁺,x,u,h)
 end

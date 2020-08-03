@@ -14,29 +14,21 @@ function quadratic_cost(x,u,Q,R,x_ref,u_ref)
     (x-x_ref)'*Q*(x-x_ref) + (u-u_ref)'*R*(u-u_ref)
 end
 
-function stage_cost(model,x⁺,x,u,Q,R,x_ref,u_ref,h,c,integration)
+function stage_cost(model,x⁺,x,u,Q,R,x_ref,u_ref,h,c)
+    xm = xm_rk3_implicit(model,x⁺,x,u,h)
 
-    if integration == rk3_implicit
-        xm = xm_rk3_implicit(model,x⁺,x,u,h)
+    ℓ1 = quadratic_cost(x,u,Q,R,x_ref,u_ref)
+    ℓ2 = quadratic_cost(xm,u,Q,R,x_ref,u_ref)
+    ℓ3 = quadratic_cost(x⁺,u,Q,R,x_ref,u_ref)
 
-        ℓ1 = quadratic_cost(x,u,Q,R,x_ref,u_ref)
-        ℓ2 = quadratic_cost(xm,u,Q,R,x_ref,u_ref)
-        ℓ3 = quadratic_cost(x⁺,u,Q,R,x_ref,u_ref)
-
-        return h[1]/6.0*ℓ1 + 4.0*h[1]/6.0*ℓ2 + h[1]/6.0*ℓ3 + c*h[1]
-    elseif integration == discrete_linear
-        return quadratic_cost(x,u,Q,R,x_ref,u_ref)
-    else
-        error("integration not defined")
-    end
-
+    return h[1]/6.0*ℓ1 + 4.0*h[1]/6.0*ℓ2 + h[1]/6.0*ℓ3 + c*h[1]
 end
 
 function terminal_cost(x,Q,x_ref)
     return (x-x_ref)'*Q*(x-x_ref)
 end
 
-function objective(Z,l::QuadraticTrackingObjective,model,idx,T,integration)
+function objective(Z,l::QuadraticTrackingObjective,model,idx,T)
     x_ref = l.x_ref
     u_ref = l.u_ref
     Q = l.Q
@@ -50,7 +42,7 @@ function objective(Z,l::QuadraticTrackingObjective,model,idx,T,integration)
         h = Z[idx.h[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        s += stage_cost(model,x⁺,x,u,Q[t],R[t],x_ref[t],u_ref[t],h,c,integration)
+        s += stage_cost(model,x⁺,x,u,Q[t],R[t],x_ref[t],u_ref[t],h,c)
     end
     x = view(Z,idx.x[T])
     s += terminal_cost(x,Q[T],x_ref[T])
@@ -58,7 +50,7 @@ function objective(Z,l::QuadraticTrackingObjective,model,idx,T,integration)
     return s
 end
 
-function objective_gradient!(∇l,Z,l::QuadraticTrackingObjective,model,idx,T,integration)
+function objective_gradient!(∇l,Z,l::QuadraticTrackingObjective,model,idx,T)
     x_ref = l.x_ref
     u_ref = l.u_ref
     Q = l.Q
@@ -72,10 +64,10 @@ function objective_gradient!(∇l,Z,l::QuadraticTrackingObjective,model,idx,T,in
         h = Z[idx.h[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        stage_cost_x(z) = stage_cost(model,x⁺,z,u,Q[t],R[t],x_ref[t],u_ref[t],h,c,integration)
-        stage_cost_u(z) = stage_cost(model,x⁺,x,z,Q[t],R[t],x_ref[t],u_ref[t],h,c,integration)
-        stage_cost_h(z) = stage_cost(model,x⁺,x,u,Q[t],R[t],x_ref[t],u_ref[t],z,c,integration)
-        stage_cost_x⁺(z) = stage_cost(model,z,x,u,Q[t],R[t],x_ref[t],u_ref[t],h,c,integration)
+        stage_cost_x(z) = stage_cost(model,x⁺,z,u,Q[t],R[t],x_ref[t],u_ref[t],h,c)
+        stage_cost_u(z) = stage_cost(model,x⁺,x,z,Q[t],R[t],x_ref[t],u_ref[t],h,c)
+        stage_cost_h(z) = stage_cost(model,x⁺,x,u,Q[t],R[t],x_ref[t],u_ref[t],z,c)
+        stage_cost_x⁺(z) = stage_cost(model,z,x,u,Q[t],R[t],x_ref[t],u_ref[t],h,c)
 
         ∇l[idx.x[t]] += ForwardDiff.gradient(stage_cost_x,x)
         ∇l[idx.u[t]] += ForwardDiff.gradient(stage_cost_u,u)

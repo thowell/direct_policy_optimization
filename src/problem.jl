@@ -18,7 +18,6 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     hu     # time step upper bound
     idx    # indices
     model  # model
-    integration # dynamics integration scheme
     obj    # objective
     goal_constraint
     stage_constraints
@@ -33,7 +32,6 @@ function init_problem(n,m,T,x1,xT,model,obj;
         xu=[Inf*ones(n) for t = 1:T],
         hl=[-Inf for t = 1:T-1],
         hu=[Inf for t = 1:T-1],
-        integration=rk3_implicit,
         goal_constraint::Bool=true,
         stage_constraints::Bool=false,
         m_stage=[0 for t=1:T-1],
@@ -49,7 +47,7 @@ function init_problem(n,m,T,x1,xT,model,obj;
         xl,xu,
         hl,hu,
         idx,
-        model,integration,
+        model,
         obj,
         goal_constraint,
         stage_constraints,
@@ -86,7 +84,8 @@ function unpack(Z0,prob::TrajectoryOptimizationProblem)
 end
 
 function init_MOI_Problem(prob::TrajectoryOptimizationProblem)
-    return MOIProblem(prob.N,prob.M,prob,false)
+    return MOIProblem(prob.N,prob.M,prob,
+        primal_bounds(prob),constraint_bounds(prob),false)
 end
 
 
@@ -137,11 +136,11 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
 end
 
 function eval_objective(prob::TrajectoryOptimizationProblem,Z)
-    objective(Z,prob.obj,prob.model,prob.idx,prob.T,prob.integration)
+    objective(Z,prob.obj,prob.model,prob.idx,prob.T)
 end
 
 function eval_objective_gradient!(∇l,Z,prob::TrajectoryOptimizationProblem)
-    objective_gradient!(∇l,Z,prob.obj,prob.model,prob.idx,prob.T,prob.integration)
+    objective_gradient!(∇l,Z,prob.obj,prob.model,prob.idx,prob.T)
     return nothing
 end
 
@@ -151,7 +150,7 @@ function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
     T = prob.T
 
     dynamics_constraints!(view(c,1:(n*(T-1) + (T-2))),Z,
-        prob.idx,prob.n,prob.m,prob.T,prob.model,prob.integration)
+        prob.idx,prob.n,prob.m,prob.T,prob.model)
 
     prob.stage_constraints > 0 && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:sum(prob.m_stage))),
         Z,prob.idx,T,prob.m_stage)
@@ -162,7 +161,7 @@ end
 function eval_constraint_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     len_dyn_jac = length(sparsity_dynamics_jacobian(prob.idx,prob.n,prob.m,prob.T))
     sparse_dynamics_constraints_jacobian!(view(∇c,1:len_dyn_jac),Z,
-        prob.idx,prob.n,prob.m,prob.T,prob.model,prob.integration)
+        prob.idx,prob.n,prob.m,prob.T,prob.model)
     len_stage_jac = length(stage_constraint_sparsity(prob.idx,prob.T,prob.m_stage))
 
     prob.stage_constraints > 0 && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob.idx,prob.T,prob.m_stage)

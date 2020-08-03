@@ -2,6 +2,7 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/cartpole.jl")
 using Plots
 
+
 # Horizon
 T = 51
 
@@ -38,7 +39,6 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    integration=rk3_implicit,
                     goal_constraint=true)
 
 # MathOptInterface problem

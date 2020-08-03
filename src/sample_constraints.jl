@@ -1,4 +1,4 @@
-function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_stage,T,N,integration)
+function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_stage,T,N)
     shift = 0
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
@@ -12,7 +12,7 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_st
             ui = view(z,idx_sample[i].u[t])
             xi⁺ = view(z,idx_sample[i].x[t+1])
 
-            c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)
+            c[shift .+ (1:nx)] = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,h,t)
             shift += nx
             c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
             shift += nx
@@ -162,7 +162,7 @@ end
 #     nothing
 # end
 
-function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_stage,T,N,integration)
+function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_stage,T,N)
     shift = 0
     nx = length(idx_nom.x[1])
     nu = length(idx_nom.u[1])
@@ -181,10 +181,10 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
             ui = view(z,idx_sample[i].u[t])
             xi⁺ = view(z,idx_sample[i].x[t+1])
 
-            dyn_x(a) = integration(models[i],x⁺_tmp[i],a,ui,h)
-            dyn_u(a) = integration(models[i],x⁺_tmp[i],xi,a,h)
-            dyn_h(a) = integration(models[i],x⁺_tmp[i],xi,ui,a)
-            dyn_x_tmp(a) = integration(models[i],a,xi,ui,h)
+            dyn_x(a) = discrete_dynamics(models[i],x⁺_tmp[i],a,ui,h,t)
+            dyn_u(a) = discrete_dynamics(models[i],x⁺_tmp[i],xi,a,h,t)
+            dyn_h(a) = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,a,t)
+            dyn_x_tmp(a) = discrete_dynamics(models[i],a,xi,ui,h,t)
             resample_x_tmp(a) = resample_vec(a,nx,N,i,β=β,w=w) # resample
 
             # c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)

@@ -2,15 +2,17 @@ struct MOIProblem <: MOI.AbstractNLPEvaluator
     n
     m
     prob::Problem
+    primal_bounds
+    constraint_bounds
     enable_hessian::Bool
 end
 
 function primal_bounds(prob::MOI.AbstractNLPEvaluator)
-    return primal_bounds(prob.prob)
+    return prob.primal_bounds
 end
 
 function constraint_bounds(prob::MOI.AbstractNLPEvaluator)
-    return constraint_bounds(prob.prob)
+    return prob.constraint_bounds
 end
 
 function sparsity_jacobian(n,m; shift_r=0,shift_c=0)
