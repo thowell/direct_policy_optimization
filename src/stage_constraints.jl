@@ -1,21 +1,25 @@
-function stage_constraints!(c,Z,idx,T,con,m_con)
+function c_stage!(c,x,u,t)
+	nothing
+end
+
+function stage_constraints!(c,Z,idx,T,m_con)
 	shift = 0
 	for t = 1:T-1
 		x = Z[idx.x[t]]
 		u = Z[idx.u[t]]
-		con(view(c,(t-1)*m_con .+ (1:m_con)),x,u)
+		c_stage!(view(c,(t-1)*m_con .+ (1:m_con)),x,u,t)
 	end
 	nothing
 end
 
-function ∇stage_constraints!(∇c,Z,idx,T,con,m_con)
+function ∇stage_constraints!(∇c,Z,idx,T,m_con)
 	shift = 0
 	c_tmp = zeros(m_con)
 	for t = 1:T-1
 		x = view(Z,idx.x[t])
 		u = view(Z,idx.u[t])
-		con_x(c,z) = con(c,z,u)
-		con_u(c,z) = con(c,x,z)
+		con_x(c,z) = c_stage!(c,z,u,t)
+		con_u(c,z) = c_stage!(c,x,z,t)
 
 		r_idx = (t-1)*m_con .+ (1:m_con)
 		c_idx = idx.x[t]

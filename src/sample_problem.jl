@@ -161,7 +161,7 @@ function eval_constraint!(c,Z,prob::SampleProblem)
    M_sample = prob.M_sample
    eval_constraint!(view(c,1:M_nom),view(Z,prob.idx_nom_z),prob.prob)
    con_sample!(view(c,M_nom .+ (1:M_sample)),Z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
-        prob.idx_K,prob.Q,prob.R,prob.models,prob.β,prob.w,prob.prob.con,
+        prob.idx_K,prob.Q,prob.R,prob.models,prob.β,prob.w,
         prob.prob.m_con,prob.prob.T,prob.N,prob.prob.integration)
    return nothing
 end
@@ -180,7 +180,7 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
     ∇con_sample_vec!(view(∇c,len .+ (1:len_sample)),
          Z,prob.idx_nom,
          prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.Q,prob.R,prob.models,
-         prob.β,prob.w,prob.prob.con,prob.prob.m_con,prob.prob.T,prob.N,
+         prob.β,prob.w,prob.prob.m_con,prob.prob.T,prob.N,
          prob.prob.integration)
 
     # con_tmp(c,z) = con_sample!(c,z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,

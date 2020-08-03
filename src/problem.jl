@@ -21,7 +21,7 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     integration # dynamics integration scheme
     obj    # objective
     goal_constraint
-    con
+    stage_constraints
     m_con
 end
 
@@ -34,7 +34,7 @@ function init_problem(n,m,T,x1,xT,model,obj;
         hu=[Inf for t = 1:T-1],
         integration=rk3_implicit,
         goal_constraint::Bool=true,
-        con=(c,x,u)->nothing,
+        stage_constraints::Bool=false,
         m_con=0)
 
     idx = init_indices(n,m,T)
@@ -50,7 +50,7 @@ function init_problem(n,m,T,x1,xT,model,obj;
         model,integration,
         obj,
         goal_constraint,
-        con,
+        stage_constraints,
         m_con)
 end
 
@@ -146,7 +146,7 @@ function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
         prob.idx,prob.n,prob.m,prob.T,prob.model,prob.integration)
 
     prob.m_con > 0 && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:prob.m_con*(T-1))),
-        Z,prob.idx,T,prob.con,prob.m_con)
+        Z,prob.idx,T,prob.m_con)
 
     return nothing
 end
@@ -157,7 +157,7 @@ function eval_constraint_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
         prob.idx,prob.n,prob.m,prob.T,prob.model,prob.integration)
     len_stage_jac = length(stage_constraint_sparsity(prob.idx,prob.T,prob.m_con))
 
-    prob.m_con > 0 && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob.idx,prob.T,prob.con,prob.m_con)
+    prob.m_con > 0 && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob.idx,prob.T,prob.m_con)
 
     return nothing
 end

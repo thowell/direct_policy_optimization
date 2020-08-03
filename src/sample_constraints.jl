@@ -1,4 +1,4 @@
-function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,con,m_con,T,N,integration)
+function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_con,T,N,integration)
     shift = 0
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
@@ -39,7 +39,7 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,con,
             for i = 1:N
                 xi = view(z,idx_sample[i].x[t])
                 ui = view(z,idx_sample[i].u[t])
-                con(view(c,shift .+ (1:m_con)),xi,ui)
+                c_stage!(view(c,shift .+ (1:m_con)),xi,ui,t)
                 shift += m_con
             end
         end
@@ -162,7 +162,7 @@ end
 #     nothing
 # end
 
-function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,con,m_con,T,N,integration)
+function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_con,T,N,integration)
     shift = 0
     nx = length(idx_nom.x[1])
     nu = length(idx_nom.u[1])
@@ -293,8 +293,8 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
 
                 # con(view(c,shift .+ (1:m_con)),xi,ui)
 
-                con_x(c,a) = con(c,a,ui)
-                con_u(c,a) = con(c,xi,a)
+                con_x(c,a) = c_stage!(c,a,ui,t)
+                con_u(c,a) = c_stage!(c,xi,a,t)
 
                 r_idx = shift .+ (1:m_con)
 
