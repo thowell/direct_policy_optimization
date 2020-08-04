@@ -14,6 +14,16 @@ function kinematics(model,q)
     return pf
 end
 
+function pe(model,q)
+	θ1 = π - (q[1] + q[5])
+	θ2 = π - (q[2] + q[5])
+
+	pe = [-1.0*(model.l1*sin(θ1) + model.l2*sin(θ1 - q[3])),
+		  model.l1*cos(θ1) + model.l2*cos(θ1 - q[3])]
+
+    return pe
+end
+
 function transformation_to_urdf_left_pinned(q,v)
 	x = [q...,v...]
 	robot_world_angle = (x[1] + x[3] + x[5]) - pi/2
