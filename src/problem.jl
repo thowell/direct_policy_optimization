@@ -23,6 +23,7 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     stage_constraints
     m_stage
     stage_ineq
+    periodic_constraints
 end
 
 function init_problem(n,m,T,x1,xT,model,obj;
@@ -35,11 +36,12 @@ function init_problem(n,m,T,x1,xT,model,obj;
         goal_constraint::Bool=true,
         stage_constraints::Bool=false,
         m_stage=[0 for t=1:T-1],
-        stage_ineq=[(1:m_stage[t]) for t=1:T-1])
+        stage_ineq=[(1:m_stage[t]) for t=1:T-1],
+        periodic_constraints::Bool=false)
 
     idx = init_indices(n,m,T)
     N = n*T + m*(T-1) + (T-1)
-    M = n*(T-1) + (T-2) + sum(m_stage)
+    M = n*(T-1) + (T-2) + stage_constraints*sum(m_stage) + periodic_constraints*2*n
 
     return TrajectoryOptimizationProblem(n,m,T,N,M,
         x1,xT,
@@ -52,7 +54,8 @@ function init_problem(n,m,T,x1,xT,model,obj;
         goal_constraint,
         stage_constraints,
         m_stage,
-        stage_ineq)
+        stage_ineq,
+        periodic_constraints)
 end
 
 function pack(X0,U0,h0,prob::TrajectoryOptimizationProblem)
@@ -126,10 +129,18 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
     cl = zeros(M)
     cu = zeros(M)
 
-    m_shift = 0
-    for t = 1:T-1
-        cu[(n*(T-1) + (T-2) + m_shift .+ (1:prob.m_stage[t]))[prob.stage_ineq[t]]] .= Inf
-        m_shift += prob.m_stage[t]
+    if prob.stage_constraints
+        m_shift = 0
+        for t = 1:T-1
+            cu[(n*(T-1) + (T-2) + m_shift .+ (1:prob.m_stage[t]))[prob.stage_ineq[t]]] .= Inf
+            m_shift += prob.m_stage[t]
+        end
+    end
+
+    # TODO - doesn't need to be here
+    if prob.periodic_constraints
+        cl[n*(T-1) + (T-2) + prob.stage_constraints*sum(prob.m_stage) .+ (1:2*n)] .= 0.0
+        cu[n*(T-1) + (T-2) + prob.stage_constraints*sum(prob.m_stage) .+ (1:2*n)] .= 0.0
     end
 
     return cl, cu
@@ -153,9 +164,11 @@ function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
     dynamics_constraints!(view(c,1:(n*(T-1) + (T-2))),Z,
         prob.idx,prob.n,prob.m,prob.T,prob.model)
 
-    prob.stage_constraints > 0 && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:sum(prob.m_stage))),
+    prob.stage_constraints && stage_constraints!(view(c,(n*(T-1) + (T-2)) .+ (1:sum(prob.m_stage))),
         Z,prob.idx,T,prob.m_stage,prob.model)
 
+    prob.periodic_constraints && periodic_constraints!(view(c,n*(T-1) + (T-2) + prob.stage_constraints*sum(prob.m_stage) .+ (1:2*n)),Z,
+        prob.idx,T,prob.model)
     return nothing
 end
 
@@ -163,11 +176,13 @@ function eval_constraint_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     len_dyn_jac = length(sparsity_dynamics_jacobian(prob.idx,prob.n,prob.m,prob.T))
     sparse_dynamics_constraints_jacobian!(view(∇c,1:len_dyn_jac),Z,
         prob.idx,prob.n,prob.m,prob.T,prob.model)
-    len_stage_jac = length(stage_constraint_sparsity(prob.idx,prob.T,prob.m_stage))
 
-    prob.stage_constraints > 0 && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),
+    len_stage_jac = length(stage_constraint_sparsity(prob.idx,prob.T,prob.m_stage))
+    prob.stage_constraints && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),
         Z,prob.idx,prob.T,prob.m_stage,prob.model)
 
+    len_periodic_jac = length(periodic_constraint_sparsity(prob.idx,prob.T,prob.model))
+    prob.periodic_constraints && ∇periodic_constraints!(view(∇c,len_dyn_jac+len_stage_jac .+ (1:len_periodic_jac),Z,prob.idx,prob.T,prob.model)
     return nothing
 end
 

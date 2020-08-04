@@ -12,10 +12,10 @@ h0 = tf0/(T-1) # timestep
 Tm = 11
 xm = [1.0; 0.0]
 model = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm,xm,:time)
-model1 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm-1,xm,:time)
-model2 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm-1,xm,:time)
-model3 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm+1,xm,:time)
-model4 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm+1,xm,:time)
+model1 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm,xm,:time)
+model2 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm,xm,:time)
+model3 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm,xm,:time)
+model4 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm,xm,:time)
 
 # Bounds
 # xl <= x <= xu
