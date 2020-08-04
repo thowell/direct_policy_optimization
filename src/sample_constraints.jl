@@ -3,19 +3,28 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_st
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
     for t = 1:T-1
-        h = view(z,idx_nom.h[t])
         x⁺_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
         xs⁺ = resample(x⁺_tmp,β=β,w=w) # resample
 
         for i = 1:N
             xi = view(z,idx_sample[i].x[t])
             ui = view(z,idx_sample[i].u[t])
+            hi = view(z,idx_sample[i].h[t])
+
             xi⁺ = view(z,idx_sample[i].x[t+1])
 
-            c[shift .+ (1:nx)] = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,h,t)
+            c[shift .+ (1:nx)] = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,hi,t)
             shift += nx
             c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
             shift += nx
+
+            if t < T-1
+                hi⁺ = view(z,idx_sample[i].h[t+1])
+
+                c[shift .+ (1:1)] = hi⁺ - hi
+
+                shift += 1
+            end
         end
     end
 
@@ -170,7 +179,6 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
     s = 0
     for t = 1:T-1
-        h = z[idx_nom.h[t]]
         x⁺_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
         x⁺_tmp_vec = vcat(x⁺_tmp...)
         idx_x_tmp_vec = vcat([idx_x_tmp[i].x[t] for i = 1:N]...)
@@ -179,12 +187,13 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
         for i = 1:N
             xi = view(z,idx_sample[i].x[t])
             ui = view(z,idx_sample[i].u[t])
+            hi = z[idx_sample[i].h[t]]
             xi⁺ = view(z,idx_sample[i].x[t+1])
 
-            dyn_x(a) = discrete_dynamics(models[i],x⁺_tmp[i],a,ui,h,t)
-            dyn_u(a) = discrete_dynamics(models[i],x⁺_tmp[i],xi,a,h,t)
+            dyn_x(a) = discrete_dynamics(models[i],x⁺_tmp[i],a,ui,hi,t)
+            dyn_u(a) = discrete_dynamics(models[i],x⁺_tmp[i],xi,a,hi,t)
             dyn_h(a) = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,a,t)
-            dyn_x_tmp(a) = discrete_dynamics(models[i],a,xi,ui,h,t)
+            dyn_x_tmp(a) = discrete_dynamics(models[i],a,xi,ui,hi,t)
             resample_x_tmp(a) = resample_vec(a,nx,N,i,β=β,w=w) # resample
 
             # c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)
@@ -202,10 +211,10 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_u,ui))
             s += len
 
-            c_idx = idx_nom.h[t]
+            c_idx = idx_sample[i].h[t]
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t]))
             len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t])))
+            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_h,view(z,idx_sample[i].h[t])))
             s += len
 
             c_idx = idx_x_tmp[i].x[t]
@@ -232,6 +241,23 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
             s += len
 
             shift += nx
+
+            if t < T-1
+                r_idx = shift .+ (1:1)
+
+                c_idx = idx_sample[i].h[t+1]
+
+                len = length(r_idx)*length(c_idx)
+                ∇c[s + 1] = 1.0
+                s += len
+
+                c_idx = idx_sample[i].h[t]
+                len = length(r_idx)*length(c_idx)
+                ∇c[s + 1] = -1.0
+                s += len
+
+                shift += 1
+            end
         end
     end
 
@@ -363,7 +389,7 @@ function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,m_stage,T,N
             s += len
             row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_nom.h[t]
+            c_idx = idx_sample[i].h[t]
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t]))
             len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t])))
@@ -397,6 +423,27 @@ function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,m_stage,T,N
             row_col!(row,col,r_idx,c_idx)
 
             shift += nx
+
+            if t < T-1
+                r_idx = r_shift + shift .+ (1:1)
+
+                c_idx = idx_sample[i].h[t+1]
+
+                # len = length(r_idx)*length(c_idx)
+                # ∇c[s + 1] = 1.0
+                # s += len
+
+                row_col!(row,col,r_idx,c_idx)
+
+                c_idx = idx_sample[i].h[t]
+                # len = length(r_idx)*length(c_idx)
+                # ∇c[s + 1] = -1.0
+                # s += len
+
+                row_col!(row,col,r_idx,c_idx)
+
+                shift += 1
+            end
         end
     end
 

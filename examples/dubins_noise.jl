@@ -9,14 +9,14 @@ T = 30
 # Bounds
 
 # ul <= u <= uu
-uu = 5.0
-ul = -5.0
+uu = 3.0
+ul = -3.0
 
 # h = h0 (fixed timestep)
 tf0 = 1.0
 h0 = tf0/(T-1)
-hu = 5*h0
-hl = 0.0
+hu = h0
+hl = h0
 
 # Initial and final states
 x1 = [0.0; 0.0; 0.0]
@@ -32,33 +32,28 @@ xc3 = 0.25
 yc3 = 0.25
 xc4 = 0.75
 yc4 = 0.75
-xc5 = 0.5
-yc5 = 0.5
 
 # Constraints
 function c_stage!(c,x,u,t,model)
-    # c[1] = circle_obs(x[1],x[2],xc1,yc1,r)
-    # c[2] = circle_obs(x[1],x[2],xc2,yc2,r)
-    # c[1] = circle_obs(x[1],x[2],xc3,yc3,r)
-    # c[2] = circle_obs(x[1],x[2],xc4,yc4,r)
-    c[1] = circle_obs(x[1],x[2],xc5,yc5,r)
-    # c[1:2] = uu*ones(model.nu) - u
-    # c[3:4] = u - ul*ones(model.nu)
+    c[1] = circle_obs(x[1],x[2],xc1,yc1,r)
+    c[2] = circle_obs(x[1],x[2],xc2,yc2,r)
+    c[3] = circle_obs(x[1],x[2],xc3,yc3,r)
+    c[4] = circle_obs(x[1],x[2],xc4,yc4,r)
     nothing
 end
-m_stage_obstacles = 1
+m_stage = 4
 
 # Objective
 Q = [t < T ? Diagonal(zeros(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
 R = [Diagonal(zeros(model.nu)) for t = 1:T-1]
-c = 1.0
+c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-
+H_lqr = [0.0 for t = 1:T-1]
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
@@ -67,7 +62,7 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     hu=[hu for t=1:T-1],
                     goal_constraint=true,
                     stage_constraints=true,
-                    m_stage=[m_stage_obstacles for t=1:T-1]
+                    m_stage=[m_stage for t=1:T-1]
                     )
 
 # MathOptInterface problem
@@ -86,32 +81,52 @@ Z0 = pack(X0,U0,h0,prob)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 # Sample
-α = 2.5e-4
-x11 = α*[1.0; 0.0; 0.0]
-x12 = α*[-1.0; 0.0; 0.0]
-x13 = α*[0.0; 1.0; 0.0]
-x14 = α*[0.0; -1.0; 0.0]
-x15 = α*[0.0; 0.0; 1.0]
-x16 = α*[0.0; 0.0; -1.0]
-x1_sample = [x11,x12,x13,x14,x15,x16]
 
-N = length(x1_sample)
+# TVLQR policy
+A = []
+B = []
+for t = 1:T-1
+    x = X_nom[t]
+    u = U_nom[t]
+    h = H_nom[t]
+    x⁺ = X_nom[t+1]
+
+    fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
+    fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
+    fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
+
+    A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
+    push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
+    push!(B,-A⁺\ForwardDiff.jacobian(fu,u))
+end
+
+K = TVLQR(A,B,Q_lqr,R_lqr)
+# α = 2.5e-4
+# x11 = α*[1.0; 0.0; 0.0]
+# x12 = α*[-1.0; 0.0; 0.0]
+# x13 = α*[0.0; 1.0; 0.0]
+# x14 = α*[0.0; -1.0; 0.0]
+# x15 = α*[0.0; 0.0; 1.0]
+# x16 = α*[0.0; 0.0; -1.0]
+
+N = 2*model.nx
 models = [model for i = 1:N]
-K0 = [rand(model.nu,model.nx) for t = 1:T-1]
+# K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 2.5e-4*ones(model.nx)
+w = 1.0e-4*ones(model.nx)
 γ = 1.0
+x1_sample = resample([x1 for i = 1:N],β=β,w=w)#[x11,x12,x13,x14,x15,x16]
 
-prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,β=β,w=w,γ=γ)
+prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ)
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-Z0_sample = pack(X0,U0,h0,K0,prob_sample)
+Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample))
 
 # Unpack solutions
-X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
+X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
 # Time trajectories
 t_nominal = zeros(T)
@@ -131,22 +146,22 @@ x_nom_pos = [X_nom[t][1] for t = 1:T]
 y_nom_pos = [X_nom[t][2] for t = 1:T]
 pts = Plots.partialcircle(0,2π,100,r)
 cx,cy = Plots.unzip(pts)
-# cx1 = [_cx + xc1 for _cx in cx]
-# cy1 = [_cy + yc1 for _cy in cy]
-# cx2 = [_cx + xc2 for _cx in cx]
-# cy2 = [_cy + yc2 for _cy in cy]
+cx1 = [_cx + xc1 for _cx in cx]
+cy1 = [_cy + yc1 for _cy in cy]
+cx2 = [_cx + xc2 for _cx in cx]
+cy2 = [_cy + yc2 for _cy in cy]
 cx3 = [_cx + xc3 for _cx in cx]
 cy3 = [_cy + yc3 for _cy in cy]
 cx4 = [_cx + xc4 for _cx in cx]
 cy4 = [_cy + yc4 for _cy in cy]
-cx5 = [_cx + xc5 for _cx in cx]
-cy5 = [_cy + yc5 for _cy in cy]
+# cx5 = [_cx + xc5 for _cx in cx]
+# cy5 = [_cy + yc5 for _cy in cy]
 
-# plt = plot(Shape(cx1,cy1),color=:red,label="",linecolor=:red)
-# plt = plot!(Shape(cx2,cy2),color=:red,label="",linecolor=:red)
-# plt = plot(Shape(cx3,cy3),color=:red,label="",linecolor=:red)
-# plt = plot!(Shape(cx4,cy4),color=:red,label="",linecolor=:red)
-plt = plot(Shape(cx5,cy5),color=:red,label="",linecolor=:red)
+plt = plot(Shape(cx1,cy1),color=:red,label="",linecolor=:red)
+plt = plot!(Shape(cx2,cy2),color=:red,label="",linecolor=:red)
+plt = plot!(Shape(cx3,cy3),color=:red,label="",linecolor=:red)
+plt = plot!(Shape(cx4,cy4),color=:red,label="",linecolor=:red)
+# plt = plot(Shape(cx5,cy5),color=:red,label="",linecolor=:red)
 plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=2.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)",color=:purple,legend=:topleft)
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
@@ -166,6 +181,10 @@ savefig(plt,joinpath(@__DIR__,"results/dubins_control.png"))
 # State samples
 plt1 = plot(title="Sample states",legend=:bottom,xlabel="time (s)");
 for i = 1:N
+    t_sample = zeros(T)
+    for t = 2:T
+        t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
+    end
     plt1 = plot!(t_sample,hcat(X_sample[i]...)',label="");
 end
 plt1 = plot!(t_sample,hcat(X_nom_sample...)',color=:red,width=2.0,
@@ -176,6 +195,10 @@ savefig(plt1,joinpath(@__DIR__,"results/dubins_sample_states.png"))
 # Control samples
 plt2 = plot(title="Sample controls",xlabel="time (s)",legend=:bottom);
 for i = 1:N
+    t_sample = zeros(T)
+    for t = 2:T
+        t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
+    end
     plt2 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)',label="",
         linetype=:steppost);
 end

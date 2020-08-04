@@ -13,6 +13,7 @@ mutable struct SampleProblem <: Problem
 
     Q
     R
+    H
 
     N::Int # number of samples
     models
@@ -22,7 +23,7 @@ mutable struct SampleProblem <: Problem
     γ
 end
 
-function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R;
+function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
         time=true,β=1.0,w=1.0,γ=1.0)
 
     nx = prob.n
@@ -31,15 +32,15 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R;
     N = length(models)
     @assert N == 2*nx
 
-    M_sample = N*2*nx*(T-1) + N*nu*(T-1) + N*sum(prob.m_stage)
-    N_nlp = prob.N + N*(nx*T + nu*(T-1)) + N*(nx*(T-1)) + nu*nx*(T-1)
+    M_sample = N*(2*nx*(T-1) + (T-2) + nu*(T-1) + sum(prob.m_stage))
+    N_nlp = prob.N + N*(nx*T + nu*(T-1) + (T-1)) + N*(nx*(T-1)) + nu*nx*(T-1)
     M_nlp = prob.M + M_sample
 
     idx_nom = init_indices(nx,nu,T,time=time,shift=0)
     idx_nom_z = 1:prob.N
     shift = nx*T + nu*(T-1) + (T-1)*true
-    idx_sample = [init_indices(nx,nu,T,time=false,shift=shift + (i-1)*(nx*T + nu*(T-1))) for i = 1:N]
-    shift += N*(nx*T + nu*(T-1))
+    idx_sample = [init_indices(nx,nu,T,time=true,shift=shift + (i-1)*(nx*T + nu*(T-1) + (T-1))) for i = 1:N]
+    shift += N*(nx*T + nu*(T-1) + (T-1))
     idx_x_tmp = [init_indices(nx,0,T-1,time=false,shift=shift + (i-1)*(nx*(T-1))) for i = 1:N]
     shift += N*(nx*(T-1))
     idx_K = [shift + (t-1)*(nu*nx) .+ (1:nu*nx) for t = 1:T-1]
@@ -48,7 +49,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R;
         M_sample,N_nlp,M_nlp,
         idx_nom,idx_nom_z,
         idx_sample,idx_x_tmp,idx_K,
-        Q,R,
+        Q,R,H,
         N,models,x1,β,w,γ)
 end
 
@@ -83,8 +84,9 @@ function unpack(Z0,prob::SampleProblem)
 
     X_sample = [[Z0[prob.idx_sample[i].x[t]] for t = 1:T] for i = 1:N]
     U_sample = [[Z0[prob.idx_sample[i].u[t]] for t = 1:T-1] for i = 1:N]
+    H_sample = [[Z0[prob.idx_sample[i].h[t]] for t = 1:T-1] for i = 1:N]
 
-    return X_nom, U_nom, H_nom, X_sample, U_sample
+    return X_nom, U_nom, H_nom, X_sample, U_sample, H_sample
 end
 
 function init_MOI_Problem(prob::SampleProblem)
@@ -113,6 +115,9 @@ function primal_bounds(prob::SampleProblem)
         for i = 1:prob.N
             Zl[prob.idx_sample[i].u[t]] = prob.prob.ul[t]
             Zu[prob.idx_sample[i].u[t]] = prob.prob.uu[t]
+
+            Zl[prob.idx_sample[i].h[t]] = prob.prob.hl[t]
+            Zu[prob.idx_sample[i].h[t]] = prob.prob.hu[t]
 
             t==1 && continue
             Zl[prob.idx_sample[i].x[t]] = prob.prob.xl[t]
@@ -146,7 +151,7 @@ function constraint_bounds(prob::SampleProblem)
         m_shift = 0
         for t = 1:T-1
             for i = 1:prob.N
-                cu[(M_nom+prob.N*2*prob.prob.n*(prob.prob.T-1) + prob.N*prob.prob.m*(prob.prob.T-1) + m_shift .+ (1:prob.prob.m_stage[t]))[prob.prob.stage_ineq[t]]] .= Inf
+                cu[(M_nom + prob.N*(2*prob.prob.n*(prob.prob.T-1) + (T-2)) + prob.N*prob.prob.m*(prob.prob.T-1) + m_shift .+ (1:prob.prob.m_stage[t]))[prob.prob.stage_ineq[t]]] .= Inf
                 m_shift += prob.prob.m_stage[t]
             end
         end
@@ -156,7 +161,7 @@ end
 
 function eval_objective(prob::SampleProblem,Z)
     (eval_objective(prob.prob,view(Z,prob.idx_nom_z))
-        + obj_sample(Z,prob.idx_nom,prob.idx_sample,prob.Q,prob.R,prob.prob.T,
+        + obj_sample(Z,prob.idx_nom,prob.idx_sample,prob.Q,prob.R,prob.H,prob.prob.T,
             prob.N,prob.γ))
 end
 
@@ -164,7 +169,7 @@ function eval_objective_gradient!(∇obj,Z,prob::SampleProblem)
     ∇obj .= 0.0
     eval_objective_gradient!(view(∇obj,prob.idx_nom_z),view(Z,prob.idx_nom_z),
         prob.prob)
-    ∇obj_sample!(∇obj,Z,prob.idx_nom,prob.idx_sample,prob.Q,prob.R,prob.prob.T,prob.N,prob.γ)
+    ∇obj_sample!(∇obj,Z,prob.idx_nom,prob.idx_sample,prob.Q,prob.R,prob.H,prob.prob.T,prob.N,prob.γ)
     return nothing
 end
 

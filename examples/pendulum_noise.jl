@@ -2,6 +2,9 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/pendulum.jl")
 using Plots
 
+# Horizon
+T = 51
+
 # Bounds
 
 # ul <= u <= uu
@@ -9,15 +12,15 @@ uu = 3.0
 ul = -3.0
 
 # hl <= h <= hu
-hu = Inf
+tf0 = 2.0
+h0 = tf0/(T-1) # timestep
+
+hu = h0
 hl = 0.0
 
 # Initial and final states
 x1 = [0.0; 0.0]
 xT = [π; 0.0]
-
-# Horizon
-T = 51
 
 # Objective (minimum time)
 Q = [Diagonal(zeros(model.nx)) for t = 1:T]
@@ -29,7 +32,7 @@ obj = QuadraticTrackingObjective(Q,R,c,
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
 R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
-
+H_lqr = [100.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
@@ -66,9 +69,9 @@ for t = 1:T-1
     h = H_nominal[t]
     x⁺ = X_nominal[t+1]
 
-    fx(z) = discrete_dynamics(model,x⁺,z,u,h)
-    fu(z) = discrete_dynamics(model,x⁺,x,z,h)
-    fx⁺(z) = discrete_dynamics(model,z,x,u,h)
+    fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
+    fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
+    fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
 
     A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
     push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
@@ -91,10 +94,10 @@ x13 = α*[0.0; 1.0]
 x14 = α*[0.0; -1.0]
 x1_sample = resample([x11,x12,x13,x14],β=β,w=w)
 
-prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,β=β,w=w,γ=γ)
+prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ)
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-K0 = [rand(model.nu,model.nx) for t = 1:T-1]
+# K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
@@ -102,7 +105,7 @@ Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 Z_sample_sol = solve(prob_sample_moi,Z0_sample)
 
 # Unpack solution
-X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
+X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
 # Plot results
 
@@ -139,11 +142,19 @@ savefig(plt,joinpath(@__DIR__,"results/pendulum_state_noise.png"))
 plt1 = plot(t_sample,hcat(X_nom_sample...)[1,:],color=:red,width=2.0,title="",
     label="");
 for i = 1:N
+    t_sample = zeros(T)
+    for t = 2:T
+        t_sample[t] = t_sample[t-1] + H_sample[i][t-1]
+    end
     plt1 = plot!(t_sample,hcat(X_sample[i]...)[1,:],label="");
 end
 
 plt2 = plot(t_sample,hcat(X_nom_sample...)[2,:],color=:red,width=2.0,label="");
 for i = 1:N
+    t_sample = zeros(T)
+    for t = 2:T
+        t_sample[t] = t_sample[t-1] + H_sample[i][t-1]
+    end
     plt2 = plot!(t_sample,hcat(X_sample[i]...)[2,:],label="");
 end
 plt12 = plot(plt1,plt2,layout=(2,1),title=["θ" "x"],xlabel="time (s)")
@@ -153,6 +164,10 @@ savefig(plt,joinpath(@__DIR__,"results/pendulum_sample_state.png"))
 plt3 = plot(t_sample[1:end-1],hcat(U_nom_sample...)[1,:],color=:red,width=2.0,
     title="Control",label="",xlabel="time (s)");
 for i = 1:N
+    t_sample = zeros(T)
+    for t = 2:T
+        t_sample[t] = t_sample[t-1] + H_sample[i][t-1]
+    end
     plt3 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)[1,:],label="");
 end
 display(plt3)
