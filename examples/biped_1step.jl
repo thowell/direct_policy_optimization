@@ -24,8 +24,8 @@ xl_traj = [t != T ? -Inf*ones(model.nx) : xT for t = 1:T]
 xu_traj = [t != T ? Inf*ones(model.nx) : xT for t = 1:T]
 
 # ul <= u <= uu
-uu = 1000.0
-ul = -1000.0
+uu = 20.0
+ul = -20.0
 
 tf0 = 0.36915
 h0 = tf0/(T-1)
@@ -50,7 +50,7 @@ end
 # m_stage = 1
 
 # Objective
-Q = [t < T ? Diagonal([1.0e-3*ones(5);1.0e-3*ones(5)]) : Diagonal(1.0e-3*ones(model.nx)) for t = 1:T]
+Q = [t < T ? Diagonal(zeros(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
 R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
@@ -132,35 +132,14 @@ prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,
     disturbance_ctrl=false,α=1000.0)
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-
-# for i = 1:N
-#     prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T][6:10]] .= -Inf
-#     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T][6:10]] .= Inf
-# end
-
-# for i = 1:N
-#     prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T]] .= -Inf
-#     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= Inf
-# end
-
-# for i = 1:N
-#     prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0;-Inf]
-#     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0;Inf]
-#     # prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[i].Tm+1]] .= [1.0;-Inf]
-#     # prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[i].Tm+1]] .= [1.0;Inf]
-#
-#     # prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T] .= [1.0;-Inf]
-#     # prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= [1.0;Inf]
-# end
-
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
+Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
-
 
 Q_nom_sample = [X_nom_sample[t][1:5] for t = 1:T]
 
@@ -169,9 +148,8 @@ foot_traj_nom_sample = [kinematics(model,Q_nom_sample[t]) for t = 1:T]
 foot_x_ns = [foot_traj_nom_sample[t][1] for t=1:T]
 foot_y_ns = [foot_traj_nom_sample[t][2] for t=1:T]
 
-plt1 = plot(foot_x_ns,foot_y_ns,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+plt1 = plot(aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="")
-
 
 for i = 1:N
     Q_sample = [X_sample[i][t][1:5] for t = 1:T]
@@ -183,4 +161,6 @@ for i = 1:N
 
     plt1 = plot!(foot_x_s,foot_y_s,aspect_ratio=:equal,label="")
 end
+plt1 = plot!(foot_x_ns,foot_y_ns,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+    title="Foot 1 trajectory",color=:red,label="nominal")
 display(plt1)
