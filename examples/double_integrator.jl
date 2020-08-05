@@ -23,25 +23,21 @@ x1 = [1.0; 0.0]
 xT = [0.0; 0.0]
 
 # Objective (minimum time)
-Q = [Diagonal(zeros(model.nx)) for t = 1:T]
-R = [Diagonal(zeros(model.nu)) for t = 1:T-1]
-c = 1.0
+Q = [Diagonal(ones(model.nx)) for t = 1:T]
+R = [Diagonal(1.0e-1ones(model.nu)) for t = 1:T-1]
+c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
 multi_obj = MultiObjective([obj])
 
-for (i,o) in enumerate(multi_obj.obj)
-    println(i)
-end
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
 R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
-
+H_lqr = [0.0 for t=1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,multi_obj,
-                    xl=[[-Inf;-0.75] for t = 1:T],
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
@@ -87,22 +83,24 @@ K = TVLQR(A,B,Q_lqr,R_lqr)
 # Samples
 N = 2*model.nx
 models = [model for i = 1:N]
-K0 = [rand(model.nu,model.nx) for t = 1:T-1]
+# K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-4*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
-prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,β=β,w=w,γ=γ)
+prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+    disturbance_ctrl=true,α=1000.0)
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
+Uw_sample = unpack_disturbance(Z_sample_sol,prob_sample)
 
 # Plot results
 
@@ -158,3 +156,9 @@ for i = 1:N
 end
 display(plt3)
 savefig(plt,joinpath(@__DIR__,"results/double_integrator_sample_control.png"))
+
+# Disturbance controls
+plot(hcat(Uw_sample[1]...)',linetype=:steppost,labels="",title="Disturbance controls")
+plot!(hcat(Uw_sample[2]...)',linetype=:steppost,labels="")
+plot!(hcat(Uw_sample[3]...)',linetype=:steppost,labels="")
+plot!(hcat(Uw_sample[4]...)',linetype=:steppost,labels="")

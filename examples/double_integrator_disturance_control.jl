@@ -11,10 +11,10 @@ h0 = tf0/(T-1) # timestep
 # Hybrid model
 Tm = 11
 model = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
-model1 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
-model2 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
-model3 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
-model4 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
+model1 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm-2)
+model2 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm-1)
+model3 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm+1)
+model4 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm+2)
 
 # Bounds
 # xl <= x <= xu
@@ -103,6 +103,7 @@ w = 1.0e-2*ones(model.nx)
 γ = 1.0
 
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+# x1_sample = [x1 for i = 1:N]
 
 prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
@@ -128,10 +129,26 @@ for i = 1:N
     # prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= [1.0;Inf]
 end
 
+
+
+# prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[3].T+1]] = xT
+# prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[3].T+1]] = xT
+#
+# prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[4].T+2]] = xT
+# prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[4].T+2]] = xT
+
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,Z0_sample)
+
+prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T-2]] = xT
+prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T-2]] = xT
+
+prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T-1]] = xT
+prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T-1]] = xT
+
+Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
