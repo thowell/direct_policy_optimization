@@ -34,7 +34,7 @@ function ∇obj_sample!(∇obj,z,idx_nom,idx_sample,Q,R,H,T,N,γ)
             xi⁺ = view(z,idx_sample[i].x[t+1])
 
             ∇obj[idx_sample[i].x[t+1]] += 2.0*Q[t+1]*(xi⁺ - x⁺_nom)*γ/N
-            ∇obj[idx_sample[i].u[t]] += 2.0*R[t]*(ui - u_nom)*γ/N
+            ∇obj[idx_sample[i].u[t][1:nu]] += 2.0*R[t]*(ui - u_nom)*γ/N
             ∇obj[idx_sample[i].h[t]] += 2.0*H[t]*(hi - h_nom)*γ/N
 
             ∇obj[idx_nom.x[t+1]] -= 2.0*Q[t+1]*(xi⁺ - x⁺_nom)*γ/N
