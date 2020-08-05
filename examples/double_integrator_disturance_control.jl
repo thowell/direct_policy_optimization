@@ -99,7 +99,7 @@ N = 2*model.nx
 models = [model1,model2,model3,model4]
 K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-5*ones(model.nx)
+w = 1.0e-2*ones(model.nx)
 γ = 1.0
 
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
