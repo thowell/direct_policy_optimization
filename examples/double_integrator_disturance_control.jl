@@ -18,12 +18,12 @@ model4 = DoubleIntegratorActuated(nx_actuated,nu_actuated,nu_hybrid,Tm+2)
 
 # Bounds
 # xl <= x <= xu
-xl_traj = [t != Tm ? [-Inf; -Inf] : [0.0; -Inf] for t = 1:T]
+xl_traj = [t != Tm ? [0.0; -Inf] : [0.0; -Inf] for t = 1:T]
 xu_traj = [t != Tm ? Inf*ones(model.nx) : [0.0; Inf] for t = 1:T]
 
 # ul <= u <= uu
-uu = 100.0
-ul = -100.0
+uu = 25.0
+ul = -25.0
 
 # hl <= h <= hu
 hu = h0
@@ -41,10 +41,10 @@ obj = QuadraticTrackingObjective(Q,R,c,
     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
+Q_lqr = [t < T ? Diagonal([10.0;10.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
 # Q_lqr[Tm] = Diagonal([100.0;100.0])
 R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-H_lqr = [100.0 for t = 1:T-1]
+H_lqr = [0.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
@@ -99,10 +99,10 @@ N = 2*model.nx
 models = [model1,model2,model3,model4]
 K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-1*ones(model.nx)
+w = 1.0e-5*ones(model.nx)
 γ = 1.0
 
-x1_sample = [x1 for i = 1:N]#resample([x1 for i = 1:N],β=β,w=w)
+x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
 prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
@@ -114,13 +114,18 @@ prob_sample_moi = init_MOI_Problem(prob_sample)
 
 # remove mid-time goal constraint from sample trajectories
 for i = 1:N
-    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[Tm]] .= -Inf
+    # prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[Tm]] .= -Inf
     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[Tm]] .= Inf
 end
 
 for i = 1:N
     prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0;-Inf]
     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0;Inf]
+    # prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[i].Tm+1]] .= [1.0;-Inf]
+    # prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[i].Tm+1]] .= [1.0;Inf]
+
+    # prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T] .= [1.0;-Inf]
+    # prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= [1.0;Inf]
 end
 
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
@@ -198,3 +203,15 @@ for i = 1:N
 end
 display(plt3)
 # savefig(plt,joinpath(@__DIR__,"results/double_integrator_sample_control.png"))
+
+plot(hcat(Uw_sample[1]...)',linetype=:steppost,labels="",title="Disturbance controls")
+plot!(hcat(Uw_sample[2]...)',linetype=:steppost,labels="")
+plot!(hcat(Uw_sample[3]...)',linetype=:steppost,labels="")
+plot!(hcat(Uw_sample[4]...)',linetype=:steppost,labels="")
+
+
+i = 4
+plot(t_sample,hcat(X_sample[i]...)[1,:],label="",linetype=:steppost)
+plot(t_sample[1:end-1],hcat(Uw_sample[i]...)[1,:],label="",linetype=:steppost)
+hcat(Uw_sample[i]...)[1:2,:]
+t_sample[1:end-1]

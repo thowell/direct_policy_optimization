@@ -61,14 +61,14 @@ end
 
 function discrete_dynamics(model::DoubleIntegratorActuated,x⁺,x,u,h,t)
     uo = view(u,1:model.nu_original)
-    uw = view(u,model.nu_original+1:model.nu)
+    # uw = view(u,model.nu_original+1:model.nu)
 
     if t == model.Tm
         Δx = Δ(model,x)
         xm = xm_rk3_implicit(model,x⁺,Δx,uo,h)
-        x⁺ - Δx - h[1]/6*dynamics(model,Δx,uo) - 4*h[1]/6*dynamics(model,xm,uo) - h[1]/6*dynamics(model,x⁺,uo) - uw
+        x⁺ - Δx - h[1]/6*dynamics(model,Δx,uo) - 4*h[1]/6*dynamics(model,xm,uo) - h[1]/6*dynamics(model,x⁺,uo)
     else
         xm = xm_rk3_implicit(model,x⁺,x,uo,h)
-        x⁺ - x - h[1]/6*dynamics(model,x,uo) - 4*h[1]/6*dynamics(model,xm,uo) - h[1]/6*dynamics(model,x⁺,uo) - uw
+        x⁺ - x - h[1]/6*dynamics(model,x,uo) - 4*h[1]/6*dynamics(model,xm,uo) - h[1]/6*dynamics(model,x⁺,uo)
     end
 end

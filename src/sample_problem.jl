@@ -226,7 +226,7 @@ function eval_constraint!(c,Z,prob::SampleProblem)
 
    con_sample!(view(c,M_nom .+ (1:M_sample)),Z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
         prob.idx_K,prob.Q,prob.R,prob.models,prob.β,prob.w,
-        prob.prob.m_stage,prob.prob.T,prob.N)
+        prob.prob.m_stage,prob.prob.T,prob.N,disturbance_ctrl=prob.disturbance_ctrl)
 
    prob.disturbance_ctrl && (c_l1!(view(c,M_nom+M_sample .+ (1:prob.M_dist)),Z,prob.idx_sample,prob.idx_slack,prob.prob.m,prob.nw,prob.prob.T))
 
@@ -242,12 +242,12 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
 
     len_sample = length(sparsity_jacobian_sample(prob.idx_nom,
         prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.prob.m_stage,prob.prob.T,
-        prob.N))
+        prob.N,disturbance_ctrl=prob.disturbance_ctrl))
 
     ∇con_sample_vec!(view(∇c,len .+ (1:len_sample)),
          Z,prob.idx_nom,
          prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.Q,prob.R,prob.models,
-         prob.β,prob.w,prob.prob.m_stage,prob.prob.T,prob.N)
+         prob.β,prob.w,prob.prob.m_stage,prob.prob.T,prob.N,disturbance_ctrl=prob.disturbance_ctrl)
 
     if prob.disturbance_ctrl
         len_dist = length(constraint_l1_sparsity!(prob.idx_sample,prob.idx_slack,prob.prob.m,prob.nw,prob.prob.T))
@@ -264,12 +264,12 @@ function sparsity_jacobian(prob::SampleProblem)
         collect([sparsity_jacobian(prob.prob)...,
             sparsity_jacobian_sample(prob.idx_nom,
             prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.prob.m_stage,
-            prob.prob.T,prob.N,r_shift=M_nom)...,
+            prob.prob.T,prob.N,r_shift=M_nom,disturbance_ctrl=prob.disturbance_ctrl)...,
             constraint_l1_sparsity!(prob.idx_sample,prob.idx_slack,prob.prob.m,prob.nw,prob.prob.T,r_shift=M_nom+M_sample)...])
     else
         collect([sparsity_jacobian(prob.prob)...,
             sparsity_jacobian_sample(prob.idx_nom,
             prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.prob.m_stage,
-            prob.prob.T,prob.N,r_shift=M_nom)...])
+            prob.prob.T,prob.N,r_shift=M_nom,disturbance_ctrl=prob.disturbance_ctrl)...])
     end
 end

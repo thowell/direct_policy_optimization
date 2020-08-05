@@ -81,7 +81,7 @@ end
 K = TVLQR(A,B,Q_lqr,R_lqr)
 
 # Samples
-N = length(x1_sample)
+N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
 w = 1.0e-3*ones(model.nx)

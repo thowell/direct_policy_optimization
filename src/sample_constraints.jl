@@ -1,4 +1,5 @@
-function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_stage,T,N)
+function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_stage,T,N;
+        disturbance_ctrl=false)
     shift = 0
 
     nx = length(idx_nom.x[1])
@@ -11,7 +12,7 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_st
 
         for i = 1:N
             xi = view(z,idx_sample[i].x[t])
-            ui = view(z,idx_sample[i].u[t])
+            ui = view(z,idx_sample[i].u[t][1:nu])
             hi = view(z,idx_sample[i].h[t])
 
             xi⁺ = view(z,idx_sample[i].x[t+1])
@@ -19,6 +20,12 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_st
             c[shift .+ (1:nx)] = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,hi,t)
             shift += nx
             c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
+
+            if disturbance_ctrl
+                uwi = view(z,idx_sample[i].u[t][nu .+ (1:nx)])
+                c[shift .+ (1:nx)] += uwi
+            end
+
             shift += nx
 
             if t < T-1
@@ -59,7 +66,8 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_st
     nothing
 end
 
-function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_stage,T,N)
+function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models,β,w,m_stage,T,N;
+        disturbance_ctrl=false)
     shift = 0
     nx = length(idx_nom.x[1])
     nu = length(idx_nom.u[1])
@@ -74,7 +82,7 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
 
         for i = 1:N
             xi = view(z,idx_sample[i].x[t])
-            ui = view(z,idx_sample[i].u[t])
+            ui = view(z,idx_sample[i].u[t][1:nu])
             hi = z[idx_sample[i].h[t]]
             xi⁺ = view(z,idx_sample[i].x[t+1])
 
@@ -93,7 +101,7 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x,xi))
             s += len
 
-            c_idx = idx_sample[i].u[t]
+            c_idx = idx_sample[i].u[t][1:nu]
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_u,ui)
             len = length(r_idx)*length(c_idx)
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_u,ui))
@@ -127,6 +135,15 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
             len = length(r_idx)*length(c_idx)
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec))
             s += len
+
+            if disturbance_ctrl
+                # uwi = view(z,idx_sample[i].u[t][nu .+ (1:nx)])
+                # c[shift .+ (1:nx)] += uwi
+                c_idx = idx_sample[i].u[t][nu .+ (1:nx)]
+                len = length(r_idx)*length(c_idx)
+                ∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
+                s += len
+            end
 
             shift += nx
 
@@ -231,7 +248,8 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,Q,R,models
     nothing
 end
 
-function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,m_stage,T,N;r_shift=0)
+function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,m_stage,T,N;
+        r_shift=0,disturbance_ctrl=false)
     shift = 0
 
     nx = length(idx_nom.x[1])
@@ -266,30 +284,30 @@ function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,m_stage,T,N
 
             c_idx = idx_sample[i].x[t]
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x,xi)
-            len = length(r_idx)*length(c_idx)
+            # len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x,xi))
-            s += len
+            # s += len
             row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_sample[i].u[t]
+            c_idx = idx_sample[i].u[t][1:nu]
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_u,ui)
-            len = length(r_idx)*length(c_idx)
+            # len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_u,ui))
-            s += len
+            # s += len
             row_col!(row,col,r_idx,c_idx)
 
             c_idx = idx_sample[i].h[t]
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t]))
-            len = length(r_idx)*length(c_idx)
+            # len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t])))
-            s += len
+            # s += len
             row_col!(row,col,r_idx,c_idx)
 
             c_idx = idx_x_tmp[i].x[t]
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i])
-            len = length(r_idx)*length(c_idx)
+            # len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i]))
-            s += len
+            # s += len
             row_col!(row,col,r_idx,c_idx)
 
             shift += nx
@@ -299,17 +317,27 @@ function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,m_stage,T,N
 
             c_idx = idx_sample[i].x[t+1]
             # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nx))
-            len = length(r_idx)*length(c_idx)
+            # len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)))
-            s += len
+            # s += len
             row_col!(row,col,r_idx,c_idx)
 
             c_idx = idx_x_tmp_vec
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec)
-            len = length(r_idx)*length(c_idx)
+            # len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec))
-            s += len
+            # s += len
             row_col!(row,col,r_idx,c_idx)
+
+            if disturbance_ctrl
+                # uwi = view(z,idx_sample[i].u[t][nu .+ (1:nx)])
+                # c[shift .+ (1:nx)] += uwi
+                c_idx = idx_sample[i].u[t][nu .+ (1:nx)]
+                # len = length(r_idx)*length(c_idx)
+                # ∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
+                # s += len
+                row_col!(row,col,r_idx,c_idx)
+            end
 
             shift += nx
 
