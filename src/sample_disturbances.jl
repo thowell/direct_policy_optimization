@@ -1,5 +1,6 @@
 function obj_l1(z,idx_slack,α)
     J = 0.0
+    N = length(idx_slack)
     for t = 1:T-1
         for i = 1:N
             s = view(z,idx_slack[i][t])
@@ -12,6 +13,7 @@ end
 # obj_l1(Z0_sample,prob_sample.idx_slack,prob_sample.α)
 
 function ∇obj_l1!(∇obj,z,idx_slack,α)
+    N = length(idx_slack)
     for t = 1:T-1
         for i = 1:N
             ∇obj[idx_slack[i][t]] .+= α
@@ -20,73 +22,81 @@ function ∇obj_l1!(∇obj,z,idx_slack,α)
     nothing
 end
 
-function c_l1!(c,z,idx_sample,idx_slack,nu,nw,T)
+function c_l1!(c,z,idx_uw,idx_slack,T)
     shift = 0
 
+    N = length(idx_uw)
+    nx = length(idx_uw[1][1])
     for t = 1:T-1
         for i = 1:N
             ti = view(z,idx_slack[i][t])
-            uwi = view(z,idx_sample[i].u[t][nu .+ (1:nw[i])])
+            uwi = view(z,idx_uw[i][t])
 
-            c[shift .+ (1:nw[i])] = ti - uwi
-            shift += nw[i]
+            c[shift .+ (1:nx)] = ti - uwi
+            shift += nx
 
-            c[shift .+ (1:nw[i])] = uwi + ti
-            shift += nw[i]
+            c[shift .+ (1:nx)] = uwi + ti
+            shift += nx
         end
     end
     nothing
 end
 
-function ∇c_l1_vec!(∇c,z,idx_sample,idx_slack,nu,nw,T)
+function ∇c_l1_vec!(∇c,z,idx_uw,idx_slack,T)
     shift = 0
     s = 0
 
+    N = length(idx_uw)
+    nx = length(idx_uw[1][1])
+
     for t = 1:T-1
         for i = 1:N
             ti = view(z,idx_slack[i][t])
-            uwi = view(z,idx_sample[i].u[t][nu .+ (1:nw[i])])
+            uwi = view(z,idx_uw[i][t])
 
             # c[shift .+ (1:nw[i])] = ti - uwi
-            r_idx = shift .+ (1:nw[i])
+            r_idx = shift .+ (1:nx)
 
-            c_idx = idx_sample[i].u[t][nu .+ (1:nw[i])]
+            c_idx = idx_uw[i][t]
             len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(-Diagonal(ones(nw[i])))
+            ∇c[s .+ (1:len)] = vec(-Diagonal(ones(nx)))
             s += len
 
             c_idx = idx_slack[i][t]
             len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(Diagonal(ones(nw[i])))
+            ∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
             s += len
 
-            shift += nw[i]
+            shift += nx
 
             # c[shift .+ (1:nw[i])] = uwi + ti
-            r_idx = shift .+ (1:nw[i])
+            r_idx = shift .+ (1:nx)
 
-            c_idx = idx_sample[i].u[t][nu .+ (1:nw[i])]
+            c_idx = idx_uw[i][t]
             len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(Diagonal(ones(nw[i])))
+            ∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
             s += len
 
             c_idx = idx_slack[i][t]
             len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(Diagonal(ones(nw[i])))
+            ∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
             s += len
 
-            shift += nw[i]
+            shift += nx
         end
     end
     nothing
 end
 
-function constraint_l1_sparsity!(idx_sample,idx_slack,nu,nw,T; r_shift=0)
+function constraint_l1_sparsity!(idx_uw,idx_slack,T; r_shift=0)
     shift = 0
     s = 0
 
     row = []
     col = []
+
+    N = length(idx_uw)
+    nx = length(idx_uw[1][1])
 
     for t = 1:T-1
         for i = 1:N
@@ -94,9 +104,9 @@ function constraint_l1_sparsity!(idx_sample,idx_slack,nu,nw,T; r_shift=0)
             # uwi = view(z,idx_sample[i].u[t][nu .+ (1:nw[i])])
 
             # c[shift .+ (1:nw[i])] = ti - uwi
-            r_idx = r_shift + shift .+ (1:nw[i])
+            r_idx = r_shift + shift .+ (1:nx)
 
-            c_idx = idx_sample[i].u[t][nu .+ (1:nw[i])]
+            c_idx = idx_uw[i][t]
             # len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(-Diagonal(ones(nw[i])))
             # s += len
@@ -108,17 +118,16 @@ function constraint_l1_sparsity!(idx_sample,idx_slack,nu,nw,T; r_shift=0)
             # s += len
             row_col!(row,col,r_idx,c_idx)
 
-            shift += nw[i]
+            shift += nx
 
             # c[shift .+ (1:nw[i])] = uwi + ti
-            r_idx = r_shift + shift .+ (1:nw[i])
+            r_idx = r_shift + shift .+ (1:nx)
 
-            c_idx = idx_sample[i].u[t][nu .+ (1:nw[i])]
+            c_idx = idx_uw[i][t]
             # len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(Diagonal(ones(nw[i])))
             # s += len
             row_col!(row,col,r_idx,c_idx)
-
 
             c_idx = idx_slack[i][t]
             # len = length(r_idx)*length(c_idx)
@@ -126,7 +135,7 @@ function constraint_l1_sparsity!(idx_sample,idx_slack,nu,nw,T; r_shift=0)
             # s += len
             row_col!(row,col,r_idx,c_idx)
 
-            shift += nw[i]
+            shift += nx
         end
     end
     return collect(zip(row,col))
@@ -135,9 +144,8 @@ end
 function unpack_disturbance(Z0,prob::SampleProblem)
     T = prob.prob.T
     N = prob.N
-    nu = prob.prob.m
 
-    Uw_sample = [[Z0[prob.idx_sample[i].u[t][nu .+ (1:prob.nw[i])]] for t = 1:T-1] for i = 1:N]
+    Uw_sample = [[Z0[prob.idx_uw[i][t]] for t = 1:T-1] for i = 1:N]
 
     return Uw_sample
 end
@@ -148,21 +156,19 @@ end
 # @assert norm(∇obj_ - ForwardDiff.gradient(tmp_ol1,Z0_sample)) < 1.0e-12
 #
 #
-# nw = [models[i].nu - model.nu for i = 1:N]
-# Ml1 = 2*sum(nw)*(T-1)
-# c0 = zeros(Ml1)
-# c_l1!(c0,Z0_sample,prob_sample.idx_sample,prob_sample.idx_slack,model.nu,nw,T)
+# c0 = zeros(prob_sample.M_dist)
+# c_l1!(c0,Z0_sample,prob_sample.idx_uw,prob_sample.idx_slack,T)
 #
-# spar = constraint_l1_sparsity!(prob_sample.idx_sample,prob_sample.idx_slack,model.nu,nw,T)
+# spar = constraint_l1_sparsity!(prob_sample.idx_uw,prob_sample.idx_slack,T)
 # ∇c_vec = zeros(length(spar))
-# ∇c = zeros(Ml1,prob_sample.N_nlp)
-# ∇c_l1_vec!(∇c_vec,Z0_sample,prob_sample.idx_sample,prob_sample.idx_slack,model.nu,nw,T)
+# ∇c = zeros(prob_sample.M_dist,prob_sample.N_nlp)
+# ∇c_l1_vec!(∇c_vec,Z0_sample,prob_sample.idx_uw,prob_sample.idx_slack,T)
 #
 # for (i,k) in enumerate(spar)
 #     ∇c[k[1],k[2]] = ∇c_vec[i]
 # end
 #
-# tmpcl1(c,z) = c_l1!(c,z,prob_sample.idx_sample,prob_sample.idx_slack,model.nu,nw,T)
+# tmpcl1(c,z) = c_l1!(c,z,prob_sample.idx_uw,prob_sample.idx_slack,T)
 # ForwardDiff.jacobian(tmpcl1,c0,Z0_sample)
 #
 # @assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmpcl1,c0,Z0_sample))) < 1.0e-12

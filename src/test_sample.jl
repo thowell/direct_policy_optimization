@@ -6,12 +6,12 @@ _∇obj = zero(Z0_sample)
 @assert norm(_∇obj - ForwardDiff.gradient(tmp_obj,Z0_sample)) < 1.0e-12
 
 c0 = zeros(prob_sample.M_sample)
-con_sample!(c0,Z0_sample,prob_sample.idx_nom,prob_sample.idx_sample,prob_sample.idx_x_tmp,prob_sample.idx_K,prob_sample.Q,prob_sample.R,prob_sample.models,prob_sample.β,prob_sample.w,prob.m_stage,prob.T,prob_sample.N,disturbance_ctrl=prob_sample.disturbance_ctrl)
-tmp_con(c,z) = con_sample!(c,z,prob_sample.idx_nom,prob_sample.idx_sample,prob_sample.idx_x_tmp,prob_sample.idx_K,prob_sample.Q,prob_sample.R,prob_sample.models,prob_sample.β,prob_sample.w,prob.m_stage,prob.T,prob_sample.N,disturbance_ctrl=prob_sample.disturbance_ctrl)
+con_sample!(c0,Z0_sample,prob_sample.idx_nom,prob_sample.idx_sample,prob_sample.idx_x_tmp,prob_sample.idx_K,prob_sample.idx_uw,prob_sample.Q,prob_sample.R,prob_sample.models,prob_sample.β,prob_sample.w,prob.m_stage,prob.T,prob_sample.N,disturbance_ctrl=prob_sample.disturbance_ctrl)
+tmp_con(c,z) = con_sample!(c,z,prob_sample.idx_nom,prob_sample.idx_sample,prob_sample.idx_x_tmp,prob_sample.idx_K,prob_sample.idx_uw,prob_sample.Q,prob_sample.R,prob_sample.models,prob_sample.β,prob_sample.w,prob.m_stage,prob.T,prob_sample.N,disturbance_ctrl=prob_sample.disturbance_ctrl)
 ForwardDiff.jacobian(tmp_con,c0,Z0_sample)
-spar = sparsity_jacobian_sample(prob_sample.idx_nom,prob_sample.idx_sample,prob_sample.idx_x_tmp,prob_sample.idx_K,prob.m_stage,prob.T,prob_sample.N,disturbance_ctrl=prob_sample.disturbance_ctrl)
+spar = sparsity_jacobian_sample(prob_sample.idx_nom,prob_sample.idx_sample,prob_sample.idx_x_tmp,prob_sample.idx_K,prob_sample.idx_uw,prob.m_stage,prob.T,prob_sample.N,disturbance_ctrl=prob_sample.disturbance_ctrl)
 ∇c_vec = zeros(length(spar))
-∇con_sample_vec!(∇c_vec,Z0_sample,prob_sample.idx_nom,prob_sample.idx_sample,prob_sample.idx_x_tmp,prob_sample.idx_K,prob_sample.Q,prob_sample.R,prob_sample.models,prob_sample.β,prob_sample.w,prob.m_stage,prob.T,prob_sample.N,disturbance_ctrl=prob_sample.disturbance_ctrl)
+∇con_sample_vec!(∇c_vec,Z0_sample,prob_sample.idx_nom,prob_sample.idx_sample,prob_sample.idx_x_tmp,prob_sample.idx_K,prob_sample.idx_uw,prob_sample.Q,prob_sample.R,prob_sample.models,prob_sample.β,prob_sample.w,prob.m_stage,prob.T,prob_sample.N,disturbance_ctrl=prob_sample.disturbance_ctrl)
 ∇c = zeros(prob_sample.M_sample,prob_sample.N_nlp)
 
 for (i,k) in enumerate(spar)

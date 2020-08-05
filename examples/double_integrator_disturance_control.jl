@@ -11,10 +11,10 @@ h0 = tf0/(T-1) # timestep
 # Hybrid model
 Tm = 11
 model = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
-model1 = DoubleIntegratorActuated(nx_actuated,nu_actuated,nu_hybrid,Tm-2)
-model2 = DoubleIntegratorActuated(nx_actuated,nu_actuated,nu_hybrid,Tm-1)
-model3 = DoubleIntegratorActuated(nx_actuated,nu_actuated,nu_hybrid,Tm+1)
-model4 = DoubleIntegratorActuated(nx_actuated,nu_actuated,nu_hybrid,Tm+2)
+model1 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
+model2 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
+model3 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
+model4 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
 
 # Bounds
 # xl <= x <= xu
@@ -108,7 +108,7 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=10.0)
+    α=1000.0)
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
@@ -208,7 +208,6 @@ plot(hcat(Uw_sample[1]...)',linetype=:steppost,labels="",title="Disturbance cont
 plot!(hcat(Uw_sample[2]...)',linetype=:steppost,labels="")
 plot!(hcat(Uw_sample[3]...)',linetype=:steppost,labels="")
 plot!(hcat(Uw_sample[4]...)',linetype=:steppost,labels="")
-
 
 i = 4
 plot(t_sample,hcat(X_sample[i]...)[1,:],label="",linetype=:steppost)
