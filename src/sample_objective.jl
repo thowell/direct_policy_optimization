@@ -1,14 +1,17 @@
 function obj_sample(z,idx_nom,idx_sample,Q,R,H,T,N,γ)
     J = 0.0
+
     #TODO consider no initial condition -> fix this cost
     # sample
+    nu = size(R[1],1)
+
     for t = 1:T-1
         u_nom = view(z,idx_nom.u[t])
         h_nom = z[idx_nom.h[t]]
         x⁺_nom = view(z,idx_nom.x[t+1])
 
         for i = 1:N
-            ui = view(z,idx_sample[i].u[t])
+            ui = view(z,idx_sample[i].u[t][1:nu])
             hi = z[idx_sample[i].h[t]]
             xi⁺ = view(z,idx_sample[i].x[t+1])
             J += (xi⁺ - x⁺_nom)'*Q[t+1]*(xi⁺ - x⁺_nom) + (ui - u_nom)'*R[t]*(ui - u_nom) + (hi - h_nom)'*H[t]*(hi - h_nom)
@@ -19,12 +22,14 @@ function obj_sample(z,idx_nom,idx_sample,Q,R,H,T,N,γ)
 end
 
 function ∇obj_sample!(∇obj,z,idx_nom,idx_sample,Q,R,H,T,N,γ)
+    nu = size(R[1],1)
+
     for t = 1:T-1
         u_nom = view(z,idx_nom.u[t])
         h_nom = z[idx_nom.h[t]]
         x⁺_nom = view(z,idx_nom.x[t+1])
         for i = 1:N
-            ui = view(z,idx_sample[i].u[t])
+            ui = view(z,idx_sample[i].u[t][1:nu])
             hi = z[idx_sample[i].h[t]]
             xi⁺ = view(z,idx_sample[i].x[t+1])
 

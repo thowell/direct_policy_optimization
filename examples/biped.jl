@@ -3,8 +3,8 @@ include("../dynamics/biped.jl")
 using Plots
 
 # Horizon
-T = 20
-Tm = 10
+T = 10
+Tm = 5
 
 model.Tm = Tm
 
@@ -127,7 +127,7 @@ set_configuration!(mvis_left,Q_nominal_urdf_left[1])
 # animation = MeshCat.Animation(mvis_right,t_nominal[Tm+1:T],Q_nominal_urdf_right)
 
 animation = MeshCat.Animation(mvis_left,t_nominal,Q_nominal_urdf_left)
-setanimation!(mvis,animation)
+setanimation!(mvis_left,animation)
 
 # control trajectory
 plot(t_nominal[1:end-1],hcat(U_nominal...)',width=2.0,linetype=:steppost,

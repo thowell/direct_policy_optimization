@@ -4,7 +4,7 @@ tmp_obj(z) = obj_sample(z,prob_sample.idx_nom,prob_sample.idx_sample,prob_sample
 ForwardDiff.gradient(tmp_obj,Z0_sample)
 _∇obj = zero(Z0_sample)
 ∇obj_sample!(_∇obj,Z0_sample,prob_sample.idx_nom,prob_sample.idx_sample,prob_sample.Q,prob_sample.R,prob_sample.H,T,prob_sample.N,prob_sample.γ)
-norm(_∇obj - ForwardDiff.gradient(tmp_obj,Z0_sample))
+@assert norm(_∇obj - ForwardDiff.gradient(tmp_obj,Z0_sample)) < 1.0e-12
 
 c0 = zeros(prob_sample.M_sample)
 con_sample!(c0,Z0_sample,prob_sample.idx_nom,prob_sample.idx_sample,prob_sample.idx_x_tmp,prob_sample.idx_K,prob_sample.Q,prob_sample.R,prob_sample.models,prob_sample.β,prob_sample.w,prob.m_stage,prob.T,prob_sample.N)
@@ -19,6 +19,5 @@ for (i,k) in enumerate(spar)
     ∇c[k[1],k[2]] = ∇c_vec[i]
 end
 
-norm(vec(∇c) - vec(ForwardDiff.jacobian(tmp_con,c0,Z0_sample)))
-sum(∇c)
-sum(ForwardDiff.jacobian(tmp_con,c0,Z0_sample))
+@assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmp_con,c0,Z0_sample))) < 1.0e-12
+@assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_con,c0,Z0_sample)) < 1.0e-12

@@ -65,6 +65,7 @@ obj = QuadraticTrackingObjective(Q,R,c,
 Q_lqr = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
 # Q_lqr[Tm] = Diagonal([100.0;100.0])
 R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+H_lqr = [0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
@@ -116,16 +117,15 @@ K = TVLQR(A,B,Q_lqr,R_lqr)
 
 # Samples
 N = 2*model.nx
-# models = [model for i = 1:N]
 models = [model1,model2,model3,model4]
 K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-1*ones(model.nx)
 γ = 1.0
 
-x1_sample = [x1 for i = 1:N]#resample([x1 for i = 1:N],β=β,w=w)
+x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
-prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,β=β,w=w,γ=γ)
+prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ)
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 
@@ -137,13 +137,13 @@ for i = 1:N
 end
 # end
 
-Z0_sample = pack(X0,U0,h0,K0,prob_sample)
+Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,Z0_sample)
 
 # Unpack solution
-X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
+X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
 # X_nom_sample[Tm] += xm
 # for i = 1:N

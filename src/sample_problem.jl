@@ -31,16 +31,17 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
     T = prob.T
     N = length(models)
     @assert N == 2*nx
+    @assert size(R[1],1) == nu
 
     M_sample = N*(2*nx*(T-1) + (T-2) + nu*(T-1) + sum(prob.m_stage))
-    N_nlp = prob.N + N*(nx*T + nu*(T-1) + (T-1)) + N*(nx*(T-1)) + nu*nx*(T-1)
+    N_nlp = prob.N + N*(nx*T) + sum([models[i].nu for i=1:N])*(T-1) + N*(T-1) + N*(nx*(T-1)) + nu*nx*(T-1)
     M_nlp = prob.M + M_sample
 
     idx_nom = init_indices(nx,nu,T,time=time,shift=0)
     idx_nom_z = 1:prob.N
     shift = nx*T + nu*(T-1) + (T-1)*true
-    idx_sample = [init_indices(nx,nu,T,time=true,shift=shift + (i-1)*(nx*T + nu*(T-1) + (T-1))) for i = 1:N]
-    shift += N*(nx*T + nu*(T-1) + (T-1))
+    idx_sample = [init_indices(nx,models[i].nu,T,time=true,shift=shift + (i-1)*(nx*T + models[i].nu*(T-1) + (T-1))) for i = 1:N]
+    shift += N*(nx*T) + sum([models[i].nu for i = 1:N])*(T-1) + N*(T-1)
     idx_x_tmp = [init_indices(nx,0,T-1,time=false,shift=shift + (i-1)*(nx*(T-1))) for i = 1:N]
     shift += N*(nx*(T-1))
     idx_K = [shift + (t-1)*(nu*nx) .+ (1:nu*nx) for t = 1:T-1]
@@ -58,12 +59,13 @@ function pack(X0,U0,h0,K0,prob::SampleProblem)
     Z0[prob.idx_nom_z] = pack(X0,U0,h0,prob.prob)
     T = prob.prob.T
     N = prob.N
+    nu = prob.prob.m
 
     for t = 1:T
         for i = 1:N
             Z0[prob.idx_sample[i].x[t]] = X0[t]
             t==T && continue
-            Z0[prob.idx_sample[i].u[t]] = U0[t]
+            Z0[prob.idx_sample[i].u[t][1:nu]] = U0[t]
             Z0[prob.idx_x_tmp[i].x[t]] = X0[t+1]
         end
     end
@@ -77,13 +79,14 @@ end
 function unpack(Z0,prob::SampleProblem)
     T = prob.prob.T
     N = prob.N
+    nu = prob.prob.m
 
     X_nom = [Z0[prob.idx_nom.x[t]] for t = 1:T]
     U_nom = [Z0[prob.idx_nom.u[t]] for t = 1:T-1]
     H_nom = [Z0[prob.idx_nom.h[t]] for t = 1:T-1]
 
     X_sample = [[Z0[prob.idx_sample[i].x[t]] for t = 1:T] for i = 1:N]
-    U_sample = [[Z0[prob.idx_sample[i].u[t]] for t = 1:T-1] for i = 1:N]
+    U_sample = [[Z0[prob.idx_sample[i].u[t][1:nu]] for t = 1:T-1] for i = 1:N]
     H_sample = [[Z0[prob.idx_sample[i].h[t]] for t = 1:T-1] for i = 1:N]
 
     return X_nom, U_nom, H_nom, X_sample, U_sample, H_sample
@@ -110,11 +113,12 @@ function primal_bounds(prob::SampleProblem)
         Zu[prob.idx_sample[i].x[1]] = prob.x1[i]
     end
 
+    nu = prob.prob.m
     # sample state and control bounds
     for t = 1:prob.prob.T-1
         for i = 1:prob.N
-            Zl[prob.idx_sample[i].u[t]] = prob.prob.ul[t]
-            Zu[prob.idx_sample[i].u[t]] = prob.prob.uu[t]
+            Zl[prob.idx_sample[i].u[t][1:nu]] = prob.prob.ul[t]
+            Zu[prob.idx_sample[i].u[t][1:nu]] = prob.prob.uu[t]
 
             Zl[prob.idx_sample[i].h[t]] = prob.prob.hl[t]
             Zu[prob.idx_sample[i].h[t]] = prob.prob.hu[t]
