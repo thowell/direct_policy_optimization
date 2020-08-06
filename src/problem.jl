@@ -192,7 +192,7 @@ function eval_constraint_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     len_dyn_jac = length(sparsity_dynamics_jacobian(prob))
     sparse_dynamics_constraints_jacobian!(view(∇c,1:len_dyn_jac),Z,prob)
 
-    len_stage_jac = length(stage_constraint_sparsity(prob.idx,prob.T,prob.m_stage))
+    len_stage_jac = length(stage_constraint_sparsity(prob))
     prob.stage_constraints && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob)
 
     len_general_jac = length(general_constraint_sparsity(prob))
