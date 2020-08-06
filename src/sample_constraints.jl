@@ -1,9 +1,9 @@
-function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,Q,R,models,β,w,m_stage,T,N;
+function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,u_ctrl,Q,R,models,β,w,m_stage,T,N;
         disturbance_ctrl=false)
     shift = 0
 
     nx = length(idx_nom.x[1])
-    nu = length(idx_nom.u[1])
+    nu = length(u_ctrl)
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
     for t = 1:T-1
@@ -31,7 +31,7 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,Q,R,models,β
             if t < T-1
                 hi⁺ = view(z,idx_sample[i].h[t+1])
 
-                c[shift + 1] = hi⁺ - hi
+                c[shift + 1] = hi⁺[1] - hi[1]
 
                 shift += 1
             end
@@ -41,12 +41,12 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,Q,R,models,β
     # controller for samples
     for t = 1:T-1
         x_nom = view(z,idx_nom.x[t])
-        u_nom = view(z,idx_nom.u[t])
+        u_nom = view(z,idx_nom.u[t][u_ctrl])
         K = reshape(view(z,idx_K[t]),nu,nx)
 
         for i = 1:N
             xi = view(z,idx_sample[i].x[t])
-            ui = view(z,idx_sample[i].u[t])
+            ui = view(z,idx_sample[i].u[t][u_ctrl])
             c[shift .+ (1:nu)] = ui + K*(xi - x_nom) - u_nom
             shift += nu
         end
@@ -66,11 +66,11 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,Q,R,models,β
     nothing
 end
 
-function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,Q,R,models,β,w,m_stage,T,N;
+function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,u_ctrl,Q,R,models,β,w,m_stage,T,N;
         disturbance_ctrl=false)
     shift = 0
     nx = length(idx_nom.x[1])
-    nu = length(idx_nom.u[1])
+    nu = length(u_ctrl)
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
     s = 0
@@ -170,12 +170,12 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,Q,R
     Im = Diagonal(ones(nu))
     for t = 1:T-1
         x_nom = view(z,idx_nom.x[t])
-        u_nom = view(z,idx_nom.u[t])
+        u_nom = view(z,idx_nom.u[t][u_ctrl])
         K = reshape(view(z,idx_K[t]),nu,nx)
 
         for i = 1:N
             xi = view(z,idx_sample[i].x[t])
-            ui = view(z,idx_sample[i].u[t])
+            ui = view(z,idx_sample[i].u[t][u_ctrl])
             # c[shift .+ (1:nu)] = ui + K*(xi - x_nom) - u_nom
 
             r_idx = shift .+ (1:nu)
@@ -186,7 +186,7 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,Q,R
             ∇c[s .+ (1:len)] = vec(-1.0*K)
             s += len
 
-            c_idx = idx_nom.u[t]
+            c_idx = idx_nom.u[t][u_ctrl]
             # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nu))
             len = length(r_idx)*length(c_idx)
             ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nu)))
@@ -198,7 +198,7 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,Q,R
             ∇c[s .+ (1:len)] = vec(K)
             s += len
 
-            c_idx = idx_sample[i].u[t]
+            c_idx = idx_sample[i].u[t][u_ctrl]
             # ∇c[r_idx,c_idx] = Diagonal(ones(nu))
             len = length(r_idx)*length(c_idx)
             ∇c[s .+ (1:len)] = vec(Diagonal(ones(nu)))
@@ -248,12 +248,12 @@ function ∇con_sample_vec!(∇c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,Q,R
     nothing
 end
 
-function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,m_stage,T,N;
+function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,u_ctrl,m_stage,T,N;
         r_shift=0,disturbance_ctrl=false)
     shift = 0
 
     nx = length(idx_nom.x[1])
-    nu = length(idx_nom.u[1])
+    nu = length(u_ctrl)
 
     s = 0
 
@@ -385,7 +385,7 @@ function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,m_st
             s += len
             row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_nom.u[t]
+            c_idx = idx_nom.u[t][u_ctrl]
             # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nu))
             len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nu)))
@@ -399,7 +399,7 @@ function sparsity_jacobian_sample(idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,m_st
             s += len
             row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_sample[i].u[t]
+            c_idx = idx_sample[i].u[t][u_ctrl]
             # ∇c[r_idx,c_idx] = Diagonal(ones(nu))
             len = length(r_idx)*length(c_idx)
             # ∇c[s .+ (1:len)] = vec(Diagonal(ones(nu)))
