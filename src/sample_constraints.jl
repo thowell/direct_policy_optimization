@@ -31,7 +31,7 @@ function con_sample!(c,z,idx_nom,idx_sample,idx_x_tmp,idx_K,idx_uw,Q,R,models,β
             if t < T-1
                 hi⁺ = view(z,idx_sample[i].h[t+1])
 
-                c[shift .+ (1:1)] = hi⁺ - hi
+                c[shift + 1] = hi⁺ - hi
 
                 shift += 1
             end
