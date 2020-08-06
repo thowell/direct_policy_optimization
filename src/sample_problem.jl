@@ -1,6 +1,8 @@
 mutable struct SampleProblem <: Problem
     prob::TrajectoryOptimizationProblem
 
+    u_ctrl
+
     M_sample::Int # number of sample constraints
     N_nlp::Int # number of decision variables
     M_nlp::Int # number of constraints
@@ -30,18 +32,20 @@ mutable struct SampleProblem <: Problem
 end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
+        u_ctrl=(1:prob.m),
         time=true,β=1.0,w=1.0,γ=1.0,
         disturbance_ctrl=false,α=1.0)
 
     nx = prob.n
     nu = prob.m
+    nu_ctrl = length(u_ctrl)
 
     T = prob.T
     N = length(models)
     @assert N == 2*nx
     @assert size(R[1],1) == nu
 
-    M_sample = N*(2*nx*(T-1) + (T-2) + nu*(T-1) + prob.stage_constraints*sum(prob.m_stage))
+    M_sample = N*(2*nx*(T-1) + (T-2) + nu_ctrl*(T-1) + prob.stage_constraints*sum(prob.m_stage))
     M_dist = disturbance_ctrl*2*N*nx*(T-1)
 
     N_nlp = prob.N + N*(nx*T) + N*nu*(T-1) + N*(T-1) + N*(nx*(T-1)) + nu*nx*(T-1) + disturbance_ctrl*2*N*nx*(T-1)
@@ -67,7 +71,9 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
         idx_slack = []
     end
 
-    return SampleProblem(prob,
+    return SampleProblem(
+        prob,
+        u_ctrl,
         M_sample,N_nlp,M_nlp,
         idx_nom,idx_nom_z,
         idx_sample,idx_x_tmp,idx_K,
@@ -239,7 +245,7 @@ function eval_constraint!(c,Z,prob::SampleProblem)
    eval_constraint!(view(c,1:M_nom),view(Z,prob.idx_nom_z),prob.prob)
 
    con_sample!(view(c,M_nom .+ (1:M_sample)),Z,prob.idx_nom,prob.idx_sample,prob.idx_x_tmp,
-        prob.idx_K,prob.idx_uw,prob.Q,prob.R,prob.models,prob.β,prob.w,
+        prob.idx_K,prob.idx_uw,prob.u_ctrl,prob.Q,prob.R,prob.models,prob.β,prob.w,
         prob.prob.m_stage,prob.prob.T,prob.N,disturbance_ctrl=prob.disturbance_ctrl)
 
    prob.disturbance_ctrl && (c_l1!(view(c,M_nom+M_sample .+ (1:prob.M_dist)),Z,prob.idx_uw,prob.idx_slack,prob.prob.T))
@@ -255,12 +261,12 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
     M_sample = prob.M_sample
 
     len_sample = length(sparsity_jacobian_sample(prob.idx_nom,
-        prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.idx_uw,prob.prob.m_stage,prob.prob.T,
+        prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.idx_uw,prob.u_ctrl,prob.prob.m_stage,prob.prob.T,
         prob.N,disturbance_ctrl=prob.disturbance_ctrl))
 
     ∇con_sample_vec!(view(∇c,len .+ (1:len_sample)),
          Z,prob.idx_nom,
-         prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.idx_uw,prob.Q,prob.R,prob.models,
+         prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.idx_uw,prob.u_ctrl,prob.Q,prob.R,prob.models,
          prob.β,prob.w,prob.prob.m_stage,prob.prob.T,prob.N,disturbance_ctrl=prob.disturbance_ctrl)
 
     if prob.disturbance_ctrl
@@ -277,13 +283,13 @@ function sparsity_jacobian(prob::SampleProblem)
     if prob.disturbance_ctrl
         collect([sparsity_jacobian(prob.prob)...,
             sparsity_jacobian_sample(prob.idx_nom,
-            prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.idx_uw,prob.prob.m_stage,
+            prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.idx_uw,prob.u_ctrl,prob.prob.m_stage,
             prob.prob.T,prob.N,r_shift=M_nom,disturbance_ctrl=prob.disturbance_ctrl)...,
             constraint_l1_sparsity!(prob.idx_uw,prob.idx_slack,prob.prob.T,r_shift=M_nom+M_sample)...])
     else
         collect([sparsity_jacobian(prob.prob)...,
             sparsity_jacobian_sample(prob.idx_nom,
-            prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.idx_uw,prob.prob.m_stage,
+            prob.idx_sample,prob.idx_x_tmp,prob.idx_K,prob.idx_uw,prob.u_ctrl,prob.prob.m_stage,
             prob.prob.T,prob.N,r_shift=M_nom,disturbance_ctrl=prob.disturbance_ctrl)...])
     end
 end

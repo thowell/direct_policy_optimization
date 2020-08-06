@@ -29,9 +29,9 @@ yc1 = 0.3
 xc2 = 0.375
 yc2 = 0.75
 xc3 = 0.25
-yc3 = 0.25
+yc3 = 0.2
 xc4 = 0.75
-yc4 = 0.75
+yc4 = 0.8
 
 # Constraints
 function c_stage!(c,x,u,t,model)
@@ -162,10 +162,18 @@ plt = plot!(Shape(cx2,cy2),color=:red,label="",linecolor=:red)
 plt = plot!(Shape(cx3,cy3),color=:red,label="",linecolor=:red)
 plt = plot!(Shape(cx4,cy4),color=:red,label="",linecolor=:red)
 # plt = plot(Shape(cx5,cy5),color=:red,label="",linecolor=:red)
+
+for i = 1:N
+    x_sample_pos = [X_sample[i][t][1] for t = 1:T]
+    y_sample_pos = [X_sample[i][t][2] for t = 1:T]
+    plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,label="")
+end
+
 plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=2.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)",color=:purple,legend=:topleft)
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
 plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=2.0,label="sample  (tf=$(round(sum(H_nom_sample),digits=3))s)",color=:orange,legend=:bottomright)
+
 savefig(plt,joinpath(@__DIR__,"results/dubins_trajectory.png"))
 
 # Control
