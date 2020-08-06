@@ -16,7 +16,9 @@ include("dynamics_constraints.jl")
 include("stage_constraints.jl")
 include("general_constraints.jl")
 
-include("sample_constraints.jl")
+include("sample_dynamics_constraints.jl")
+include("sample_control_constraints.jl")
+include("sample_stage_constraints.jl")
 include("sample_disturbances.jl")
 
 include("moi.jl")

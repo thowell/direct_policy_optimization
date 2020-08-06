@@ -1,4 +1,7 @@
-function obj_l1(z,idx_slack,α)
+function obj_l1(z,prob::SampleProblem)
+    idx_slack = prob.idx_slack
+    α = prob.α
+
     J = 0.0
     N = length(idx_slack)
     for t = 1:T-1
@@ -12,7 +15,9 @@ end
 
 # obj_l1(Z0_sample,prob_sample.idx_slack,prob_sample.α)
 
-function ∇obj_l1!(∇obj,z,idx_slack,α)
+function ∇obj_l1!(∇obj,z)
+    idx_slack = prob.idx_slack
+    α = prob.α
     N = length(idx_slack)
     for t = 1:T-1
         for i = 1:N
@@ -22,7 +27,11 @@ function ∇obj_l1!(∇obj,z,idx_slack,α)
     nothing
 end
 
-function c_l1!(c,z,idx_uw,idx_slack,T)
+function sample_disturbance_constraints!(c,z)
+    idx_uw = prob.idx_uw
+    idx_slack = prob.idx_slack
+    T = prob.prob.T
+
     shift = 0
 
     N = length(idx_uw)
@@ -42,7 +51,11 @@ function c_l1!(c,z,idx_uw,idx_slack,T)
     nothing
 end
 
-function ∇c_l1_vec!(∇c,z,idx_uw,idx_slack,T)
+function ∇sample_disturbance_constraints!(∇c,z,prob::SampleProblem)
+    idx_uw = prob.idx_uw
+    idx_slack = prob.idx_slack
+    T = prob.prob.T
+
     shift = 0
     s = 0
 
@@ -88,7 +101,13 @@ function ∇c_l1_vec!(∇c,z,idx_uw,idx_slack,T)
     nothing
 end
 
-function constraint_l1_sparsity!(idx_uw,idx_slack,T; r_shift=0)
+function sparsity_jacobian_sample_disturbance(prob::SampleProblem;
+        r_shift=0)
+
+    idx_uw = prob.idx_uw
+    idx_slack = prob.idx_slack
+    T = prob.prob.T
+
     shift = 0
     s = 0
 
