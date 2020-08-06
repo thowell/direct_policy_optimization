@@ -2,7 +2,12 @@ function c_stage!(c,x,u,t,model)
 	nothing
 end
 
-function stage_constraints!(c,Z,idx,T,m_stage,model)
+function stage_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
+	idx = prob.idx
+	T = prob.T
+	m_stage = prob.m_stage
+	model = prob.model
+
 	m_shift = 0
 	for t = 1:T-1
 		if m_stage[t] > 0
@@ -15,7 +20,12 @@ function stage_constraints!(c,Z,idx,T,m_stage,model)
 	nothing
 end
 
-function ∇stage_constraints!(∇c,Z,idx,T,m_stage,model)
+function ∇stage_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
+	idx = prob.idx
+	T = prob.T
+	m_stage = prob.m_stage
+	model = prob.model
+
 	shift = 0
 	m_shift = 0
 
@@ -46,18 +56,25 @@ function ∇stage_constraints!(∇c,Z,idx,T,m_stage,model)
 	nothing
 end
 
-function stage_constraint_sparsity(idx,T,m_stage;shift_r=0,shift_c=0)
+function stage_constraint_sparsity(prob::TrajectoryOptimizationProblem;
+		r_shift=0)
+
+	idx = prob.idx
+	T = prob.T
+	m_stage = prob.m_stage
+	model = prob.model
+
 	row = []
 	col = []
 	m_shift = 0
 	for t = 1:T-1
 		if m_stage[t] > 0
-			r_idx = shift_r + m_shift .+ (1:m_stage[t])
+			r_idx = r_shift + m_shift .+ (1:m_stage[t])
 
-			c_idx = shift_c .+ idx.x[t]
+			c_idx = idx.x[t]
 			row_col!(row,col,r_idx,c_idx)
 
-			c_idx = shift_c .+ idx.u[t]
+			c_idx = idx.u[t]
 			row_col!(row,col,r_idx,c_idx)
 
 			m_shift += m_stage[t]

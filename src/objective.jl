@@ -93,3 +93,6 @@ function objective_gradient!(∇l,Z,l::QuadraticTrackingObjective,model,idx,T)
 
     return nothing
 end
+
+objective(Z,prob::TrajectoryOptimizationProblem) = objective(Z,prob.obj,prob.model,prob.idx,prob.T)
+objective_gradient!(∇l,Z,prob::TrajectoryOptimizationProblem) = objective_gradient!(∇l,Z,prob.obj,prob.model,prob.idx,prob.T)

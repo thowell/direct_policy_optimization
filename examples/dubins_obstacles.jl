@@ -54,6 +54,7 @@ obj = QuadraticTrackingObjective(Q,R,c,
 Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
+
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
@@ -169,10 +170,10 @@ for i = 1:N
     plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,label="")
 end
 
-plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=2.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)",color=:purple,legend=:topleft)
+plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)",color=:purple,legend=:topleft)
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
-plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=2.0,label="sample  (tf=$(round(sum(H_nom_sample),digits=3))s)",color=:orange,legend=:bottomright)
+plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=4.0,label="sample  (tf=$(round(sum(H_nom_sample),digits=3))s)",color=:orange,legend=:bottomright)
 
 savefig(plt,joinpath(@__DIR__,"results/dubins_trajectory.png"))
 
