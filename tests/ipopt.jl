@@ -1,4 +1,4 @@
-using Ipopt, MathOptInterface
+using Ipopt, MathOptInterface, ForwardDiff
 const MOI = MathOptInterface
 
 struct ProblemIpopt <: MOI.AbstractNLPEvaluator

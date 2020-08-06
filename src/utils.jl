@@ -105,11 +105,11 @@ function sample_dynamics_linear(X,U,A,B; β=1.0,w=1.0)
     return Xs⁺
 end
 
-function sample_dynamics(model,X,U,Δt; β=1.0,w=1.0)
+function sample_dynamics(model,X,U,Δt,t; β=1.0,w=1.0)
     N = length(X)
     X⁺ = []
     for i = 1:N
-        push!(X⁺,discrete_dynamics(model,X[i],U[i],Δt))
+        push!(X⁺,discrete_dynamics(model,X[i],U[i],Δt,t))
     end
     Xs⁺ = resample(X⁺,β=β,w=w)
     return Xs⁺

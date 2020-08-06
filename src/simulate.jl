@@ -23,7 +23,7 @@ function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
         u = max.(u,ul)
         u = min.(u,uu)
 
-        push!(z_rollout,discrete_dynamics(model,z,u,dt_sim))
+        push!(z_rollout,rk3(model,z,u,dt_sim))
         push!(u_rollout,u)
         if _norm == 2
             J += (z_rollout[end]-z_nom[k+1])'*Q[k+1]*(z_rollout[end]-z_nom[k+1])

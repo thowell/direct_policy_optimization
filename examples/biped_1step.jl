@@ -3,7 +3,7 @@ include("../dynamics/biped.jl")
 using Plots
 
 # Horizon
-T = 10
+T = 20
 Tm = -1
 model.Tm = Tm
 
@@ -41,7 +41,7 @@ function discrete_dynamics(model::Biped,x⁺,x,u,h,t)
 end
 
 # pfz_init = kinematics(model,q_init)[2]
-#
+
 # function c_stage!(c,x,u,t,model)
 #     c[1] = kinematics(model,x[1:5])[2] - pfz_init
 #     nothing
@@ -50,12 +50,12 @@ end
 # m_stage = 1
 
 # Objective
-Q = [t < T ? Diagonal(zeros(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
+Q = [t < T ? Diagonal([0.0*ones(5);1.0e-4*ones(5)]) : Diagonal([0.0*ones(5);1.0e-4*ones(5)]) for t = 1:T]
 R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
-penalty_obj = PenaltyObjective(1.0,0.05,[t for t = 1:T-1 if (t != Tm-1 || t != 1)])
+penalty_obj = PenaltyObjective(5.0,0.05,[t for t = 1:T-1 if (t != Tm-1 || t != 1)])
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
@@ -64,8 +64,8 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,multi_obj,
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    goal_constraint=true,
-                    stage_constraints=false)#,
+                    goal_constraint=true)#,
+                    # stage_constraints=false,
                     # m_stage=[t==Tm ? 0 : m_stage for t=1:T-1]
                     # )
 
@@ -92,12 +92,12 @@ foot_traj = [kinematics(model,Q_nominal[t]) for t = 1:T]
 foot_x = [foot_traj[t][1] for t=1:T]
 foot_y = [foot_traj[t][2] for t=1:T]
 
-plt1 = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
-    title="Foot 1 trajectory",label="")
+plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+    title="Foot 1 trajectory",label="",color=:red)
 
 # TVLQR policy
-Q_lqr = [t < T ? Diagonal(1.0*ones(model.nx)) : Diagonal(1.0*ones(model.nx)) for t = 1:T]
-R_lqr = [Diagonal(0.01*ones(model.nu)) for t = 1:T-1]
+Q_lqr = [t < T ? Diagonal(1.0*ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
+R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 
 A = []
@@ -148,7 +148,7 @@ foot_traj_nom_sample = [kinematics(model,Q_nom_sample[t]) for t = 1:T]
 foot_x_ns = [foot_traj_nom_sample[t][1] for t=1:T]
 foot_y_ns = [foot_traj_nom_sample[t][2] for t=1:T]
 
-plt1 = plot(aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+plt_ft_nom_sample = plot(aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="")
 
 for i = 1:N
@@ -159,8 +159,91 @@ for i = 1:N
     foot_x_s = [foot_traj_sample[t][1] for t=1:T]
     foot_y_s = [foot_traj_sample[t][2] for t=1:T]
 
-    plt1 = plot!(foot_x_s,foot_y_s,aspect_ratio=:equal,label="")
+    plt_ft_nom_sample = plot!(foot_x_s,foot_y_s,aspect_ratio=:equal,label="")
 end
-plt1 = plot!(foot_x_ns,foot_y_ns,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+
+plt_ft_nom_sample = plot!(foot_x_ns,foot_y_ns,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",color=:red,label="nominal")
 display(plt1)
+
+
+# Simulate controller
+K_sample, X_nom_sample, U_nom_sample, H_nom_sample = controller(Z_sample_sol,prob_sample)
+norm(vec(hcat(K_sample...)) -vec(hcat(K...)))
+
+using Distributions
+model_sim = model
+T_sim = 100*T
+
+μ = zeros(model.nx)
+Σ = Diagonal(1.0e-32*ones(model.nx))
+W = Distributions.MvNormal(μ,Σ)
+w = rand(W,T_sim)
+
+μ0 = zeros(nx)
+Σ0 = Diagonal(1.0e-32*ones(nx))
+W0 = Distributions.MvNormal(μ0,Σ0)
+w0 = rand(W0,1)
+
+z0_sim = vec(copy(X_nominal[1]) + w0)
+
+t_nom = range(0,stop=h0*T,length=T)
+t_sim = range(0,stop=h0*T,length=T_sim)
+
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,X_nominal,U_nominal,
+    model_sim,Q_lqr,R_lqr,T_sim,h0,z0_sim,w,_norm=2,ul=ul,uu=uu)
+z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(K_sample,X_nom_sample,U_nom_sample,
+    model_sim,Q_lqr,R_lqr,T_sim,h0,z0_sim,w,_norm=2,ul=ul,uu=uu)
+
+plt = plot(t_sim,hcat(z_tvlqr...)[1:5,:]',color=:purple,width=2.0,label="")
+plt = plot!(t_sim,hcat(z_sample...)[1:5,:]',color=:orange,width=2.0,label="")
+
+plt = plot(t_sim[1:end-1],hcat(u_tvlqr...)[1:4,:]',color=:purple,label="",width=2.0)
+plt = plot!(t_sim[1:end-1],hcat(u_sample...)[1:4,:]',color=:orange,label="",width=2.0)
+
+Q_sim = [z_tvlqr[t][1:5] for t = 1:T_sim]
+
+foot_traj = [kinematics(model,Q_sim[t]) for t = 1:T_sim]
+
+foot_x = [foot_traj[t][1] for t=1:T_sim]
+foot_y = [foot_traj[t][2] for t=1:T_sim]
+
+plt_ft_nom = plot!(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+    title="Foot 1 trajectory",label="",color=:purple)
+
+Q_sim_sample = [z_sample[t][1:5] for t = 1:T_sim]
+
+foot_traj_sample = [kinematics(model,Q_sim_sample[t]) for t = 1:T_sim]
+
+foot_x_sample = [foot_traj_sample[t][1] for t=1:T_sim]
+foot_y_sample = [foot_traj_sample[t][2] for t=1:T_sim]
+
+plt_ft_nom_sample = plot!(foot_x_sample,foot_y_sample,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+    title="Foot 1 trajectory",label="",color=:orange)
+
+# visualize
+using Colors
+using CoordinateTransformations
+using FileIO
+using GeometryTypes:Vec,HyperRectangle,HyperSphere,Point3f0,Cylinder
+using LinearAlgebra
+using MeshCat, MeshCatMechanisms
+using MeshIO
+using Rotations
+using RigidBodyDynamics
+
+urdf = "/home/taylor/Research/sample_trajectory_optimization/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
+mechanism = parse_urdf(urdf,floating=false)
+
+vis = Visualizer()
+open(vis)
+mvis = MechanismVisualizer(mechanism, URDFVisuals(urdf,package_path=[dirname(dirname(urdf))]), vis)
+
+Q_left = [transformation_to_urdf_left_pinned(z_tvlqr[t][1:5],z_tvlqr[t][6:10])[1] for t = 1:T_sim]
+animation = MeshCat.Animation(mvis,t_sim,Q_left)
+setanimation!(mvis,animation)
+
+
+Q_left = [transformation_to_urdf_left_pinned(X_nominal[t][1:5],X_nominal[t][6:10])[1] for t = 1:T]
+animation = MeshCat.Animation(mvis,t_nominal,Q_left)
+setanimation!(mvis,animation)

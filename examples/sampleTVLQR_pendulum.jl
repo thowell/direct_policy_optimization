@@ -4,7 +4,7 @@ include("../dynamics/pendulum.jl")
 
 # Pendulum discrete-time dynamics (midpoint)
 Δt = 0.05
-function discrete_dynamics(model,x,u,Δt)
+function discrete_dynamics(model,x,u,Δt,t)
     midpoint(model,x,u,Δt)
 end
 
@@ -53,7 +53,7 @@ function con_nom!(c,z)
         x = z[x_nom_idx[t]]
         u = z[u_nom_idx[t]]
         x⁺ = z[x_nom_idx[t+1]]
-        c[(t-1)*nx .+ (1:nx)] = x⁺ - discrete_dynamics(model,x,u,Δt)
+        c[(t-1)*nx .+ (1:nx)] = x⁺ - discrete_dynamics(model,x,u,Δt,t)
     end
     c[(T-1)*nx .+ (1:nx)] = z[x_nom_idx[1]] - x1_nom
     c[T*nx .+ (1:nx)] = z[x_nom_idx[T]] - xT_nom

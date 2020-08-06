@@ -124,6 +124,19 @@ function unpack(Z0,prob::SampleProblem)
     return X_nom, U_nom, H_nom, X_sample, U_sample, H_sample
 end
 
+function controller(Z0,prob::SampleProblem)
+    T = prob.prob.T
+    N = prob.N
+
+    X_nom = [Z0[prob.idx_nom.x[t]] for t = 1:T]
+    U_nom = [Z0[prob.idx_nom.u[t]] for t = 1:T-1]
+    H_nom = [Z0[prob.idx_nom.h[t]] for t = 1:T-1]
+
+    K_sample = [reshape(Z0[prob.idx_K[t]],prob.prob.m,prob.prob.n) for t = 1:T-1]
+
+    return K_sample, X_nom, U_nom, H_nom
+end
+
 function init_MOI_Problem(prob::SampleProblem)
     return MOIProblem(prob.N_nlp,prob.M_nlp,prob,
         primal_bounds(prob),constraint_bounds(prob),false)

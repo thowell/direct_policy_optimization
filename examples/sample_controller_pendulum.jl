@@ -5,7 +5,7 @@ using Plots
 
 # Pendulum discrete-time dynamics (midpoint)
 Δt = 0.05
-function discrete_dynamics(model,x,u,Δt)
+function discrete_dynamics(model,x,u,Δt,t)
     midpoint(model,x,u,Δt)
 end
 
@@ -54,7 +54,7 @@ function con_nom!(c,z)
         x = z[x_nom_idx[t]]
         u = z[u_nom_idx[t]]
         x⁺ = z[x_nom_idx[t+1]]
-        c[(t-1)*nx .+ (1:nx)] = x⁺ - discrete_dynamics(model,x,u,Δt)
+        c[(t-1)*nx .+ (1:nx)] = x⁺ - discrete_dynamics(model,x,u,Δt,t)
     end
     c[(T-1)*nx .+ (1:nx)] = z[x_nom_idx[1]] - x1_nom
     c[T*nx .+ (1:nx)] = z[x_nom_idx[T]] - xT_nom
@@ -85,8 +85,8 @@ B = []
 for t = 1:T-1
     x = x_nom[t]
     u = u_nom[t]
-    fx(z) = discrete_dynamics(model,z,u,Δt)
-    fu(z) = discrete_dynamics(model,x,z,Δt)
+    fx(z) = discrete_dynamics(model,z,u,Δt,t)
+    fu(z) = discrete_dynamics(model,x,z,Δt,t)
 
     push!(A,ForwardDiff.jacobian(fx,x))
     push!(B,ForwardDiff.jacobian(fu,u))

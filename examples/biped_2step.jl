@@ -151,8 +151,8 @@ end
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=500)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
