@@ -8,7 +8,7 @@ function kinematics(model,q)
 	pe = [model.l1*sin(θ1) + model.l2*sin(θ1 - q[3]),
 		  model.l1*cos(θ1) + model.l2*cos(θ1 - q[3])]
 
-	pf = [pe[1] - (model.l1*sin(θ2) + model.l2*sin(θ2 - q[4])),
+	pf = [(model.l1*sin(θ2) + model.l2*sin(θ2 - q[4])),
 		  pe[2] - (model.l1*cos(θ2) + model.l2*cos(θ2 - q[4]))]
 
     return pf

@@ -3,8 +3,8 @@ include("../dynamics/biped.jl")
 using Plots
 
 # Horizon
-T = 10
-Tm = 5
+T = 20
+Tm = 10
 model.Tm = Tm
 
 # Initial and final states
@@ -20,8 +20,8 @@ xT = Δ(x1)
 # Bounds
 
 # xl <= x <= xu
-xl_traj = [t != Tm ? -Inf*ones(model.nx) : xT for t = 1:T]
-xu_traj = [t != Tm ? Inf*ones(model.nx) : xT for t = 1:T]
+xl_traj = [t != Tm ? -Inf*ones(model.nx) : [xT[1:5];-Inf*ones(5)] for t = 1:T]
+xu_traj = [t != Tm ? Inf*ones(model.nx) : [xT[1:5];Inf*ones(5)] for t = 1:T]
 
 # ul <= u <= uu
 uu = 20.0
@@ -50,12 +50,12 @@ end
 # m_stage = 1
 
 # Objective
-Q = [t < T ? Diagonal(1.0e-5*ones(model.nx)) : Diagonal(1.0e-5*ones(model.nx)) for t = 1:T]
+Q = [t < T ? Diagonal(1.0e-3*ones(model.nx)) : Diagonal(1.0e-3*ones(model.nx)) for t = 1:T]
 R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
-penalty_obj = PenaltyObjective(1.0,0.1,[t for t = 1:T-1 if (t != Tm-1 || t != 1)])
+penalty_obj = PenaltyObjective(1.0,0.05,[t for t = 1:T-1 if (t != Tm-1 || t != 1)])
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
@@ -87,7 +87,7 @@ Z0 = pack(X0,U0,h0,prob)
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
 
-norm(vec(X_nominal[Tm] - X_nominal[T]))
+norm(vec(X_nominal[Tm][1:5] - X_nominal[T][1:5]))
 Q_nominal = [X_nominal[t][1:5] for t = 1:T]
 
 foot_traj = [kinematics(model,Q_nominal[t]) for t = 1:T]
@@ -134,27 +134,29 @@ N = 2*model.nx
 models = [model for i = 1:N]
 # K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-8*ones(model.nx)
+w = 1.0e-5*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+xT_sample = resample([xT for i = 1:N],β=β,w=w)
 
 prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
-    disturbance_ctrl=false,α=1000.0)
+    disturbance_ctrl=true,α=1.0e-5)
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 for i = 1:N
-    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[Tm]] .= -Inf
-    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[Tm]] .= Inf
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[Tm]] .= [xT_sample[i][1:5];-Inf*ones(5)]
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[Tm]] .= [xT_sample[i][1:5];Inf*ones(5)]
 end
 
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=110)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
 Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
 
 # Unpack solution
-X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
+X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+Uw_sample = unpack_disturbance(Z_sample_sol,prob_sample)
 
 Q_nom_sample = [X_nom_sample[t][1:5] for t = 1:T]
 
@@ -179,7 +181,6 @@ end
 plt1 = plot!(foot_x_ns[1:Tm],foot_y_ns[1:Tm],aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",color=:red,label="nominal",legend=:bottom)
 display(plt1)
-
 
 foot_x_ns = [foot_traj_nom_sample[t][1] for t=Tm+1:T]
 foot_y_ns = [foot_traj_nom_sample[t][2] for t=Tm+1:T]
@@ -206,3 +207,48 @@ plt2 = plot!([foot_tran_ns[1],foot_x_ns...],[foot_tran_ns[2],foot_y_ns...],aspec
 display(plt2)
 
 plot(plt1,plt2,layout=(2,1))
+
+plt = plot()
+for i = 1:N
+    plt = plot!(hcat(Uw_sample[i]...)[1:end,:]',linetype=:steppost,labels="")
+end
+display(plt)
+
+t_nominal = zeros(T)
+t_sample = zeros(T)
+for t = 2:T
+    t_nominal[t] = t_nominal[t-1] + H_nominal[t-1]
+    t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
+end
+
+# State samples
+plt1 = plot();
+for i = 1:N
+    t_sample = zeros(T)
+    for t = 2:T
+        t_sample[t] = t_sample[t-1] + H_sample[i][t-1]
+    end
+    plt1 = plot!(t_sample,hcat(X_sample[i]...)[1:5,:]',label="",linetype=:steppost);
+end
+plt1 = plot!(t_sample,hcat(X_nom_sample...)[1:5,:]',color=:red,width=2.0,
+    label="",linetype=:steppost,title="Biped state");
+display(plt1)
+# savefig(plt,joinpath(@__DIR__,"results/double_integrator_sample_state.png"))
+
+# Control samples
+plt3 = plot();
+for i = 1:N
+    t_sample = zeros(T)
+    for t = 2:T
+        t_sample[t] = t_sample[t-1] + H_sample[i][t-1]
+    end
+    plt3 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)[1:4,:]',label="",
+        linetype=:steppost);
+end
+
+plt3 = plot!(t_sample[1:end-1],hcat(U_nom_sample...)[1:4,:]',color=:red,width=2.0,
+    title="Biped control",label="",xlabel="time (s)",linetype=:steppost);
+display(plt3)
+
+K_sample = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-1]
+norm(vec(hcat(K...)) - vec(hcat(K_sample...)))
