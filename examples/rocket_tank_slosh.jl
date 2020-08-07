@@ -3,38 +3,41 @@ include("../dynamics/rocket.jl")
 using Plots
 
 # Horizon
-T = 10
+T = 25
 
 # Initial and final states
-x1 = [0.5; model.l2 + 1.0; 0.0; 0.0; 0.0; 0.1; 0.0; 0.0]
+x1 = [0.5; model.l2 + 2.0; -5.0*π/180.0; 0.0*π/180.0; -0.1; -1.0; -0.1*π/180.0; 0.1*π/180.0]
 xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+
+xTl = [0.0; model.l2; -2.5*π/180.0; -π; 0.0; 0.0; 0.0; -1.0*π/180.0]
+xTu = [0.0; model.l2; 2.5*π/180.0; π; 0.0; 0.0; 0.0; 1.0*π/180.0]
 
 # Bounds
 
 # xl <= x <= xl
 xl = -Inf*ones(model.nx)
 xl[2] = model.l2
-xl[3] = -30.0*pi/180.0
+xl[3] = -20.0*pi/180.0
 xl[4] = -20.0*pi/180.0
 
 xu = Inf*ones(model.nx)
 xu[2] = x1[2]
-xu[3] = 30.0*pi/180.0
+xu[3] = 20.0*pi/180.0
 xu[4] = 20.0*pi/180.0
 
 # ul <= u <= uu
-uu = [100.0;50.0;15.0*pi/180.0]
-ul = [0.0;-50.0;-15.0*pi/180.0]
+uu = [100.0;50.0;30.0*pi/180.0]
+ul = [0.0;-50.0;-30.0*pi/180.0]
 
 # h = h0 (fixed timestep)
-tf0 = 1.0
+tf0 = 2.5
 h0 = tf0/(T-1)
 hu = h0
 hl = h0
 
 # Objective
 Q = [t < T ? Diagonal([1.0*ones(4);1.0*ones(4)]) : Diagonal(ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-2*ones(model.nu)) for t = 1:T-1]
+R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
@@ -45,13 +48,13 @@ R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
-                    xl=[xl for t=1:T],
-                    xu=[xu for t=1:T],
+                    xl=[t==T ? xTl : xl for t=1:T],
+                    xu=[t==T ? xTu : xu for t=1:T],
                     ul=[ul for t=1:T-1],
                     uu=[uu for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    goal_constraint=true
+                    goal_constraint=false
                     )
 
 # MathOptInterface problem
@@ -59,7 +62,7 @@ prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [1.0*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [1.0e-1*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob)
@@ -70,24 +73,7 @@ Z0 = pack(X0,U0,h0,prob)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 # TVLQR policy
-A = []
-B = []
-for t = 1:T-1
-    x = X_nom[t]
-    u = U_nom[t]
-    h = H_nom[t]
-    x⁺ = X_nom[t+1]
-
-    fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
-    fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
-    fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
-
-    A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
-    push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
-    push!(B,-A⁺\ForwardDiff.jacobian(fu,u))
-end
-
-K = TVLQR(A,B,Q_lqr,R_lqr)
+K = TVLQR_policy(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 
 # # Sample
 # α = 5.0e-4
@@ -111,11 +97,11 @@ K = TVLQR(A,B,Q_lqr,R_lqr)
 
 N = 2*model.nx
 models = [model for i = 1:N]
-K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 5.0e-8*ones(model.nx)
+w0 = 1.0e-3*ones(model.nx)
+w = 1.0e-8*ones(model.nx)
 γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+x1_sample = resample([x1 for i = 1:N],β=β,w=w0)
 
 prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
     disturbance_ctrl=true,α=1.0e-6)
