@@ -130,7 +130,7 @@ Z0_sample = pack(X_friction_nominal,Ū_friction_nominal,H_friction_nominal[1],K
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample))
-Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol))
+# Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol))
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
