@@ -2,7 +2,8 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/cartpole.jl")
 using Plots
 
-μ0 = 0.2
+α_cartpole_friction = 5.0
+μ0 = 0.1
 model_nominal = CartpoleFriction(1.0,0.2,0.5,9.81,0.0,nx_friction,nu_friction)
 model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,μ0,nx_friction,nu_friction)
 
@@ -68,15 +69,15 @@ X0 = linear_interp(x1,xT,T) # linear interpolation on state
 U0 = [0.1*rand(model_nominal.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
-Z0 = pack(X0,U0,h0,prob)
+Z0 = pack(X0,U0,h0,prob_nominal)
 
 # Solve nominal problem
 @time Z_nominal = solve(prob_nominal_moi,copy(Z0),tol=1.0e-5,c_tol=1.0e-5)
 @time Z_friction_nominal = solve(prob_friction_moi,copy(Z0),tol=1.0e-5,c_tol=1.0e-5)
 
 # Unpack solutions
-X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
-X_friction_nominal, U_friction_nominal, H_friction_nominal = unpack(Z_friction_nominal,prob)
+X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob_nominal)
+X_friction_nominal, U_friction_nominal, H_friction_nominal = unpack(Z_friction_nominal,prob_friction)
 
 # Time trajectories
 t_nominal = zeros(T)

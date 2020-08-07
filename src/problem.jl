@@ -25,6 +25,7 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     idx    # indices
     model  # model
     obj    # objective
+    initial_constraint
     goal_constraint
     stage_constraints
     m_stage
@@ -41,6 +42,7 @@ function init_problem(n,m,T,x1,xT,model,obj;
         xu=[Inf*ones(n) for t = 1:T],
         hl=[-Inf for t = 1:T-1],
         hu=[Inf for t = 1:T-1],
+        initial_constraint::Bool=true,
         goal_constraint::Bool=true,
         stage_constraints::Bool=false,
         m_stage=[0 for t=1:T-1],
@@ -71,6 +73,7 @@ function init_problem(n,m,T,x1,xT,model,obj;
         idx,
         model,
         obj,
+        initial_constraint,
         goal_constraint,
         stage_constraints,
         m_stage,
@@ -126,17 +129,17 @@ function primal_bounds(prob::TrajectoryOptimizationProblem)
     Zu = Inf*ones(N)
 
     for t = 1:T-1
-        Zl[idx.x[t]] = (t==1 ? prob.x1 : prob.xl[t])
+        Zl[idx.x[t]] = (t==1 && prob.initial_constraint) ? prob.x1 : prob.xl[t]
         Zl[idx.u[t]] = prob.ul[t]
         Zl[idx.h[t]] = prob.hl[t]
 
-        Zu[idx.x[t]] = (t==1 ? prob.x1 : prob.xu[t])
+        Zu[idx.x[t]] = (t==1 && prob.initial_constraint) ? prob.x1 : prob.xu[t]
         Zu[idx.u[t]] = prob.uu[t]
         Zu[idx.h[t]] = prob.hu[t]
     end
 
-    Zl[idx.x[T]] = (prob.goal_constraint ? prob.xT : prob.xl[T])
-    Zu[idx.x[T]] = (prob.goal_constraint ? prob.xT : prob.xu[T])
+    Zl[idx.x[T]] = prob.goal_constraint ? prob.xT : prob.xl[T]
+    Zu[idx.x[T]] = prob.goal_constraint ? prob.xT : prob.xu[T]
 
     return Zl, Zu
 end

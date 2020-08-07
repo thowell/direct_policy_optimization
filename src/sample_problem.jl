@@ -40,13 +40,18 @@ mutable struct SampleProblem <: Problem
     idx_slack
 
     general_objective
+
+    sample_initial_constraint
+    sample_goal_constraint
 end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
         u_ctrl=(1:prob.m),
         β=1.0,w=1.0,γ=1.0,
         disturbance_ctrl=false,α=1.0,
-        general_objective=false)
+        general_objective=false,
+        sample_initial_constraint=true,
+        sample_goal_constraint=false)
 
     nx = prob.n
     nu = prob.m
@@ -103,7 +108,9 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
         α,
         idx_uw,
         idx_slack,
-        general_objective
+        general_objective,
+        sample_initial_constraint,
+        sample_goal_constraint
         )
 end
 
@@ -188,21 +195,20 @@ function primal_bounds(prob::SampleProblem)
     # sample state and control bounds
     for t = 1:prob.prob.T-1
         for i = 1:prob.N
+            Zl[prob.idx_sample[i].x[t]] = (t==1 && prob.sample_initial_constraint) ? prob.x1[1] : prob.prob.xl[t]
+            Zu[prob.idx_sample[i].x[t]] = (t==1 && prob.sample_initial_constraint) ? prob.x1[1] : prob.prob.xu[t]
+
             Zl[prob.idx_sample[i].u[t]] = prob.prob.ul[t]
             Zu[prob.idx_sample[i].u[t]] = prob.prob.uu[t]
 
             Zl[prob.idx_sample[i].h[t]] = prob.prob.hl[t]
             Zu[prob.idx_sample[i].h[t]] = prob.prob.hu[t]
-
-            t==1 && continue
-            Zl[prob.idx_sample[i].x[t]] = prob.prob.xl[t]
-            Zu[prob.idx_sample[i].x[t]] = prob.prob.xu[t]
         end
     end
 
     for i = 1:prob.N
-        Zl[prob.idx_sample[i].x[T]] = prob.prob.xl[T]
-        Zu[prob.idx_sample[i].x[T]] = prob.prob.xu[T]
+        Zl[prob.idx_sample[i].x[T]] = prob.sample_goal_constraint ? prob.prob.xT : prob.prob.xl[T]
+        Zu[prob.idx_sample[i].x[T]] = prob.sample_goal_constraint ? prob.prob.xT : prob.prob.xu[T]
     end
 
     #TODO sample goal constraints

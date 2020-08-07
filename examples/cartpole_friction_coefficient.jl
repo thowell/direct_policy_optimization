@@ -2,6 +2,7 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/cartpole.jl")
 using Plots
 
+α_cartpole_friction = 1000.0
 μ0 = 0.2
 model_nominal = CartpoleFriction(1.0,0.2,0.5,9.81,0.0,nx_friction,nu_friction)
 model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,μ0,nx_friction,nu_friction)
