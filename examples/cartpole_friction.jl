@@ -2,8 +2,8 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/cartpole.jl")
 using Plots
 
-model = model_friction
-model.μ = 0.1
+model_nominal = CartpoleFriction(1.0,0.2,0.5,9.81,0.0,nx_friction,nu_friction)
+model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,0.1,nx_friction,nu_friction)
 
 # Horizon
 T = 51
@@ -21,22 +21,34 @@ x1 = [0.0; 0.0; 0.0; 0.0]
 xT = [0.0; π; 0.0; 0.0]
 
 # Objective
-Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
+Q = [t < T ? Diagonal(ones(model_nominal.nx)) : Diagonal(zeros(model_nominal.nx)) for t = 1:T]
 R = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
-    [xT for t=1:T],[zeros(model.nu) for t=1:T])
+    [xT for t=1:T],[zeros(model_nominal.nu) for t=1:T])
 penalty_obj = PenaltyObjective(α_cartpole_friction)
 
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0;1.0]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
+Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0;1.0]) : Diagonal(100.0*ones(model_nominal.nx)) for t = 1:T]
 R_lqr = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,x1,xT,model,multi_obj,
+prob_nominal = init_problem(model_nominal.nx,model_nominal.nu,T,x1,xT,
+                    model_nominal,multi_obj,
+                    ul=[ul_friction for t=1:T-1],
+                    uu=[uu_friction for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    goal_constraint=true,
+                    stage_constraints=true,
+                    m_stage=[m_stage_friction for t=1:T-1],
+                    stage_ineq=[stage_friction_ineq for t=1:T-1])
+
+prob_friction = init_problem(model_friction.nx,model_friction.nu,T,x1,xT,
+                    model_friction,multi_obj,
                     ul=[ul_friction for t=1:T-1],
                     uu=[uu_friction for t=1:T-1],
                     hl=[hl for t=1:T-1],
@@ -47,20 +59,23 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,multi_obj,
                     stage_ineq=[stage_friction_ineq for t=1:T-1])
 
 # MathOptInterface problem
-prob_moi = init_MOI_Problem(prob)
+prob_nominal_moi = init_MOI_Problem(prob_nominal)
+prob_friction_moi = init_MOI_Problem(prob_friction)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [0.1*rand(model_nominal.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),tol=1.0e-5,c_tol=1.0e-5)
+@time Z_nominal = solve(prob_nominal_moi,copy(Z0),tol=1.0e-5,c_tol=1.0e-5)
+@time Z_friction_nominal = solve(prob_friction_moi,copy(Z0),tol=1.0e-5,c_tol=1.0e-5)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
+X_friction_nominal, U_friction_nominal, H_friction_nominal = unpack(Z_friction_nominal,prob)
 
 # Time trajectories
 t_nominal = zeros(T)
@@ -69,45 +84,47 @@ for t = 2:T
 end
 
 # Plots results
-S_nominal = [U_nominal[t][7] for t=1:T-1]
-b_nominal = [U_nominal[t][2] - U_nominal[t][3] for t=1:T-1]
+S_friction_nominal = [U_friction_nominal[t][7] for t=1:T-1]
+@assert sum(S_friction_nominal) < 1.0e-4
+b_friction_nominal = [U_friction_nominal[t][2] - U_friction_nominal[t][3] for t=1:T-1]
 
 # Control
 plt = plot(t_nominal[1:T-1],hcat(U_nominal...)[1:1,:]',color=:purple,width=2.0,
     title="Cartpole",xlabel="time (s)",ylabel="control",label="nominal",
     legend=:topright,linetype=:steppost)
+plt = plot!(t_nominal[1:T-1],hcat(U_friction_nominal...)[1:1,:]',color=:orange,width=2.0,
+    label="nominal (friction)",linetype=:steppost)
 
 # States
-plt = plot(t_nominal,hcat(X_nominal...)[1,:],
+plt = plot(t_nominal,hcat(X_nominal...)[1:4,:]',
     color=:purple,width=2.0,xlabel="time (s)",
-    ylabel="state",label="x (nominal)",title="Cartpole",legend=:topright)
-plt = plot!(t_nominal,hcat(X_nominal...)[2,:],
-    color=:purple,width=2.0,label="θ (nominal)")
-plt = plot!(t_nominal,hcat(X_nominal...)[3,:],
-    color=:purple,width=2.0,label="dx (nominal)")
-plt = plot!(t_nominal,hcat(X_nominal...)[4,:],
-    color=:purple,width=2.0,label="dθ (nominal)")
+    ylabel="state",label=["x (nominal)" "θ (nominal)" "dx (nominal)" "dθ (nominal)"],
+    title="Cartpole",legend=:topright)
+plt = plot!(t_nominal,hcat(X_friction_nominal...)[1:4,:]',
+    color=:orange,width=2.0,
+    label=["x (nominal friction)" "θ (nominal friction)" "dx (nominal friction)" "dθ (nominal friction)"],
+    )
 
 # Sample
 N = 2*model.nx
-models = [model for i = 1:N]
+models = [model_friction for i = 1:N]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-3*ones(model_friction.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
-K = TVLQR_policy(model_nominal,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr,u_ctrl=(1:1))
+K = TVLQR_policy(model,X_friction_nominal,U_friction_nominal,H_friction_nominal,Q_lqr,R_lqr,u_ctrl=(1:1))
 
-prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+prob_sample = init_sample_problem(prob_friction,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
     u_ctrl=(1:1),
     general_objective=true)
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-Ū_nominal = deepcopy(U_nominal)
+Ū_friction_nominal = deepcopy(U_friction_nominal)
 # for t=1:T-1
 #     Ū_nominal[t][2:7] = 0.1*rand(model.nu-1)
 # end
-Z0_sample = pack(X_nominal,Ū_nominal,H_nominal[1],K,prob_sample)
+Z0_sample = pack(X_friction_nominal,Ū_friction_nominal,H_friction_nominal[1],K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample))
@@ -126,17 +143,24 @@ plt_ctrl = plot(title="Cartpole w/ friction control",xlabel="time (s)",
 for i = 1:N
     plt_ctrl = plot!(t_sample[1:end-1],hcat(U_sample[i]...)[1:1,:]',label="")
 end
-plt_ctrl = plot!(t_sample[1:end-1],hcat(U_nom_sample...)[1:1,:]',color=:red,
-    width=2.0,label="nominal")
 plt_ctrl = plot!(t_nominal[1:end-1],hcat(U_nominal...)[1:1,:]',color=:purple,
-    width=2.0,label="nominal (original)")
+    width=2.0,label="nominal")
+plt_ctrl = plot!(t_sample[1:end-1],hcat(U_nom_sample...)[1:1,:]',color=:orange,
+    width=2.0,label="nominal (friction)")
 display(plt_ctrl)
+savefig(plt_ctrl,joinpath(@__DIR__,"results/cartpole_friction_control.png"))
 
 plt_state = plot(title="Cartpole w/ friction state",xlabel="time (s)",
     color=:red,width=2.0)
 for i = 1:N
     plt_state = plot!(t_sample,hcat(X_sample[i]...)[1:4,:]',label="")
 end
-plt_state = plot!(t_sample,hcat(X_nom_sample...)[1:4,:]',color=:red,
-    width=2.0,label="nominal")
+plt_state = plot!(t_sample,hcat(X_nominal...)[1:4,:]',color=:purple,
+    width=2.0,label=["nominal" "" "" ""])
+plt_state = plot!(t_sample,hcat(X_nom_sample...)[1:4,:]',color=:orange,
+    width=2.0,label=["nominal (friction)" "" "" ""])
 display(plt_state)
+savefig(plt_state,joinpath(@__DIR__,"results/cartpole_friction_state.png"))
+
+S_nominal = [U_nom_sample[t][7] for t=1:T-1]
+@assert sum(S_nominal) < 1.0e-4
