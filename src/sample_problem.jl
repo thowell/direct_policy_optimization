@@ -241,17 +241,19 @@ function constraint_bounds(prob::SampleProblem)
 end
 
 function eval_objective(prob::SampleProblem,Z)
-    (eval_objective(prob.prob,view(Z,prob.idx_nom_z))
-        + obj_sample(Z,prob.idx_nom,prob.idx_sample,prob.Q,prob.R,prob.H,prob.prob.T,
-            prob.N,prob.γ)
-        + (prob.disturbance_ctrl ? obj_l1(Z,prob) : 0.0))
+    J = 0.0
+    J += eval_objective(prob.prob,view(Z,prob.idx_nom_z))
+    J += sample_objective(Z,prob)
+    (prob.disturbance_ctrl ? (J += obj_l1(Z,prob)) : 0.0)
+
+    return J
 end
 
 function eval_objective_gradient!(∇obj,Z,prob::SampleProblem)
     ∇obj .= 0.0
     eval_objective_gradient!(view(∇obj,prob.idx_nom_z),view(Z,prob.idx_nom_z),
         prob.prob)
-    ∇obj_sample!(∇obj,Z,prob.idx_nom,prob.idx_sample,prob.Q,prob.R,prob.H,prob.prob.T,prob.N,prob.γ)
+    ∇sample_objective!(∇obj,Z,prob)
 
     prob.disturbance_ctrl && (∇obj_l1!(∇obj,Z,prob))
     return nothing

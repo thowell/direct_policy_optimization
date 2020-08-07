@@ -18,8 +18,13 @@ function midpoint(model,x,u,Δt)
     x + Δt*dynamics(model,x + 0.5*Δt*dynamics(model,x,u),u)
 end
 
+function midpoint_implicit(model,x⁺,x,u,Δt)
+    x⁺ - (x + Δt[1]*dynamics(model,0.5*(x + x⁺),u))
+end
+
 function discrete_dynamics(model,x⁺,x,u,h,t)
-    rk3_implicit(model,x⁺,x,u,h)
+    # rk3_implicit(model,x⁺,x,u,h)
+    midpoint_implicit(model,x⁺,x,u,h)
 end
 
 function rk3(model,z,u,Δt)

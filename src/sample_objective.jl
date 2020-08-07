@@ -1,44 +1,71 @@
-function obj_sample(z,idx_nom,idx_sample,Q,R,H,T,N,γ)
+function sample_objective(z,prob::SampleProblem)
+    idx_nom = prob.idx_nom
+    idx_sample = prob.idx_sample
+    u_ctrl = prob.u_ctrl
+    Q = prob.Q
+    R = prob.R
+    H = prob.H
+    T = prob.prob.T
+    N = prob.N
+    γ = prob.γ
+
     J = 0.0
 
-    #TODO consider no initial condition -> fix this cost
-    # sample
-    nu = size(R[1],1)
-
-    for t = 1:T-1
-        u_nom = view(z,idx_nom.u[t])
-        h_nom = z[idx_nom.h[t]]
-        x⁺_nom = view(z,idx_nom.x[t+1])
+    for t = 1:T
+        x_nom = view(z,idx_nom.x[t])
 
         for i = 1:N
-            ui = view(z,idx_sample[i].u[t][1:nu])
+            xi = view(z,idx_sample[i].x[t])
+            J += (xi - x_nom)'*Q[t]*(xi - x_nom)
+        end
+
+        t==T && continue
+        u_nom = view(z,idx_nom.u[t][u_ctrl])
+        h_nom = z[idx_nom.h[t]]
+
+        for i = 1:N
+            ui = view(z,idx_sample[i].u[t][u_ctrl])
             hi = z[idx_sample[i].h[t]]
-            xi⁺ = view(z,idx_sample[i].x[t+1])
-            J += (xi⁺ - x⁺_nom)'*Q[t+1]*(xi⁺ - x⁺_nom) + (ui - u_nom)'*R[t]*(ui - u_nom) + (hi - h_nom)'*H[t]*(hi - h_nom)
+            J += (ui - u_nom)'*R[t]*(ui - u_nom)
+            J += (hi - h_nom)'*H[t]*(hi - h_nom)
         end
     end
 
     return γ*J/N
 end
 
-function ∇obj_sample!(∇obj,z,idx_nom,idx_sample,Q,R,H,T,N,γ)
-    nu = size(R[1],1)
+function ∇sample_objective!(∇obj,z,prob::SampleProblem)
+    idx_nom = prob.idx_nom
+    idx_sample = prob.idx_sample
+    u_ctrl = prob.u_ctrl
+    Q = prob.Q
+    R = prob.R
+    H = prob.H
+    T = prob.prob.T
+    N = prob.N
+    γ = prob.γ
 
-    for t = 1:T-1
-        u_nom = view(z,idx_nom.u[t])
-        h_nom = z[idx_nom.h[t]]
-        x⁺_nom = view(z,idx_nom.x[t+1])
+    for t = 1:T
+        x_nom = view(z,idx_nom.x[t])
         for i = 1:N
-            ui = view(z,idx_sample[i].u[t][1:nu])
-            hi = z[idx_sample[i].h[t]]
-            xi⁺ = view(z,idx_sample[i].x[t+1])
+            xi = view(z,idx_sample[i].x[t])
 
-            ∇obj[idx_sample[i].x[t+1]] += 2.0*Q[t+1]*(xi⁺ - x⁺_nom)*γ/N
-            ∇obj[idx_sample[i].u[t][1:nu]] += 2.0*R[t]*(ui - u_nom)*γ/N
+            ∇obj[idx_sample[i].x[t]] += 2.0*Q[t]*(xi - x_nom)*γ/N
+            ∇obj[idx_nom.x[t]] -= 2.0*Q[t]*(xi - x_nom)*γ/N
+        end
+
+        t==T && continue
+        u_nom = view(z,idx_nom.u[t][u_ctrl])
+        h_nom = z[idx_nom.h[t]]
+
+        for i = 1:N
+            ui = view(z,idx_sample[i].u[t][u_ctrl])
+            hi = z[idx_sample[i].h[t]]
+
+            ∇obj[idx_sample[i].u[t][u_ctrl]] += 2.0*R[t]*(ui - u_nom)*γ/N
             ∇obj[idx_sample[i].h[t]] += 2.0*H[t]*(hi - h_nom)*γ/N
 
-            ∇obj[idx_nom.x[t+1]] -= 2.0*Q[t+1]*(xi⁺ - x⁺_nom)*γ/N
-            ∇obj[idx_nom.u[t]] -= 2.0*R[t]*(ui - u_nom)*γ/N
+            ∇obj[idx_nom.u[t][u_ctrl]] -= 2.0*R[t]*(ui - u_nom)*γ/N
             ∇obj[idx_nom.h[t]] -= 2.0*H[t]*(hi - h_nom)*γ/N
         end
     end
