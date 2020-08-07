@@ -75,6 +75,28 @@ function TVLQR(A,B,Q,R)
     return K
 end
 
+function TVLQR_policy(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr;
+        u_ctrl=(1:length(U_nominal[1])))
+    A = []
+    B = []
+    for t = 1:T-1
+        x = X_nominal[t]
+        u = U_nominal[t][u_ctrl]
+        h = H_nominal[t]
+        x⁺ = X_nominal[t+1]
+
+        fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
+        fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
+        fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
+
+        A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
+        push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
+        push!(B,-A⁺\ForwardDiff.jacobian(fu,u))
+    end
+
+    K = TVLQR(A,B,Q_lqr,[R_lqr[t][u_ctrl,u_ctrl] for t=1:T-1])
+end
+
 function resample(X; β=1.0,w=1.0)
     N = length(X)
     nx = length(X[1])

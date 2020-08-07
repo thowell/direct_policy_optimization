@@ -83,40 +83,13 @@ X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 # Sample
 
-# TVLQR policy
-A = []
-B = []
-for t = 1:T-1
-    x = X_nom[t]
-    u = U_nom[t]
-    h = H_nom[t]
-    x⁺ = X_nom[t+1]
-
-    fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
-    fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
-    fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
-
-    A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
-    push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
-    push!(B,-A⁺\ForwardDiff.jacobian(fu,u))
-end
-
-K = TVLQR(A,B,Q_lqr,R_lqr)
-# α = 2.5e-4
-# x11 = α*[1.0; 0.0; 0.0]
-# x12 = α*[-1.0; 0.0; 0.0]
-# x13 = α*[0.0; 1.0; 0.0]
-# x14 = α*[0.0; -1.0; 0.0]
-# x15 = α*[0.0; 0.0; 1.0]
-# x16 = α*[0.0; 0.0; -1.0]
-
 N = 2*model.nx
 models = [model for i = 1:N]
-# K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
 w = 1.0e-4*ones(model.nx)
 γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=β,w=w)#[x11,x12,x13,x14,x15,x16]
+x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+K = TVLQR_policy(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 
 prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ)
 prob_sample_moi = init_MOI_Problem(prob_sample)

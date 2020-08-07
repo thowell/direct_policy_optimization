@@ -19,6 +19,7 @@ end
 
 nx,nu = 4,1
 model = Cartpole(1.0,0.2,0.5,9.81,nx,nu)
+model_nominal = model
 
 mutable struct CartpoleFriction{T}
     mc::T     # mass of the cart in kg
@@ -72,6 +73,8 @@ uu_friction[1] = 10.0
 stage_friction_ineq = (3:5)
 (model.mc + model.mp)*model.g
 
+const α_cartpole_friction = 100.0
+
 mutable struct PenaltyObjective{T} <: Objective
     α::T
 end
@@ -89,6 +92,36 @@ function objective_gradient!(∇l,Z,l::PenaltyObjective,model::CartpoleFriction,
     for t = 1:T-1
         u = Z[idx.u[t][7]]
         ∇l[idx.u[t][7]] += l.α
+    end
+    return nothing
+end
+
+function sample_general_objective(z,prob::SampleProblem)
+    idx_sample = prob.idx_sample
+    T = prob.prob.T
+    N = prob.N
+
+    J = 0.0
+
+    for t = 1:T-1
+        for i = 1:N
+            s = z[idx_sample[i].u[t][7]]
+            J += s
+        end
+    end
+
+    return α_cartpole_friction*J
+end
+
+function ∇sample_general_objective!(∇obj,z,prob::SampleProblem)
+    idx_sample = prob.idx_sample
+    T = prob.prob.T
+    N = prob.N
+
+    for t = 1:T-1
+        for i = 1:N
+            ∇obj[idx_sample[i].u[t][7]] += α_cartpole_friction
+        end
     end
     return nothing
 end

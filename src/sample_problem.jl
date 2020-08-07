@@ -38,12 +38,15 @@ mutable struct SampleProblem <: Problem
     α
     idx_uw
     idx_slack
+
+    general_objective
 end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
         u_ctrl=(1:prob.m),
         β=1.0,w=1.0,γ=1.0,
-        disturbance_ctrl=false,α=1.0)
+        disturbance_ctrl=false,α=1.0,
+        general_objective=false)
 
     nx = prob.n
     nu = prob.m
@@ -51,14 +54,12 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
 
     T = prob.T
     N = length(models)
-    @assert N == 2*nx
-    @assert size(R[1],1) == nu
 
     Nx = N*(nx*T)
     Nu = N*nu*(T-1)
     Nh = N*(T-1)
     Nxs = N*(nx*(T-1))
-    NK = nu*nx*(T-1)
+    NK = nu_ctrl*nx*(T-1)
     Nuw = disturbance_ctrl*2*N*nx*(T-1)
     N_nlp = prob.N + Nx + Nu + Nh + Nxs + NK + Nuw
 
@@ -76,8 +77,8 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
     shift += N*prob.N
     idx_x_tmp = [init_indices(nx,0,T-1,time=false,shift=shift + (i-1)*(nx*(T-1))) for i = 1:N]
     shift += N*(nx*(T-1))
-    idx_K = [shift + (t-1)*(nu*nx) .+ (1:nu*nx) for t = 1:T-1]
-    shift += (T-1)*nu*nx
+    idx_K = [shift + (t-1)*(nu_ctrl*nx) .+ (1:nu_ctrl*nx) for t = 1:T-1]
+    shift += (T-1)*nu_ctrl*nx
 
     if disturbance_ctrl
         idx_uw = [[shift + (i-1)*nx*(T-1) + (t-1)*nx .+ (1:nx)  for t = 1:T-1] for i = 1:N]
@@ -101,7 +102,8 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
         disturbance_ctrl,
         α,
         idx_uw,
-        idx_slack
+        idx_slack,
+        general_objective
         )
 end
 
@@ -129,7 +131,7 @@ function pack(X0,U0,h0,K0,prob::SampleProblem;
     end
 
     for t = 1:T-1
-        Z0[prob.idx_K[t]] = K0[t]
+        Z0[prob.idx_K[t]] = vec(K0[t])
     end
     return Z0
 end
@@ -157,7 +159,7 @@ function controller(Z0,prob::SampleProblem)
     U_nom = [Z0[prob.idx_nom.u[t]] for t = 1:T-1]
     H_nom = [Z0[prob.idx_nom.h[t]] for t = 1:T-1]
 
-    K_sample = [reshape(Z0[prob.idx_K[t]],prob.prob.m,prob.prob.n) for t = 1:T-1]
+    K_sample = [reshape(Z0[prob.idx_K[t]],length(prob.u_ctrl),prob.prob.n) for t = 1:T-1]
 
     return K_sample, X_nom, U_nom, H_nom
 end
@@ -244,6 +246,7 @@ function eval_objective(prob::SampleProblem,Z)
     J = 0.0
     J += eval_objective(prob.prob,view(Z,prob.idx_nom_z))
     J += sample_objective(Z,prob)
+    (prob.general_objective ? (J += sample_general_objective(Z,prob)) : 0.0)
     (prob.disturbance_ctrl ? (J += obj_l1(Z,prob)) : 0.0)
 
     return J
@@ -254,7 +257,7 @@ function eval_objective_gradient!(∇obj,Z,prob::SampleProblem)
     eval_objective_gradient!(view(∇obj,prob.idx_nom_z),view(Z,prob.idx_nom_z),
         prob.prob)
     ∇sample_objective!(∇obj,Z,prob)
-
+    prob.general_objective && ∇sample_general_objective!(∇obj,Z,prob)
     prob.disturbance_ctrl && (∇obj_l1!(∇obj,Z,prob))
     return nothing
 end
