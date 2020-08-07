@@ -85,7 +85,7 @@ function objective_gradient!(∇l,Z,l::QuadraticTrackingObjective,model,idx,T)
 
         ∇l[idx.x[t]] += ForwardDiff.gradient(stage_cost_x,x)
         ∇l[idx.u[t]] += ForwardDiff.gradient(stage_cost_u,u)
-        ∇l[idx.h[t]:idx.h[t]] += ForwardDiff.gradient(stage_cost_h,view(Z,prob.idx.h[t]:prob.idx.h[t]))
+        ∇l[idx.h[t]:idx.h[t]] += ForwardDiff.gradient(stage_cost_h,view(Z,idx.h[t]:idx.h[t]))
         ∇l[idx.x[t+1]] += ForwardDiff.gradient(stage_cost_x⁺,x⁺)
     end
     x = view(Z,idx.x[T])

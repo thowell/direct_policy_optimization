@@ -46,7 +46,7 @@ function obj_nom(z)
     return s
 end
 
-obj_nom(z0_nom)
+# obj_nom(z0_nom)
 
 # Constraints
 function con_nom!(c,z)
@@ -61,8 +61,8 @@ function con_nom!(c,z)
     return c
 end
 
-c0_nom = zeros(m_nom_nlp)
-con_nom!(c0_nom,z0_nom)
+# c0_nom = zeros(m_nom_nlp)
+# con_nom!(c0_nom,z0_nom)
 
 # NLP problem
 prob_nom = ProblemIpopt(n_nom_nlp,m_nom_nlp,obj_nom,con_nom!,true)
@@ -117,7 +117,7 @@ idx_u = [[(T-1)*(nu*nx) + (i-1)*(nx*(T-1) + nu*(T-1)) + (t-1)*(nx+nu) + nx .+ (1
 idx_con_dyn = [[(i-1)*(nx*(T-1)) + (t-1)*nx .+ (1:nx) for t = 1:T-1] for i = 1:N]
 idx_con_ctrl = [[(i-1)*(nu*(T-1)) + N*(nx*(T-1)) + (t-1)*nu .+ (1:nu) for t = 1:T-1] for i = 1:N]
 
-function obj(z)
+function objective(z)
     s = 0
     for t = 1:T-1
         for i = 1:N
@@ -135,7 +135,7 @@ function con!(c,z)
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_dynamics(model,xs,u,Δt,β=β,w=w)
+        xs⁺ = sample_dynamics(model,xs,u,Δt,t,β=β,w=w)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         k = reshape(view(z,idx_k[t]),nu,nx)
 
@@ -147,7 +147,7 @@ function con!(c,z)
     return c
 end
 
-prob = ProblemIpopt(n_nlp,m_nlp,obj,con!,true)
+prob = ProblemIpopt(n_nlp,m_nlp,objective,con!,false)
 
 z0 = randn(n_nlp)
 for t = 1:T-1
@@ -160,7 +160,7 @@ z_sol_s = solve(copy(z0),prob)
 
 K_sample = [reshape(z_sol_s[idx_k[t]],nu,nx) for t = 1:T-1]
 K_difference = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-println("solution difference: $(sum(K_difference)/N)")
+println("Policy solution difference: $(sum(K_difference)/N)")
 
 plot(K_difference,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,
     width=2.0,title="Gain matrix difference",

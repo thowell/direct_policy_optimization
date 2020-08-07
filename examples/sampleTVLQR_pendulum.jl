@@ -118,7 +118,7 @@ idx_u = [[(T-1)*(nu*nx) + (i-1)*(nx*(T-1) + nu*(T-1)) + (t-1)*(nx+nu) + nx .+ (1
 idx_con_dyn = [[(i-1)*(nx*(T-1)) + (t-1)*nx .+ (1:nx) for t = 1:T-1] for i = 1:N]
 idx_con_ctrl = [[(i-1)*(nu*(T-1)) + N*(nx*(T-1)) + (t-1)*nu .+ (1:nu) for t = 1:T-1] for i = 1:N]
 
-function obj(z)
+function objective(z)
     s = 0
     for t = 1:T-1
         for i = 1:N
@@ -148,14 +148,14 @@ function con!(c,z)
     return c
 end
 
-prob = ProblemIpopt(n_nlp,m_nlp,obj,con!,true)
+prob = ProblemIpopt(n_nlp,m_nlp,objective,con!,false)
 
 z0 = rand(n_nlp)
 z_sol = solve(z0,prob)
 
 K_sample = [reshape(z_sol[idx_k[t]],nu,nx) for t = 1:T-1]
 K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-println("solution error: $(sum(K_error)/N)")
+println("Policy solution error: $(sum(K_error)/N)")
 
 plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,
     ylims=(1.0e-16,1.0),width=2.0,legend=:bottom,
