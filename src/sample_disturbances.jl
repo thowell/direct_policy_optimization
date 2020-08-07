@@ -15,7 +15,7 @@ end
 
 # obj_l1(Z0_sample,prob_sample.idx_slack,prob_sample.α)
 
-function ∇obj_l1!(∇obj,z)
+function ∇obj_l1!(∇obj,z,prob::SampleProblem)
     idx_slack = prob.idx_slack
     α = prob.α
     N = length(idx_slack)
@@ -27,7 +27,7 @@ function ∇obj_l1!(∇obj,z)
     nothing
 end
 
-function sample_disturbance_constraints!(c,z)
+function sample_disturbance_constraints!(c,z,prob::SampleProblem)
     idx_uw = prob.idx_uw
     idx_slack = prob.idx_slack
     T = prob.prob.T

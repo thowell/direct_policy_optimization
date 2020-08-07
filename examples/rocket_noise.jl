@@ -4,7 +4,7 @@ using Plots
 
 # Horizon
 T = 10
-prob
+
 # Initial and final states
 x1 = [0.5; model.l2 + 1.0; 0.0; 0.0; 0.0; 0.1; 0.0; 0.0]
 xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
@@ -42,7 +42,7 @@ obj = QuadraticTrackingObjective(Q,R,c,
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0*ones(4);10.0*ones(4)]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-
+H_lqr = [0.0 for t = 1:T-1]
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     xl=[xl for t=1:T],
@@ -78,9 +78,9 @@ for t = 1:T-1
     h = H_nom[t]
     x⁺ = X_nom[t+1]
 
-    fx(z) = discrete_dynamics(model,x⁺,z,u,h)
-    fu(z) = discrete_dynamics(model,x⁺,x,z,h)
-    fx⁺(z) = discrete_dynamics(model,z,x,u,h)
+    fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
+    fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
+    fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
 
     A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
     push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
@@ -89,34 +89,36 @@ end
 
 K = TVLQR(A,B,Q_lqr,R_lqr)
 
-# Sample
-α = 5.0e-4
-x11 = x1 + α*[1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-x12 = x1 + α*[-1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-x13 = x1 + α*[0.0; 1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-x14 = x1 + α*[0.0; -1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-x15 = x1 + α*[0.0; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-x16 = x1 + α*[0.0; 0.0; -1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-x17 = x1 + α*[0.0; 0.0; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0]
-x18 = x1 + α*[0.0; 0.0; 0.0; -1.0; 0.0; 0.0; 0.0; 0.0]
-x19 = x1 + α*[0.0; 0.0; 0.0; 0.0; 1.0; 0.0; 0.0; 0.0]
-x110 = x1 + α*[0.0; 0.0; 0.0; 0.0; -1.0; 0.0; 0.0; 0.0]
-x111 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 1.0; 0.0; 0.0]
-x112 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; -1.0; 0.0; 0.0]
-x113 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 1.0; 0.0]
-x114 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; -1.0; 0.0]
-x115 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 1.0]
-x116 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; -1.0]
-x1_sample = [x11,x12,x13,x14,x15,x16,x17,x18,x19,x110,x111,x112,x113,x114,x115,x116]
+# # Sample
+# α = 5.0e-4
+# x11 = x1 + α*[1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+# x12 = x1 + α*[-1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+# x13 = x1 + α*[0.0; 1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+# x14 = x1 + α*[0.0; -1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+# x15 = x1 + α*[0.0; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+# x16 = x1 + α*[0.0; 0.0; -1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+# x17 = x1 + α*[0.0; 0.0; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0]
+# x18 = x1 + α*[0.0; 0.0; 0.0; -1.0; 0.0; 0.0; 0.0; 0.0]
+# x19 = x1 + α*[0.0; 0.0; 0.0; 0.0; 1.0; 0.0; 0.0; 0.0]
+# x110 = x1 + α*[0.0; 0.0; 0.0; 0.0; -1.0; 0.0; 0.0; 0.0]
+# x111 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 1.0; 0.0; 0.0]
+# x112 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; -1.0; 0.0; 0.0]
+# x113 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 1.0; 0.0]
+# x114 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; -1.0; 0.0]
+# x115 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 1.0]
+# x116 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; -1.0]
+# x1_sample = [x11,x12,x13,x14,x15,x16,x17,x18,x19,x110,x111,x112,x113,x114,x115,x116]
 
-N = length(x1_sample)
+N = 2*model.nx
 models = [model for i = 1:N]
 K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 5.0e-4*ones(model.nx)
+w = 5.0e-8*ones(model.nx)
 γ = 1.0
+x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
-prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,β=β,w=w,γ=γ)
+prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+    disturbance_ctrl=true,α=1.0e-6)
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 # Z0_sample = pack(X0,U0,h0,K0,prob_sample)
@@ -127,7 +129,7 @@ Z_sample_sol = Z0_sample
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500)
 
 # Unpack solutions
-X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
+X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
 # Time trajectories
 t_nominal = zeros(T)
