@@ -292,7 +292,7 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
     prob.prob.stage_constraints && ∇sample_stage_constraints!(view(∇c,len+len_dyn+len_ctrl .+ (1:len_stage)),Z,prob)
 
     if prob.disturbance_ctrl
-        len_dist = length(sparsity_jacobian_sample_disturbance!(prob))
+        len_dist = length(sparsity_jacobian_sample_disturbance(prob))
         ∇sample_disturbance_constraints!(view(∇c,len+len_dyn+len_ctrl+len_stage .+ (1:len_dist)),Z,prob)
     end
     return nothing
