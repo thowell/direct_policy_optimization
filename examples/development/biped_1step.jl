@@ -20,8 +20,8 @@ xT = Δ(x1)
 # Bounds
 
 # xl <= x <= xu
-xl_traj = [t != T ? -Inf*ones(model.nx) : xT for t = 1:T]
-xu_traj = [t != T ? Inf*ones(model.nx) : xT for t = 1:T]
+# xl_traj = [t != T ? -Inf*ones(model.nx) : xT for t = 1:T]
+# xu_traj = [t != T ? Inf*ones(model.nx) : xT for t = 1:T]
 
 # ul <= u <= uu
 uu = 20.0
