@@ -73,7 +73,7 @@ uu_friction[1] = 10.0
 stage_friction_ineq = (3:5)
 (model.mc + model.mp)*model.g
 
-const α_cartpole_friction = 100.0
+const α_cartpole_friction = 5.0
 
 mutable struct PenaltyObjective{T} <: Objective
     α::T

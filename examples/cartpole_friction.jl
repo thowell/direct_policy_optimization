@@ -3,15 +3,15 @@ include("../dynamics/cartpole.jl")
 using Plots
 
 model = model_friction
-model.μ = 0.01
+model.μ = 0.1
 
 # Horizon
-T = 25 # 51
+T = 51
 
 # Bounds
 
 # h = h0 (fixed timestep)
-tf0 = 2.5
+tf0 = 5.0
 h0 = tf0/(T-1)
 hu = h0
 hl = h0
@@ -33,6 +33,7 @@ multi_obj = MultiObjective([obj,penalty_obj])
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0;1.0]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
+H_lqr = [0.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,multi_obj,
@@ -50,13 +51,13 @@ prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0))
+@time Z_nominal = solve(prob_moi,copy(Z0),tol=1.0e-5,c_tol=1.0e-5)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
@@ -91,7 +92,7 @@ plt = plot!(t_nominal,hcat(X_nominal...)[4,:],
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-8*ones(model.nx)
+w = 1.0e-3*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 K = TVLQR_policy(model_nominal,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr,u_ctrl=(1:1))
@@ -99,12 +100,13 @@ K = TVLQR_policy(model_nominal,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr,u_ctrl=
 prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
     u_ctrl=(1:1),
     general_objective=true)
+
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Ū_nominal = deepcopy(U_nominal)
-for t=1:T-1
-    Ū_nominal[t][2:7] = 0.001*rand(model.nu-1)
-end
+# for t=1:T-1
+#     Ū_nominal[t][2:7] = 0.1*rand(model.nu-1)
+# end
 Z0_sample = pack(X_nominal,Ū_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
@@ -133,8 +135,8 @@ display(plt_ctrl)
 plt_state = plot(title="Cartpole w/ friction state",xlabel="time (s)",
     color=:red,width=2.0)
 for i = 1:N
-    plt_state = plot!(t_sample,hcat(X_sample[i]...)[1:2,:]',label="")
+    plt_state = plot!(t_sample,hcat(X_sample[i]...)[1:4,:]',label="")
 end
-plt_state = plot!(t_sample,hcat(X_nom_sample...)[1:1,:]',color=:red,
+plt_state = plot!(t_sample,hcat(X_nom_sample...)[1:4,:]',color=:red,
     width=2.0,label="nominal")
 display(plt_state)
