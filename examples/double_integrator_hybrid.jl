@@ -1,15 +1,20 @@
 include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/double_integrator.jl")
+include("../src/loop.jl")
 using Plots
 
 # Horizon
-T = 21
+T = 9
 
 tf0 = 1.0
 h0 = tf0/(T-1) # timestep
 
+# Initial and final states
+x1 = [0.5; 0.0]
+xT = [0.0; 0.0]
+
 # Hybrid model
-Tm = 11
+Tm = 5
 model = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
 model1 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm-2)
 model2 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm-1)
@@ -18,25 +23,30 @@ model4 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm+2)
 
 # Bounds
 # xl <= x <= xu
-xl_traj = [t != Tm ? [0.0; -Inf] : [0.0; -Inf] for t = 1:T]
-xu_traj = [t != Tm ? Inf*ones(model.nx) : [0.0; Inf] for t = 1:T]
+xl_traj = [-Inf*ones(model.nx) for t = 1:T]
+xu_traj = [Inf*ones(model.nx) for t = 1:T]
+
+xl_traj[1] = [x1[1]; -Inf]
+xu_traj[1] = [x1[1]; Inf]
+
+xl_traj[Tm] = [0.0; 0.0]
+xu_traj[Tm] = [0.0; 0.0]
+
+xl_traj[T] = xl_traj[1]
+xu_traj[T] = xu_traj[1]
 
 # ul <= u <= uu
-uu = 25.0
-ul = -25.0
+uu = 5.0
+ul = -5.0
 
 # hl <= h <= hu
-hu = h0
-hl = h0
-
-# Initial and final states
-x1 = [1.0; 0.0]
-xT = [0.0; 0.0]
+hu = 5.0*h0
+hl = 0.0
 
 # Objective
 Q = [Diagonal(ones(model.nx)) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 0.0
+c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
 
@@ -54,13 +64,17 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    goal_constraint=true)
+                    initial_constraint=false,
+                    goal_constraint=false,
+                    general_constraints=true,
+                    m_general=model.nx,
+                    general_ineq=(1:0))
 
 # MathOptInterface problem
 prob_moi = init_MOI_Problem(prob)
 
 # Initialization
-X0 = [linear_interp(x1,zeros(model.nx),Tm)...,linear_interp(zeros(model.nx),x1,T-Tm)...]# linear interpolation for states
+X0 = [linear_interp(x1,zeros(model.nx),Tm)...,linear_interp([1.0;0.0],x1,T-Tm)...]# linear interpolation for states
 U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
@@ -72,7 +86,12 @@ Z0 = pack(X0,U0,h0,prob)
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
 
-# X_nominal[Tm] += xm
+x_nom = [X_nominal[t][1] for t = 1:T]
+v_nom = [X_nominal[t][2] for t = 1:T]
+
+plot(x_nom,v_nom,aspect_ratio=:equal)
+plot(hcat(X_nominal...)')
+plot(hcat(U_nominal...)')
 
 # TVLQR policy
 A = []

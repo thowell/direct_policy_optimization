@@ -163,7 +163,7 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
     end
 
     if prob.general_constraints
-        cu[prob.M_dynamics + prob.M_stage .+ (1:prob.M_general)] = prob.general_ineq
+        cu[(prob.M_dynamics + prob.M_stage .+ (1:prob.M_general))[prob.general_ineq]] .= Inf
     end
 
     return cl, cu
@@ -186,7 +186,7 @@ function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
 
     dynamics_constraints!(view(c,1:prob.M_dynamics),Z,prob)
     prob.stage_constraints && stage_constraints!(view(c,prob.M_dynamics .+ (1:prob.M_stage)),Z,prob)
-    prob.general_constraints && general_constraints!(view(c,prob.M_dyanmics + prob.M_stage .+ (1:prob.m_general)),Z,prob)
+    prob.general_constraints && general_constraints!(view(c,prob.M_dynamics + prob.M_stage .+ (1:prob.M_general)),Z,prob)
 
     return nothing
 end
