@@ -108,7 +108,7 @@ plt = plot!(t_nominal,hcat(X_friction_nominal...)[1:4,:]',
 
 # Sample
 N = 2*model.nx
-μ_sample = range(0.15,stop=.25,length=N)
+μ_sample = range(0.1,stop=.3,length=N)
 models = [CartpoleFriction(1.0,0.2,0.5,9.81,μ_sample[i],nx_friction,nu_friction) for i = 1:N]
 β = 1.0
 w = 1.0e-3*ones(model_friction.nx)
