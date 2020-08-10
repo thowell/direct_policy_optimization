@@ -4,26 +4,32 @@ using Plots
 
 # Horizon
 T = 25
+Tm = 13
 
 # Initial and final states
-x1 = [0.5; model.l2 + 2.0; -5.0*π/180.0; 0.0*π/180.0; -0.1; -1.0; -0.1*π/180.0; 0.1*π/180.0]
-xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-
-xTl = [0.0; model.l2; -2.5*π/180.0; -π; 0.0; 0.0; 0.0; -1.0*π/180.0]
-xTu = [0.0; model.l2; 2.5*π/180.0; π; 0.0; 0.0; 0.0; 1.0*π/180.0]
+x1 = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0]
+xm = [0.0; model.l2+0.1; 0.0; 0.0; 0.0; 0.0]
+xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0]
 
 # Bounds
 
 # xl <= x <= xl
 xl = -Inf*ones(model.nx)
-xl[2] = model.l2
-xl[3] = -20.0*pi/180.0
-xl[4] = -20.0*pi/180.0
+# xl[2] = model.l2
+# xl[3] = -20.0*pi/180.0
 
 xu = Inf*ones(model.nx)
-xu[2] = x1[2]
-xu[3] = 20.0*pi/180.0
-xu[4] = 20.0*pi/180.0
+# xu[3] = 20.0*pi/180.0
+
+xl_traj = [xl for t = 1:T]
+xl_traj[1] = x1
+xl_traj[T] = [xT[1:3];-Inf*ones(3)]
+xl_traj[Tm][1:3] = xm[1:3]
+
+xu_traj = [xu for t = 1:T]
+xu_traj[1] = x1
+xu_traj[T] = [xT[1:3];Inf*ones(3)]
+xu_traj[Tm][1:3] = xm[1:3]
 
 # ul <= u <= uu
 uu = [100.0;50.0;30.0*pi/180.0]
@@ -36,20 +42,21 @@ hu = h0
 hl = h0
 
 # Objective
-Q = [t < T ? Diagonal([1.0*ones(4);1.0*ones(4)]) : Diagonal(ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+Q = [t < T ? Diagonal([1.0*ones(3);1.0e-1*ones(3)]) : Diagonal([1.0*ones(3);1.0*ones(3)]) for t = 1:T]
+R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal([10.0*ones(4);10.0*ones(4)]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
+Q_lqr = [t < T ? Diagonal([10.0*ones(3);10.0*ones(3)]) : Diagonal([10.0*ones(3);10.0*ones(3)]) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
+
 # Problem
 prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
-                    xl=[t==T ? xTl : xl for t=1:T],
-                    xu=[t==T ? xTu : xu for t=1:T],
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul for t=1:T-1],
                     uu=[uu for t=1:T-1],
                     hl=[hl for t=1:T-1],

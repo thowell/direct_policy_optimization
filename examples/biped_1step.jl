@@ -3,7 +3,7 @@ include("../dynamics/biped.jl")
 using Plots
 
 # Horizon
-T = 20
+T = 10
 Tm = -1
 model.Tm = Tm
 
@@ -40,22 +40,13 @@ function discrete_dynamics(model::Biped,x⁺,x,u,h,t)
     end
 end
 
-# pfz_init = kinematics(model,q_init)[2]
-
-# function c_stage!(c,x,u,t,model)
-#     c[1] = kinematics(model,x[1:5])[2] - pfz_init
-#     nothing
-# end
-#
-# m_stage = 1
-
 # Objective
-Q = [t < T ? Diagonal([0.0*ones(5);1.0e-4*ones(5)]) : Diagonal([0.0*ones(5);1.0e-4*ones(5)]) for t = 1:T]
-R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
+Q = [t < T ? Diagonal(zeros(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
+R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
-penalty_obj = PenaltyObjective(5.0,0.05,[t for t = 1:T-1 if (t != Tm-1 || t != 1)])
+penalty_obj = PenaltyObjective(10.0,0.05,[t for t = 1:T-1 if (t != Tm-1 || t != 1)])
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
@@ -136,7 +127,7 @@ Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
@@ -244,6 +235,6 @@ animation = MeshCat.Animation(mvis,t_sim,Q_left)
 setanimation!(mvis,animation)
 
 
-Q_left = [transformation_to_urdf_left_pinned(X_nominal[t][1:5],X_nominal[t][6:10])[1] for t = 1:T]
-animation = MeshCat.Animation(mvis,t_nominal,Q_left)
+Q_left = [transformation_to_urdf_left_pinned(X_nominal[t][1:5],X_nominal[t][6:10]) for t = 1:T]
+animation = MeshCat.Animation(mvis,t_nom,Q_left)
 setanimation!(mvis,animation)

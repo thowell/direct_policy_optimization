@@ -40,13 +40,13 @@ uu = 5.0
 ul = -5.0
 
 # hl <= h <= hu
-hu = h0
-hl = h0
+hu = 5.0*h0
+hl = 0.0*h0
 
 # Objective
 Q = [Diagonal(ones(model.nx)) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 0.0
+c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
 
@@ -85,7 +85,7 @@ Z0 = pack(X0,U0,h0,prob)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
-
+H_nominal[1]
 x_nom = [X_nominal[t][1] for t = 1:T]
 v_nom = [X_nominal[t][2] for t = 1:T]
 
