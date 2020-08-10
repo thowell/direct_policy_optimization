@@ -30,13 +30,15 @@ function quadratic_cost(x,u,Q,R,x_ref,u_ref)
 end
 
 function stage_cost(model,x⁺,x,u,Q,R,x_ref,u_ref,h,c)
-    xm = xm_rk3_implicit(model,x⁺,x,u,h)
-
+    # xm = xm_rk3_implicit(model,x⁺,x,u,h)
+    #
+    # ℓ1 = quadratic_cost(x,u,Q,R,x_ref,u_ref)
+    # ℓ2 = quadratic_cost(xm,u,Q,R,x_ref,u_ref)
+    # ℓ3 = quadratic_cost(x⁺,u,Q,R,x_ref,u_ref)
+    #
+    # return h[1]/6.0*ℓ1 + 4.0*h[1]/6.0*ℓ2 + h[1]/6.0*ℓ3 + c*h[1]
     ℓ1 = quadratic_cost(x,u,Q,R,x_ref,u_ref)
-    ℓ2 = quadratic_cost(xm,u,Q,R,x_ref,u_ref)
-    ℓ3 = quadratic_cost(x⁺,u,Q,R,x_ref,u_ref)
-
-    return h[1]/6.0*ℓ1 + 4.0*h[1]/6.0*ℓ2 + h[1]/6.0*ℓ3 + c*h[1]
+    return h[1]*ℓ1 + c*h[1]
 end
 
 function terminal_cost(x,Q,x_ref)
