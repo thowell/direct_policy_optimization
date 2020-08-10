@@ -3,7 +3,7 @@ include("../dynamics/biped.jl")
 using Plots
 
 # Horizon
-T = 49
+T = 15
 Tm = -1
 model.Tm = Tm
 
@@ -47,7 +47,7 @@ R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
-penalty_obj = PenaltyObjective(1.0,0.2,[t for t = 1:T-1 if (t != Tm-1 || t != 1)])
+penalty_obj = PenaltyObjective(1.0,0.1,[t for t = 1:T-1 if (t != Tm-1 || t != 1)])
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
@@ -89,8 +89,8 @@ plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=
 
 
 # start in mid trajectory
-T = 49
-Tm = 25
+T = 15
+Tm = 8
 model.Tm = Tm
 x1 = X_nominal[Tm]
 
@@ -116,7 +116,7 @@ R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
-penalty_obj = PenaltyObjective(1.0e-1,0.2,[t for t = 1:T-1 if (t != Tm)])
+penalty_obj = PenaltyObjective(1.0e-1,0.1,[t for t = 1:T-1 if (t != Tm)])
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
@@ -176,81 +176,109 @@ kinematics(model,xT[1:5])
 plt_ft_nom = plot!(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="",color=:blue)
 
-
 foot_x = [foot_traj[t][1] for t=(1:T)]
 foot_y = [foot_traj[t][2] for t=(1:T)]
 plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="",color=:red)
-# # TVLQR policy
-# Q_lqr = [t < T ? Diagonal(1.0*ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
-# R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
-# H_lqr = [0.0 for t = 1:T-1]
-#
-# A = []
-# B = []
-# for t = 1:T-1
-#     x = X_nominal[t]
-#     u = U_nominal[t]
-#     h = H_nominal[t]
-#     x⁺ = X_nominal[t+1]
-#
-#     fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
-#     fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
-#     fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
-#
-#     A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
-#     push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
-#     push!(B,-A⁺\ForwardDiff.jacobian(fu,u))
-# end
-#
-# K = TVLQR(A,B,Q_lqr,R_lqr)
-#
-# # Samples
-# N = 2*model.nx
-# models = [model for i = 1:N]
-# # K0 = [rand(model.nu,model.nx) for t = 1:T-1]
-# β = 1.0
-# w = 1.0e-8*ones(model.nx)
-# γ = 1.0
-# x1_sample = resample([x1 for i = 1:N],β=β,w=w)
-#
-# prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
-#     disturbance_ctrl=false,α=1000.0)
-# prob_sample_moi = init_MOI_Problem(prob_sample)
-#
-# Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
-#
-# # Solve
-# Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
-# # Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
-#
-# # Unpack solution
-# X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
-#
-# Q_nom_sample = [X_nom_sample[t][1:5] for t = 1:T]
-#
-# foot_traj_nom_sample = [kinematics(model,Q_nom_sample[t]) for t = 1:T]
-#
-# foot_x_ns = [foot_traj_nom_sample[t][1] for t=1:T]
-# foot_y_ns = [foot_traj_nom_sample[t][2] for t=1:T]
-#
-# plt_ft_nom_sample = plot(aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
-#     title="Foot 1 trajectory",label="")
-#
+
+
+# TVLQR policy
+Q_lqr = [t < T ? Diagonal(1.0*ones(model.nx)) : Diagonal(1.0*ones(model.nx)) for t = 1:T]
+R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
+H_lqr = [1.0 for t = 1:T-1]
+
+A = []
+B = []
+for t = 1:T-1
+    x = X_nominal[t]
+    u = U_nominal[t]
+    h = H_nominal[t]
+    x⁺ = X_nominal[t+1]
+
+    fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
+    fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
+    fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
+
+    A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
+    push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
+    push!(B,-A⁺\ForwardDiff.jacobian(fu,u))
+end
+
+K = TVLQR(A,B,Q_lqr,R_lqr)
+
+# Samples
+N = 2*model.nx
+models = [model for i = 1:N]
+# K0 = [rand(model.nu,model.nx) for t = 1:T-1]
+β = 1.0
+w = 1.0e-8*ones(model.nx)
+γ = 1.0
+x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+
+prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+    disturbance_ctrl=true,α=1.0e-6,
+    sample_initial_constraint=false,
+    sample_general_constraints=true,
+    m_sample_general=N*model.nx,
+    sample_general_ineq=(1:0))
+
+for i = 1:N
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[1]] = [x1_sample[i][1:5];Inf*ones(5)]
+
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[Tm]] = [xT[1:5];-Inf*ones(5)]
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[Tm]] = [xT[1:5];Inf*ones(5)]
+
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T]] = [x1_sample[i][1:5];-Inf*ones(5)]
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] = [x1_sample[i][1:5];Inf*ones(5)]
+end
+
+# # add "contact" constraint
 # for i = 1:N
-#     Q_sample = [X_sample[i][t][1:5] for t = 1:T]
+#     prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[1]] = [x1_sample[i][1]; -Inf]
+#     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[1]] = [x1_sample[i][1]; Inf]
 #
-#     foot_traj_sample = [kinematics(model,Q_sample[t]) for t = 1:T]
+#     prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0; 0.0]
+#     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0; 0.0]
 #
-#     foot_x_s = [foot_traj_sample[t][1] for t=1:T]
-#     foot_y_s = [foot_traj_sample[t][2] for t=1:T]
-#
-#     plt_ft_nom_sample = plot!(foot_x_s,foot_y_s,aspect_ratio=:equal,label="")
+#     prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T]] .= [x1_sample[i][1]; -Inf]
+#     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= [x1_sample[i][1]; Inf]
 # end
-#
-# plt_ft_nom_sample = plot!(foot_x_ns,foot_y_ns,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
-#     title="Foot 1 trajectory",color=:red,label="nominal")
-# display(plt1)
+
+prob_sample_moi = init_MOI_Problem(prob_sample)
+
+Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
+
+# Solve
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
+
+# Unpack solution
+X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
+
+Q_nom_sample = [X_nom_sample[t][1:5] for t = 1:T]
+
+foot_traj_nom_sample = [kinematics(model,Q_nom_sample[t]) for t = 1:T]
+
+foot_x_ns = [foot_traj_nom_sample[t][1] for t=1:T]
+foot_y_ns = [foot_traj_nom_sample[t][2] for t=1:T]
+
+plt_ft_nom_sample = plot(aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+    title="Foot 1 trajectory",label="")
+
+for i = 1:N
+    Q_sample = [X_sample[i][t][1:5] for t = 1:T]
+
+    foot_traj_sample = [kinematics(model,Q_sample[t]) for t = 1:T]
+
+    foot_x_s = [foot_traj_sample[t][1] for t=1:T]
+    foot_y_s = [foot_traj_sample[t][2] for t=1:T]
+
+    plt_ft_nom_sample = plot!(foot_x_s,foot_y_s,aspect_ratio=:equal,label="")
+end
+
+plt_ft_nom_sample = plot!(foot_x_ns,foot_y_ns,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+    title="Foot 1 trajectory",color=:red,label="nominal")
+display(plt_ft_nom_sample)
 #
 #
 # # Simulate controller
