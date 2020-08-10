@@ -118,7 +118,7 @@ N = 2*model.nx
 models = [model1,model2,model3,model4]
 K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-1*ones(model.nx)
+w = 1.0e-2*ones(model.nx)
 γ = 1.0
 
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
@@ -128,7 +128,7 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=1000.0,
+    α=1.0,
     sample_goal_constraint=false,
     sample_initial_constraint=false,
     sample_general_constraints=true,
@@ -163,7 +163,6 @@ end
 
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
-prob_sample.idx_sample[1].x
 # Solve
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
 # Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
