@@ -211,12 +211,12 @@ N = 2*model.nx
 models = [model for i = 1:N]
 # K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-8*ones(model.nx)
+w = 1.0e-1*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
 prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
-    disturbance_ctrl=true,α=1.0e-6,
+    disturbance_ctrl=true,α=1.0e-3,
     sample_initial_constraint=false,
     sample_general_constraints=true,
     m_sample_general=N*model.nx,
