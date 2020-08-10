@@ -145,10 +145,7 @@ function primal_bounds(prob::TrajectoryOptimizationProblem)
 end
 
 function constraint_bounds(prob::TrajectoryOptimizationProblem)
-    n = prob.n
-    m = prob.m
     T = prob.T
-    idx = prob.idx
     M = prob.M
 
     cl = zeros(M)
@@ -180,10 +177,6 @@ function eval_objective_gradient!(∇l,Z,prob::TrajectoryOptimizationProblem)
 end
 
 function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
-    n = prob.n
-    m = prob.m
-    T = prob.T
-
     dynamics_constraints!(view(c,1:prob.M_dynamics),Z,prob)
     prob.stage_constraints && stage_constraints!(view(c,prob.M_dynamics .+ (1:prob.M_stage)),Z,prob)
     prob.general_constraints && general_constraints!(view(c,prob.M_dynamics + prob.M_stage .+ (1:prob.M_general)),Z,prob)
@@ -204,12 +197,9 @@ function eval_constraint_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
 end
 
 function sparsity_jacobian(prob::TrajectoryOptimizationProblem)
-    n = prob.n
-    m = prob.m
-    T = prob.T
-
     sparsity_dynamics = sparsity_dynamics_jacobian(prob)
     sparsity_stage = stage_constraint_sparsity(prob,r_shift=prob.M_dynamics)
     sparsity_general = general_constraint_sparsity(prob,r_shift=prob.M_dynamics+prob.M_stage)
+
     collect([sparsity_dynamics...,sparsity_stage...,sparsity_general...])
 end

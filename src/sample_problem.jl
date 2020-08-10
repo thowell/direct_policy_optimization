@@ -51,7 +51,7 @@ end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
         u_policy=(1:prob.m),
-        β=1.0,w=1.0,γ=1.0,
+        β=1.0,w=ones(prob.n),γ=1.0,
         disturbance_ctrl=false,α=1.0,
         general_objective=false,
         sample_initial_constraint=true,
