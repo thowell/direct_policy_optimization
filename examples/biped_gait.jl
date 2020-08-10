@@ -29,8 +29,8 @@ ul = -20.0
 
 tf0 = 0.36915
 h0 = tf0/(T-1)
-hu = 2.0*h0
-hl = 0.0*h0
+hu = h0
+hl = h0
 
 function discrete_dynamics(model::Biped,x⁺,x,u,h,t)
     if t == model.Tm
@@ -44,7 +44,7 @@ end
 qq = [0,0,0,0,1.0,0,0,0,0,1.0]
 Q = [t < T ? Diagonal(qq) : Diagonal(qq) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 1.0
+c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
 penalty_obj = PenaltyObjective(1.0,0.1,[t for t = 1:T-1 if (t != Tm-1 || t != 1)])
@@ -96,8 +96,8 @@ x1 = X_nominal[Tm]
 
 tf0 = 0.5*0.36915
 h0 = tf0/(T-1)
-hu = 2.0*h0
-hl = 0.0*h0
+hu = h0
+hl = h0
 
 xl_traj = [-Inf*ones(model.nx) for t = 1:T]
 xu_traj = [Inf*ones(model.nx) for t = 1:T]
@@ -113,7 +113,7 @@ xu_traj[T][1:5] = x1[1:5]
 
 Q = [t < T ? Diagonal(qq) : Diagonal(qq) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 1.0
+c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
 penalty_obj = PenaltyObjective(1.0e-1,0.1,[t for t = 1:T-1 if (t != Tm)])
