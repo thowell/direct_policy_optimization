@@ -4,7 +4,7 @@ function sample_stage_constraints!(c,z,prob::SampleProblem)
     idx_x_tmp = prob.idx_x_tmp
     idx_K = prob.idx_K
     idx_uw = prob.idx_uw
-    u_ctrl = prob.u_ctrl
+    u_policy = prob.u_policy
     models = prob.models
     β = prob.β
     w = prob.w
@@ -16,7 +16,7 @@ function sample_stage_constraints!(c,z,prob::SampleProblem)
     shift = 0
 
     nx = length(idx_nom.x[1])
-    nu = length(u_ctrl)
+    nu = length(u_policy)
 
     # # dynamics + resampling (x1 is taken care of w/ primal bounds)
     # for t = 1:T-1
@@ -54,12 +54,12 @@ function sample_stage_constraints!(c,z,prob::SampleProblem)
     # controller for samples
     # for t = 1:T-1
     #     x_nom = view(z,idx_nom.x[t])
-    #     u_nom = view(z,idx_nom.u[t][u_ctrl])
+    #     u_nom = view(z,idx_nom.u[t][u_policy])
     #     K = reshape(view(z,idx_K[t]),nu,nx)
     #
     #     for i = 1:N
     #         xi = view(z,idx_sample[i].x[t])
-    #         ui = view(z,idx_sample[i].u[t][u_ctrl])
+    #         ui = view(z,idx_sample[i].u[t][u_policy])
     #         c[shift .+ (1:nu)] = ui + K*(xi - x_nom) - u_nom
     #         shift += nu
     #     end
@@ -85,7 +85,7 @@ function ∇sample_stage_constraints!(∇c,z,prob::SampleProblem)
     idx_x_tmp = prob.idx_x_tmp
     idx_K = prob.idx_K
     idx_uw = prob.idx_uw
-    u_ctrl = prob.u_ctrl
+    u_policy = prob.u_policy
     models = prob.models
     β = prob.β
     w = prob.w
@@ -96,7 +96,7 @@ function ∇sample_stage_constraints!(∇c,z,prob::SampleProblem)
 
     shift = 0
     nx = length(idx_nom.x[1])
-    nu = length(u_ctrl)
+    nu = length(u_policy)
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
     s = 0
@@ -196,12 +196,12 @@ function ∇sample_stage_constraints!(∇c,z,prob::SampleProblem)
     # Im = Diagonal(ones(nu))
     # for t = 1:T-1
     #     x_nom = view(z,idx_nom.x[t])
-    #     u_nom = view(z,idx_nom.u[t][u_ctrl])
+    #     u_nom = view(z,idx_nom.u[t][u_policy])
     #     K = reshape(view(z,idx_K[t]),nu,nx)
     #
     #     for i = 1:N
     #         xi = view(z,idx_sample[i].x[t])
-    #         ui = view(z,idx_sample[i].u[t][u_ctrl])
+    #         ui = view(z,idx_sample[i].u[t][u_policy])
     #         # c[shift .+ (1:nu)] = ui + K*(xi - x_nom) - u_nom
     #
     #         r_idx = shift .+ (1:nu)
@@ -212,7 +212,7 @@ function ∇sample_stage_constraints!(∇c,z,prob::SampleProblem)
     #         ∇c[s .+ (1:len)] = vec(-1.0*K)
     #         s += len
     #
-    #         c_idx = idx_nom.u[t][u_ctrl]
+    #         c_idx = idx_nom.u[t][u_policy]
     #         # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nu))
     #         len = length(r_idx)*length(c_idx)
     #         ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nu)))
@@ -224,7 +224,7 @@ function ∇sample_stage_constraints!(∇c,z,prob::SampleProblem)
     #         ∇c[s .+ (1:len)] = vec(K)
     #         s += len
     #
-    #         c_idx = idx_sample[i].u[t][u_ctrl]
+    #         c_idx = idx_sample[i].u[t][u_policy]
     #         # ∇c[r_idx,c_idx] = Diagonal(ones(nu))
     #         len = length(r_idx)*length(c_idx)
     #         ∇c[s .+ (1:len)] = vec(Diagonal(ones(nu)))
@@ -281,7 +281,7 @@ function sparsity_jacobian_sample_stage(prob::SampleProblem;
     idx_x_tmp = prob.idx_x_tmp
     idx_K = prob.idx_K
     idx_uw = prob.idx_uw
-    u_ctrl = prob.u_ctrl
+    u_policy = prob.u_policy
     models = prob.models
     β = prob.β
     w = prob.w
@@ -293,7 +293,7 @@ function sparsity_jacobian_sample_stage(prob::SampleProblem;
     shift = 0
 
     nx = length(idx_nom.x[1])
-    nu = length(u_ctrl)
+    nu = length(u_policy)
 
     s = 0
 
@@ -425,7 +425,7 @@ function sparsity_jacobian_sample_stage(prob::SampleProblem;
     #         s += len
     #         row_col!(row,col,r_idx,c_idx)
     #
-    #         c_idx = idx_nom.u[t][u_ctrl]
+    #         c_idx = idx_nom.u[t][u_policy]
     #         # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nu))
     #         len = length(r_idx)*length(c_idx)
     #         # ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nu)))
@@ -439,7 +439,7 @@ function sparsity_jacobian_sample_stage(prob::SampleProblem;
     #         s += len
     #         row_col!(row,col,r_idx,c_idx)
     #
-    #         c_idx = idx_sample[i].u[t][u_ctrl]
+    #         c_idx = idx_sample[i].u[t][u_policy]
     #         # ∇c[r_idx,c_idx] = Diagonal(ones(nu))
     #         len = length(r_idx)*length(c_idx)
     #         # ∇c[s .+ (1:len)] = vec(Diagonal(ones(nu)))

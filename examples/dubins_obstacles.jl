@@ -89,7 +89,7 @@ models = [model for i = 1:N]
 w = 1.0e-4*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
-K = TVLQR_policy(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
+K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 
 prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ)
 prob_sample_moi = init_MOI_Problem(prob_sample)

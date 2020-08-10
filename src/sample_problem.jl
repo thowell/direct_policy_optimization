@@ -1,7 +1,7 @@
 mutable struct SampleProblem <: Problem
     prob::TrajectoryOptimizationProblem
 
-    u_ctrl
+    u_policy
 
     N_nlp::Int # number of decision variables
     Nx::Int
@@ -13,7 +13,7 @@ mutable struct SampleProblem <: Problem
 
     M_nlp::Int # number of constraints
     M_dynamics::Int # number of sample constraints
-    M_ctrl::Int
+    M_policy::Int
     M_stage::Int
     M_general::Int
     M_uw::Int
@@ -50,7 +50,7 @@ mutable struct SampleProblem <: Problem
 end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
-        u_ctrl=(1:prob.m),
+        u_policy=(1:prob.m),
         β=1.0,w=1.0,γ=1.0,
         disturbance_ctrl=false,α=1.0,
         general_objective=false,
@@ -62,7 +62,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
 
     nx = prob.n
     nu = prob.m
-    nu_ctrl = length(u_ctrl)
+    nu_policy = length(u_policy)
 
     T = prob.T
     N = length(models)
@@ -71,17 +71,17 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
     Nu = N*nu*(T-1)
     Nh = N*(T-1)
     Nxs = N*(nx*(T-1))
-    NK = nu_ctrl*nx*(T-1)
+    NK = nu_policy*nx*(T-1)
     Nuw = disturbance_ctrl*2*N*nx*(T-1)
     N_nlp = prob.N + Nx + Nu + Nh + Nxs + NK + Nuw
 
     M_dynamics = N*(2*nx*(T-1) + (T-2))
-    M_ctrl = N*nu_ctrl*(T-1)
+    M_policy = N*nu_policy*(T-1)
     M_stage = prob.stage_constraints*N*sum(prob.m_stage)
     M_general = sample_general_constraints*m_sample_general
     M_uw = disturbance_ctrl*2*N*nx*(T-1)
 
-    M_nlp = prob.M + M_dynamics + M_ctrl + M_stage + M_general + M_uw
+    M_nlp = prob.M + M_dynamics + M_policy + M_stage + M_general + M_uw
 
     idx_nom = init_indices(nx,nu,T,time=true,shift=0)
     idx_nom_z = 1:prob.N
@@ -90,8 +90,8 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
     shift += N*prob.N
     idx_x_tmp = [init_indices(nx,0,T-1,time=false,shift=shift + (i-1)*(nx*(T-1))) for i = 1:N]
     shift += N*(nx*(T-1))
-    idx_K = [shift + (t-1)*(nu_ctrl*nx) .+ (1:nu_ctrl*nx) for t = 1:T-1]
-    shift += (T-1)*nu_ctrl*nx
+    idx_K = [shift + (t-1)*(nu_policy*nx) .+ (1:nu_policy*nx) for t = 1:T-1]
+    shift += (T-1)*nu_policy*nx
 
     if disturbance_ctrl
         idx_uw = [[shift + (i-1)*nx*(T-1) + (t-1)*nx .+ (1:nx)  for t = 1:T-1] for i = 1:N]
@@ -105,9 +105,9 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
 
     return SampleProblem(
         prob,
-        u_ctrl,
+        u_policy,
         N_nlp,Nx,Nu,Nh,Nxs,NK,Nuw,
-        M_nlp,M_dynamics,M_ctrl,M_stage,M_general,M_uw,
+        M_nlp,M_dynamics,M_policy,M_stage,M_general,M_uw,
         idx_nom,idx_nom_z,
         idx_sample,idx_x_tmp,idx_K,
         Q,R,H,
@@ -177,7 +177,7 @@ function controller(Z0,prob::SampleProblem)
     U_nom = [Z0[prob.idx_nom.u[t]] for t = 1:T-1]
     H_nom = [Z0[prob.idx_nom.h[t]] for t = 1:T-1]
 
-    K_sample = [reshape(Z0[prob.idx_K[t]],length(prob.u_ctrl),prob.prob.n) for t = 1:T-1]
+    K_sample = [reshape(Z0[prob.idx_K[t]],length(prob.u_policy),prob.prob.n) for t = 1:T-1]
 
     return K_sample, X_nom, U_nom, H_nom
 end
@@ -243,7 +243,7 @@ function constraint_bounds(prob::SampleProblem)
         m_shift = 0
         for t = 1:T-1
             for i = 1:prob.N
-                cu[(M_nom + prob.M_dynamics + prob.M_ctrl + m_shift .+ (1:prob.prob.m_stage[t]))[prob.prob.stage_ineq[t]]] .= Inf
+                cu[(M_nom + prob.M_dynamics + prob.M_policy + m_shift .+ (1:prob.prob.m_stage[t]))[prob.prob.stage_ineq[t]]] .= Inf
                 m_shift += prob.prob.m_stage[t]
             end
         end
@@ -251,7 +251,7 @@ function constraint_bounds(prob::SampleProblem)
 
     if prob.sample_general_constraints
         for t = 1:T-1
-            cu[(M_nom + prob.M_dynamics + prob.M_ctrl + prob.M_stage .+ (1:prob.M_general))[prob.sample_general_ineq]] .= Inf
+            cu[(M_nom + prob.M_dynamics + prob.M_policy + prob.M_stage .+ (1:prob.M_general))[prob.sample_general_ineq]] .= Inf
         end
     end
 
@@ -291,11 +291,11 @@ function eval_constraint!(c,Z,prob::SampleProblem)
    eval_constraint!(view(c,1:M),view(Z,prob.idx_nom_z),prob.prob)
 
    sample_dynamics_constraints!(view(c,M .+ (1:prob.M_dynamics)),Z,prob)
-   sample_control_constraints!(view(c,M+prob.M_dynamics .+ (1:prob.M_ctrl)),Z,prob)
-   prob.prob.stage_constraints && sample_stage_constraints!(view(c,M+prob.M_dynamics+prob.M_ctrl .+ (1:prob.M_stage)),Z,prob)
-   prob.sample_general_constraints && general_constraints!(view(c,M+prob.M_dynamics+prob.M_ctrl+prob.M_stage .+ (1:prob.M_general)),Z,prob)
+   sample_policy_constraints!(view(c,M+prob.M_dynamics .+ (1:prob.M_policy)),Z,prob)
+   prob.prob.stage_constraints && sample_stage_constraints!(view(c,M+prob.M_dynamics+prob.M_policy .+ (1:prob.M_stage)),Z,prob)
+   prob.sample_general_constraints && general_constraints!(view(c,M+prob.M_dynamics+prob.M_policy+prob.M_stage .+ (1:prob.M_general)),Z,prob)
 
-   prob.disturbance_ctrl && (sample_disturbance_constraints!(view(c,M+prob.M_dynamics+prob.M_ctrl+prob.M_stage+prob.M_general .+ (1:prob.M_uw)),Z,prob))
+   prob.disturbance_ctrl && (sample_disturbance_constraints!(view(c,M+prob.M_dynamics+prob.M_policy+prob.M_stage+prob.M_general .+ (1:prob.M_uw)),Z,prob))
 
    return nothing
 end
@@ -309,31 +309,32 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
     len_dyn = length(sparsity_jacobian_sample_dynamics(prob))
     ∇sample_dynamics_constraints!(view(∇c,len .+ (1:len_dyn)),Z,prob)
 
-    len_ctrl = length(sparsity_jacobian_sample_control(prob))
-    ∇sample_control_constraints!(view(∇c,len+len_dyn .+ (1:len_ctrl)),Z,prob)
+    len_policy = length(sparsity_jacobian_sample_policy(prob))
+    ∇sample_policy_constraints!(view(∇c,len+len_dyn .+ (1:len_policy)),Z,prob)
 
     len_stage = length(sparsity_jacobian_sample_stage(prob))
-    prob.prob.stage_constraints && ∇sample_stage_constraints!(view(∇c,len+len_dyn+len_ctrl .+ (1:len_stage)),Z,prob)
+    prob.prob.stage_constraints && ∇sample_stage_constraints!(view(∇c,len+len_dyn+len_policy .+ (1:len_stage)),Z,prob)
 
     len_general = length(general_constraint_sparsity(prob))
-    prob.sample_general_constraints && ∇general_constraints!(view(∇c,len+len_dyn+len_ctrl+len_stage .+ (1:len_general)),Z,prob)
+    prob.sample_general_constraints && ∇general_constraints!(view(∇c,len+len_dyn+len_policy+len_stage .+ (1:len_general)),Z,prob)
 
     if prob.disturbance_ctrl
         len_dist = length(sparsity_jacobian_sample_disturbance(prob))
-        ∇sample_disturbance_constraints!(view(∇c,len+len_dyn+len_ctrl+len_stage+len_general .+ (1:len_dist)),Z,prob)
+        ∇sample_disturbance_constraints!(view(∇c,len+len_dyn+len_policy+len_stage+len_general .+ (1:len_dist)),Z,prob)
     end
     return nothing
 end
 
 function sparsity_jacobian(prob::SampleProblem)
     collect([sparsity_jacobian(prob.prob)...,
-             sparsity_jacobian_sample_dynamics(prob,r_shift=prob.prob.M)...,
-             sparsity_jacobian_sample_control(prob,
+             sparsity_jacobian_sample_dynamics(prob,
+                r_shift=prob.prob.M)...,
+             sparsity_jacobian_sample_policy(prob,
                 r_shift=prob.prob.M+prob.M_dynamics)...,
              sparsity_jacobian_sample_stage(prob,
-                r_shift=prob.prob.M+prob.M_dynamics+prob.M_ctrl)...,
+                r_shift=prob.prob.M+prob.M_dynamics+prob.M_policy)...,
              general_constraint_sparsity(prob,
-                r_shift=prob.prob.M+prob.M_dynamics+prob.M_ctrl+prob.M_stage)...,
+                r_shift=prob.prob.M+prob.M_dynamics+prob.M_policy+prob.M_stage)...,
              sparsity_jacobian_sample_disturbance(prob,
-                r_shift=prob.prob.M+prob.M_dynamics+prob.M_ctrl+prob.M_stage+prob.M_general)...])
+                r_shift=prob.prob.M+prob.M_dynamics+prob.M_policy+prob.M_stage+prob.M_general)...])
 end

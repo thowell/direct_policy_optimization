@@ -29,6 +29,7 @@ mutable struct CartpoleFriction{T}
     μ::T      # friction coefficient
     nx::Int   # state dimension
     nu::Int   # control dimension
+	nu_policy
 end
 
 function dynamics(model::CartpoleFriction, x, u)
@@ -43,7 +44,9 @@ function dynamics(model::CartpoleFriction, x, u)
 end
 
 nx_friction,nu_friction = 4,7
-model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,0.1,nx_friction,nu_friction)
+nu_policy_friction = nu
+model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,0.1,
+	nx_friction,nu_friction,nu_policy_friction)
 
 function c_stage!(c,x,u,t,model::CartpoleFriction)
     v = x[3]
@@ -124,4 +127,8 @@ function ∇sample_general_objective!(∇obj,z,prob::SampleProblem)
         end
     end
     return nothing
+end
+
+function policy(model::CartpoleFriction,K,x,u,x_nom,u_nom)
+	u_nom - reshape(K,model.nu_policy,model.nx)*(x - x_nom)
 end

@@ -78,7 +78,7 @@ Z0 = pack(X0,U0,h0,prob)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 # TVLQR policy
-K = TVLQR_policy(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
+K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 
 # # Sample
 # α = 5.0e-4

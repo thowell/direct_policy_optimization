@@ -1,7 +1,7 @@
 function sample_objective(z,prob::SampleProblem)
     idx_nom = prob.idx_nom
     idx_sample = prob.idx_sample
-    u_ctrl = prob.u_ctrl
+    u_policy = prob.u_policy
     Q = prob.Q
     R = prob.R
     H = prob.H
@@ -37,7 +37,7 @@ end
 function ∇sample_objective!(∇obj,z,prob::SampleProblem)
     idx_nom = prob.idx_nom
     idx_sample = prob.idx_sample
-    u_ctrl = prob.u_ctrl
+    u_policy = prob.u_policy
     Q = prob.Q
     R = prob.R
     H = prob.H

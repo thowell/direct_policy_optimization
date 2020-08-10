@@ -4,8 +4,11 @@ using Plots
 
 α_cartpole_friction = 1000.0
 μ0 = 0.2
-model_nominal = CartpoleFriction(1.0,0.2,0.5,9.81,0.0,nx_friction,nu_friction)
-model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,μ0,nx_friction,nu_friction)
+
+model_nominal = CartpoleFriction(1.0,0.2,0.5,9.81,0.0,
+    nx_friction,nu_friction,nu_policy_friction)
+model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,μ0,
+    nx_friction,nu_friction,nu_policy_friction)
 
 # Horizon
 T = 51
@@ -109,16 +112,17 @@ plt = plot!(t_nominal,hcat(X_friction_nominal...)[1:4,:]',
 
 # Sample
 N = 2*model.nx
-μ_sample = range(0.1,stop=.3,length=N)
-models = [CartpoleFriction(1.0,0.2,0.5,9.81,μ_sample[i],nx_friction,nu_friction) for i = 1:N]
+μ_sample = range(0.1,stop=0.3,length=N)
+models = [CartpoleFriction(1.0,0.2,0.5,9.81,μ_sample[i],
+    nx_friction,nu_friction,nu_policy_friction) for i = 1:N]
 β = 1.0
 w = 1.0e-3*ones(model_friction.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
-K = TVLQR_policy(model,X_friction_nominal,U_friction_nominal,H_friction_nominal,Q_lqr,R_lqr,u_ctrl=(1:1))
+K = TVLQR_gains(model,X_friction_nominal,U_friction_nominal,H_friction_nominal,Q_lqr,R_lqr,u_policy=(1:1))
 
 prob_sample = init_sample_problem(prob_friction,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
-    u_ctrl=(1:1),
+    u_policy=(1:1),
     general_objective=true)
 
 prob_sample_moi = init_MOI_Problem(prob_sample)

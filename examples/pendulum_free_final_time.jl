@@ -73,7 +73,7 @@ x12 = α*[-1.0; 0.0]
 x13 = α*[0.0; 1.0]
 x14 = α*[0.0; -1.0]
 x1_sample = resample([x11,x12,x13,x14],β=β,w=w)
-K = TVLQR_policy(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
+K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
 prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ)
 prob_sample_moi = init_MOI_Problem(prob_sample)
