@@ -4,7 +4,7 @@ include("../src/loop.jl")
 using Plots
 
 # Horizon
-T = 9
+T = 17
 
 tf0 = 1.0
 h0 = tf0/(T-1) # timestep
@@ -14,7 +14,7 @@ x1 = [0.5; 0.0]
 xT = [0.0; 0.0]
 
 # Hybrid model
-Tm = 5
+Tm = 9
 model = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
 model1 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm-2)
 model2 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm-1)
@@ -23,7 +23,7 @@ model4 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm+2)
 
 # Bounds
 # xl <= x <= xu
-xl_traj = [-Inf*ones(model.nx) for t = 1:T]
+xl_traj = [[0.0; -Inf] for t = 1:T]
 xu_traj = [Inf*ones(model.nx) for t = 1:T]
 
 xl_traj[1] = [x1[1]; -Inf]
@@ -40,13 +40,13 @@ uu = 5.0
 ul = -5.0
 
 # hl <= h <= hu
-hu = 5.0*h0
-hl = 0.0
+hu = h0
+hl = h0
 
 # Objective
 Q = [Diagonal(ones(model.nx)) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 1.0
+c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
 
@@ -90,7 +90,7 @@ x_nom = [X_nominal[t][1] for t = 1:T]
 v_nom = [X_nominal[t][2] for t = 1:T]
 
 plot(x_nom,v_nom,aspect_ratio=:equal)
-plot(hcat(X_nominal...)')
+plot(hcat(X_nominal...)',label=["x" "v"],xlabel="time step t")
 plot(hcat(U_nominal...)')
 
 # TVLQR policy
@@ -118,7 +118,7 @@ N = 2*model.nx
 models = [model1,model2,model3,model4]
 K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-2*ones(model.nx)
+w = 1.0e-1*ones(model.nx)
 γ = 1.0
 
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
@@ -128,46 +128,45 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=1000.0)
+    α=1000.0,
+    sample_goal_constraint=false,
+    sample_initial_constraint=false,
+    sample_general_constraints=true,
+    m_sample_general=N*model.nx,
+    sample_general_ineq=(1:0))
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 # remove mid-time goal constraint from sample trajectories
 for i = 1:N
-    # prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[Tm]] .= -Inf
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[1]] = [0.0; -Inf]
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[1]] .= Inf
+
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[Tm]] = [0.0;-Inf]
     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[Tm]] .= Inf
+
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T]] = [0.0;-Inf]
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= Inf
 end
 
+# add "contact" constraint
 for i = 1:N
-    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0;-Inf]
-    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0;Inf]
-    # prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[i].Tm+1]] .= [1.0;-Inf]
-    # prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[i].Tm+1]] .= [1.0;Inf]
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[1]] = [x1_sample[i][1]; -Inf]
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[1]] = [x1_sample[i][1]; Inf]
 
-    # prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T] .= [1.0;-Inf]
-    # prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= [1.0;Inf]
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0; 0.0]
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0; 0.0]
+
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T]] .= [x1_sample[i][1]; -Inf]
+    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= [x1_sample[i][1]; Inf]
 end
-
-
-
-# prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[3].T+1]] = xT
-# prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[3].T+1]] = xT
-#
-# prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[4].T+2]] = xT
-# prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[4].T+2]] = xT
 
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
+prob_sample.idx_sample[1].x
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample)
-
-prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T-2]] = xT
-prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T-2]] = xT
-
-prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T-1]] = xT
-prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T-1]] = xT
-
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -244,9 +243,3 @@ plot(hcat(Uw_sample[1]...)',linetype=:steppost,labels="",title="Disturbance cont
 plot!(hcat(Uw_sample[2]...)',linetype=:steppost,labels="")
 plot!(hcat(Uw_sample[3]...)',linetype=:steppost,labels="")
 plot!(hcat(Uw_sample[4]...)',linetype=:steppost,labels="")
-
-i = 4
-plot(t_sample,hcat(X_sample[i]...)[1,:],label="",linetype=:steppost)
-plot(t_sample[1:end-1],hcat(Uw_sample[i]...)[1,:],label="",linetype=:steppost)
-hcat(Uw_sample[i]...)[1:2,:]
-t_sample[1:end-1]

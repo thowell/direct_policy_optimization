@@ -45,3 +45,70 @@ function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 
 	return collect(zip(row,col))
 end
+
+function general_constraints!(c,Z,prob::SampleProblem)
+	T = prob.prob.T
+	N = prob.N
+	nx = prob.prob.n
+	for i = 1:N
+		c[(i-1)*nx .+ (1:nx)] = Z[prob.idx_sample[i].x[1]] - Z[prob.idx_sample[i].x[T]]
+	end
+	nothing
+end
+
+function ∇general_constraints!(∇c,Z,prob::SampleProblem)
+	T = prob.prob.T
+	N = prob.N
+	nx = prob.prob.n
+
+	s = 0
+	for i = 1:N
+		# c[(i-1)*nx .+ (1:nx)] = Z[idx[i].x[1]] - Z[idx[i].x[T]]
+
+		r_idx = (i-1)*nx .+ (1:nx)
+
+		c_idx = prob.idx_sample[i].x[1]
+		len = length(r_idx)*length(c_idx)
+		∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
+		s += len
+
+		c_idx = prob.idx_sample[i].x[T]
+		len = length(r_idx)*length(c_idx)
+		∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)))
+		s += len
+	end
+	nothing
+end
+
+function general_constraint_sparsity(prob::SampleProblem;
+		r_shift=0)
+	row = []
+	col = []
+
+	T = prob.prob.T
+	N = prob.N
+	nx = prob.prob.n
+
+	s = 0
+	for i = 1:N
+		# c[(i-1)*nx .+ (1:nx)] = Z[idx[i].x[1]] - Z[idx[i].x[T]]
+
+		r_idx = r_shift + (i-1)*nx .+ (1:nx)
+
+		c_idx = prob.idx_sample[i].x[1]
+
+		row_col!(row,col,r_idx,c_idx)
+		# len = length(r_idx)*length(c_idx)
+		# ∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
+		# s += len
+
+		c_idx = prob.idx_sample[i].x[T]
+		row_col!(row,col,r_idx,c_idx)
+
+		# len = length(r_idx)*length(c_idx)
+		# ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)))
+		# s += len
+	end
+
+	return collect(zip(row,col))
+end
