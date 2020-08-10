@@ -4,7 +4,7 @@ include("../dynamics/obstacles.jl")
 using Plots
 
 # Horizon
-T = 30
+T = 50
 
 # Bounds
 
@@ -44,8 +44,8 @@ end
 m_stage = 4
 
 # Objective
-Q = [t < T ? Diagonal(zeros(model.nx)) : Diagonal(zeros(model.nx)) for t = 1:T]
-R = [Diagonal(zeros(model.nu)) for t = 1:T-1]
+Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
+R = [Diagonal(1.0e-1ones(model.nu)) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
