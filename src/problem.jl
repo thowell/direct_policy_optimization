@@ -87,14 +87,16 @@ function pack(X0,U0,h0,prob::TrajectoryOptimizationProblem)
     nx = prob.nx
     nu = prob.nu
     T = prob.T
+    idx = prob.idx
 
     Z0 = zeros(prob.N)
+
     for t = 1:T-1
-        Z0[(t-1)*(nx+nu+1) .+ (1:nx)] = X0[t]
-        Z0[(t-1)*(nx+nu+1)+nx .+ (1:nu)] = U0[t]
-        Z0[(t-1)*(nx+nu+1)+nx+nu + 1] = h0
+        Z0[idx.x[t]] = X0[t]
+        Z0[idx.u[t]] = U0[t]
+        Z0[idx.h[t]] = h0
     end
-    Z0[(T-1)*(nx+nu+1) .+ (1:nx)] = X0[T]
+    Z0[idx.x[T]] = X0[T]
 
     return Z0
 end
@@ -103,10 +105,11 @@ function unpack(Z0,prob::TrajectoryOptimizationProblem)
     nx = prob.nx
     nu = prob.nu
     T = prob.T
-
-    X = [Z0[(t-1)*(nx+nu+1) .+ (1:nx)] for t = 1:T]
-    U = [Z0[(t-1)*(nx+nu+1)+nx .+ (1:nu)] for t = 1:T-1]
-    H = [Z0[(t-1)*(nx+nu+1)+nx+nu + 1] for t = 1:T-1]
+    idx = prob.idx
+    
+    X = [Z0[idx.x[t]] for t = 1:T]
+    U = [Z0[idx.u[t]] for t = 1:T-1]
+    H = [Z0[idx.h[t]] for t = 1:T-1]
 
     return X, U, H
 end
