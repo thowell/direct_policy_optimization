@@ -1,7 +1,7 @@
 function dynamics_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
-    n = prob.n
-    m = prob.m
+    nx = prob.nx
+    nu = prob.nu
     T = prob.T
     model = prob.model
 
@@ -14,11 +14,11 @@ function dynamics_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
         h = Z[idx.h[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        c[(t-1)*n .+ (1:n)] = discrete_dynamics(model,x⁺,x,u,h,t)
+        c[(t-1)*nx .+ (1:nx)] = discrete_dynamics(model,x⁺,x,u,h,t)
 
         if t < T-1
             h⁺ = Z[idx.h[t+1]]
-            c[n*(T-1) + t] = h⁺ - h
+            c[nx*(T-1) + t] = h⁺ - h
         end
     end
 
@@ -27,8 +27,8 @@ end
 
 function dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
-    n = prob.n
-    m = prob.m
+    nx = prob.nx
+    nu = prob.nu
     T = prob.T
     model = prob.model
 
@@ -48,7 +48,7 @@ function dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProbl
         dyn_h(z) = discrete_dynamics(model,x⁺,x,u,z,t)
         dyn_x⁺(z) = discrete_dynamics(model,z,x,u,h,t)
 
-        r_idx = (t-1)*n .+ (1:n)
+        r_idx = (t-1)*nx .+ (1:nx)
 
         ∇c[r_idx,idx.x[t]] = ForwardDiff.jacobian(dyn_x,x)
         ∇c[r_idx,idx.u[t]] = ForwardDiff.jacobian(dyn_u,u)
@@ -57,7 +57,7 @@ function dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProbl
 
         if t < T-1
             h⁺ = Z[idx.h[t+1]]
-            r_idx = n*(T-1) + t
+            r_idx = nx*(T-1) + t
             ∇c[r_idx,idx.h[t]] = -1.0
             ∇c[r_idx,idx.h[t+1]] = 1.0
         end
@@ -68,8 +68,8 @@ end
 
 function sparse_dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
-    n = prob.n
-    m = prob.m
+    nx = prob.nx
+    nu = prob.nu
     T = prob.T
     model = prob.model
 
@@ -89,24 +89,24 @@ function sparse_dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizati
         dyn_h(z) = discrete_dynamics(model,x⁺,x,u,z,t)
         dyn_x⁺(z) = discrete_dynamics(model,z,x,u,h,t)
 
-        r_idx = (t-1)*n .+ (1:n)
+        r_idx = (t-1)*nx .+ (1:nx)
 
-        s = n*n
+        s = nx*nx
         ∇c[shift .+ (1:s)] = vec(ForwardDiff.jacobian(dyn_x,x))
         shift += s
 
         # ∇c[r_idx,idx.u[t]] = ForwardDiff.jacobian(dyn_u,u)
-        s = n*m
+        s = nx*nu
         ∇c[shift .+ (1:s)] = vec(ForwardDiff.jacobian(dyn_u,u))
         shift += s
 
         # ∇c[r_idx,idx.h[t]] = ForwardDiff.jacobian(dyn_h,view(Z,idx.h[t]))
-        s = n*1
+        s = nx*1
         ∇c[shift .+ (1:s)] = vec(ForwardDiff.jacobian(dyn_h,view(Z,idx.h[t])))
         shift += s
 
         # ∇c[r_idx,idx.x[t+1]] .= ForwardDiff.jacobian(dyn_x,x)
-        s = n*n
+        s = nx*nx
         ∇c[shift .+ (1:s)] = vec(ForwardDiff.jacobian(dyn_x⁺,x⁺))
         shift += s
 
@@ -131,8 +131,8 @@ end
 function sparsity_dynamics_jacobian(prob::TrajectoryOptimizationProblem;
         r_shift=0)
     idx = prob.idx
-    n = prob.n
-    m = prob.m
+    nx = prob.nx
+    nu = prob.nu
     T = prob.T
     model = prob.model
 
@@ -140,14 +140,14 @@ function sparsity_dynamics_jacobian(prob::TrajectoryOptimizationProblem;
     col = []
 
     for t = 1:T-1
-        r_idx = r_shift + (t-1)*n .+ (1:n)
+        r_idx = r_shift + (t-1)*nx .+ (1:nx)
         row_col!(row,col,r_idx,idx.x[t])
         row_col!(row,col,r_idx,idx.u[t])
         row_col!(row,col,r_idx,idx.h[t])
         row_col!(row,col,r_idx,idx.x[t+1])
 
         if t < T-1
-            r_idx = r_shift + n*(T-1) + t
+            r_idx = r_shift + nx*(T-1) + t
             row_col!(row,col,r_idx,idx.h[t])
             row_col!(row,col,r_idx,idx.h[t+1])
         end

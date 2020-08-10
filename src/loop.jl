@@ -1,12 +1,12 @@
 function general_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
-	nx = prob.model.nx
+	nx = prob.nx
 	T = prob.T
 	c[1:nx] = Z[prob.idx.x[1]] - Z[prob.idx.x[T]]
 	nothing
 end
 
 function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
-	nx = prob.model.nx
+	nx = prob.nx
 	T = prob.T
 
 	s = 0
@@ -32,7 +32,7 @@ function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 	row = []
 	col = []
 
-	nx = prob.model.nx
+	nx = prob.nx
 	T = prob.T
 
 	r_idx = r_shift .+ (1:nx)
@@ -49,7 +49,7 @@ end
 function general_constraints!(c,Z,prob::SampleProblem)
 	T = prob.prob.T
 	N = prob.N
-	nx = prob.prob.n
+	nx = prob.prob.nx
 	for i = 1:N
 		c[(i-1)*nx .+ (1:nx)] = Z[prob.idx_sample[i].x[1]] - Z[prob.idx_sample[i].x[T]]
 	end
@@ -59,7 +59,7 @@ end
 function ∇general_constraints!(∇c,Z,prob::SampleProblem)
 	T = prob.prob.T
 	N = prob.N
-	nx = prob.prob.n
+	nx = prob.prob.nx
 
 	s = 0
 	for i = 1:N
@@ -87,7 +87,7 @@ function general_constraint_sparsity(prob::SampleProblem;
 
 	T = prob.prob.T
 	N = prob.N
-	nx = prob.prob.n
+	nx = prob.prob.nx
 
 	s = 0
 	for i = 1:N

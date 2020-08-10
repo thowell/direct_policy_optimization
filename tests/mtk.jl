@@ -154,9 +154,9 @@ function solve(x0,prob::MOI.AbstractNLPEvaluator;
         solver = SNOPT7.Optimizer()
     end
 
-    x = MOI.add_variables(solver,prob.n)
+    x = MOI.add_variables(solver,prob.nx)
 
-    for i = 1:prob.n
+    for i = 1:prob.nx
         xi = MOI.SingleVariable(x[i])
         MOI.add_constraint(solver, xi, MOI.LessThan(x_u[i]))
         MOI.add_constraint(solver, xi, MOI.GreaterThan(x_l[i]))

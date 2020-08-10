@@ -50,8 +50,8 @@ mutable struct SampleProblem <: Problem
 end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
-        u_policy=(1:prob.m),
-        β=1.0,w=ones(prob.n),γ=1.0,
+        u_policy=(1:prob.nu),
+        β=1.0,w=ones(prob.nx),γ=1.0,
         disturbance_ctrl=false,α=1.0,
         general_objective=false,
         sample_initial_constraint=true,
@@ -60,8 +60,8 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
         m_sample_general=0,
         sample_general_ineq=(1:m_sample_general))
 
-    nx = prob.n
-    nu = prob.m
+    nx = prob.nx
+    nu = prob.nu
     nu_policy = length(u_policy)
 
     T = prob.T
@@ -177,7 +177,7 @@ function controller(Z0,prob::SampleProblem)
     U_nom = [Z0[prob.idx_nom.u[t]] for t = 1:T-1]
     H_nom = [Z0[prob.idx_nom.h[t]] for t = 1:T-1]
 
-    K_sample = [reshape(Z0[prob.idx_K[t]],length(prob.u_policy),prob.prob.n) for t = 1:T-1]
+    K_sample = [reshape(Z0[prob.idx_K[t]],length(prob.u_policy),prob.prob.nx) for t = 1:T-1]
 
     return K_sample, X_nom, U_nom, H_nom
 end

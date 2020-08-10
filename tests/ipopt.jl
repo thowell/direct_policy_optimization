@@ -50,9 +50,9 @@ function primal_bounds(n)
 end
 
 function constraint_bounds(prob::MOI.AbstractNLPEvaluator)
-    c_l = zeros(prob.m_nlp)
+    c_l = zeros(prob.nu_nlp)
     c_l[prob.idx_ineq] .= -Inf
-    c_u = zeros(prob.m_nlp)
+    c_u = zeros(prob.nu_nlp)
     return c_l, c_u
 end
 
@@ -71,7 +71,7 @@ function MOI.eval_constraint(prob::MOI.AbstractNLPEvaluator,g,x)
 end
 
 function MOI.eval_constraint_jacobian(prob::MOI.AbstractNLPEvaluator, jac, x)
-    # prob.∇con!(reshape(jac,prob.m_nlp,prob.n_nlp),x)
+    # prob.∇con!(reshape(jac,prob.nu_nlp,prob.nx_nlp),x)
     prob.∇con!(jac,x)
 
     return nothing
@@ -107,7 +107,7 @@ function sparsity_jacobian(n,m)
 
     return collect(zip(row,col))
 end
-sparsity_jacobian(prob::MOI.AbstractNLPEvaluator) = sparsity_jacobian(prob.n_nlp,prob.m_nlp)
+sparsity_jacobian(prob::MOI.AbstractNLPEvaluator) = sparsity_jacobian(prob.nx_nlp,prob.nu_nlp)
 
 
 function sparsity_hessian(prob::MOI.AbstractNLPEvaluator)
@@ -115,8 +115,8 @@ function sparsity_hessian(prob::MOI.AbstractNLPEvaluator)
     row = []
     col = []
 
-    r = 1:prob.n_nlp
-    c = 1:prob.n_nlp
+    r = 1:prob.nx_nlp
+    c = 1:prob.nx_nlp
 
     row_col!(row,col,r,c)
 
@@ -128,7 +128,7 @@ MOI.initialize(prob::MOI.AbstractNLPEvaluator, features) = nothing
 MOI.jacobian_structure(prob::MOI.AbstractNLPEvaluator) = prob.sparsity_jac
 MOI.hessian_lagrangian_structure(prob::MOI.AbstractNLPEvaluator) = nothing
 function MOI.eval_hessian_lagrangian(prob::MOI.AbstractNLPEvaluator, H, x, σ, λ)
-    tmp(z) = σ*prob.obj(z) + prob.con!(zeros(eltype(z),prob.m_nlp),z)'*λ
+    tmp(z) = σ*prob.obj(z) + prob.con!(zeros(eltype(z),prob.nu_nlp),z)'*λ
     H .= vec(ForwardDiff.hessian(tmp,x))
     # println("eval hessian lagrangian")
     return nothing
@@ -150,9 +150,9 @@ function solve(x0,prob::MOI.AbstractNLPEvaluator;
         solver = SNOPT7.Optimizer()
     end
 
-    x = MOI.add_variables(solver,prob.n_nlp)
+    x = MOI.add_variables(solver,prob.nx_nlp)
 
-    for i = 1:prob.n_nlp
+    for i = 1:prob.nx_nlp
         xi = MOI.SingleVariable(x[i])
         MOI.add_constraint(solver, xi, MOI.LessThan(x_u[i]))
         MOI.add_constraint(solver, xi, MOI.GreaterThan(x_l[i]))

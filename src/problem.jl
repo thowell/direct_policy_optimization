@@ -3,8 +3,8 @@
 abstract type Problem end
 
 mutable struct TrajectoryOptimizationProblem <: Problem
-    n::Int # states
-    m::Int # controls
+    nx::Int # states
+    nu::Int # controls
     T::Int # horizon
     N::Int # number of decision variables
     Nx::Int
@@ -35,11 +35,11 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     general_ineq
 end
 
-function init_problem(n,m,T,x1,xT,model,obj;
-        ul=[-Inf*ones(m) for t = 1:T-1],
-        uu=[Inf*ones(m) for t = 1:T-1],
-        xl=[-Inf*ones(n) for t = 1:T],
-        xu=[Inf*ones(n) for t = 1:T],
+function init_problem(nx,nu,T,x1,xT,model,obj;
+        ul=[-Inf*ones(nu) for t = 1:T-1],
+        uu=[Inf*ones(nu) for t = 1:T-1],
+        xl=[-Inf*ones(nx) for t = 1:T],
+        xu=[Inf*ones(nx) for t = 1:T],
         hl=[-Inf for t = 1:T-1],
         hu=[Inf for t = 1:T-1],
         initial_constraint::Bool=true,
@@ -51,19 +51,19 @@ function init_problem(n,m,T,x1,xT,model,obj;
         m_general=0,
         general_ineq=(1:m_general))
 
-    idx = init_indices(n,m,T)
+    idx = init_indices(nx,nu,T)
 
-    Nx = n*T
-    Nu = m*(T-1)
+    Nx = nx*T
+    Nu = nu*(T-1)
     Nh = T-1
     N = Nx + Nu + Nh
 
-    M_dynamics = n*(T-1) + (T-2)
+    M_dynamics = nx*(T-1) + (T-2)
     M_stage = stage_constraints*sum(m_stage)
     M_general = general_constraints*m_general
     M = M_dynamics + M_stage + M_general
 
-    return TrajectoryOptimizationProblem(n,m,T,
+    return TrajectoryOptimizationProblem(nx,nu,T,
         N,Nx,Nu,Nh,
         M,M_dynamics,M_stage,M_general,
         x1,xT,
@@ -84,29 +84,29 @@ function init_problem(n,m,T,x1,xT,model,obj;
 end
 
 function pack(X0,U0,h0,prob::TrajectoryOptimizationProblem)
-    n = prob.n
-    m = prob.m
+    nx = prob.nx
+    nu = prob.nu
     T = prob.T
 
     Z0 = zeros(prob.N)
     for t = 1:T-1
-        Z0[(t-1)*(n+m+1) .+ (1:n)] = X0[t]
-        Z0[(t-1)*(n+m+1)+n .+ (1:m)] = U0[t]
-        Z0[(t-1)*(n+m+1)+n+m + 1] = h0
+        Z0[(t-1)*(nx+nu+1) .+ (1:nx)] = X0[t]
+        Z0[(t-1)*(nx+nu+1)+nx .+ (1:nu)] = U0[t]
+        Z0[(t-1)*(nx+nu+1)+nx+nu + 1] = h0
     end
-    Z0[(T-1)*(n+m+1) .+ (1:n)] = X0[T]
+    Z0[(T-1)*(nx+nu+1) .+ (1:nx)] = X0[T]
 
     return Z0
 end
 
 function unpack(Z0,prob::TrajectoryOptimizationProblem)
-    n = prob.n
-    m = prob.m
+    nx = prob.nx
+    nu = prob.nu
     T = prob.T
 
-    X = [Z0[(t-1)*(n+m+1) .+ (1:n)] for t = 1:T]
-    U = [Z0[(t-1)*(n+m+1)+n .+ (1:m)] for t = 1:T-1]
-    H = [Z0[(t-1)*(n+m+1)+n+m + 1] for t = 1:T-1]
+    X = [Z0[(t-1)*(nx+nu+1) .+ (1:nx)] for t = 1:T]
+    U = [Z0[(t-1)*(nx+nu+1)+nx .+ (1:nu)] for t = 1:T-1]
+    H = [Z0[(t-1)*(nx+nu+1)+nx+nu + 1] for t = 1:T-1]
 
     return X, U, H
 end
@@ -118,8 +118,7 @@ end
 
 
 function primal_bounds(prob::TrajectoryOptimizationProblem)
-    n = prob.n
-    m = prob.m
+
     T = prob.T
     idx = prob.idx
 
