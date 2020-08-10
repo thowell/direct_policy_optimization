@@ -30,7 +30,7 @@ end
 
 nx = 6
 nu = 3
-model = Rocket(0.5,0.5,9.81,1.0,1.0,nx,nu)
+model = Rocket(1.0,1.0,9.81,0.5,0.5,nx,nu)
 
 """
 Simple 2D rocket model with tank slosh
