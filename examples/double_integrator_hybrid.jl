@@ -93,25 +93,7 @@ plot(x_nom,v_nom,aspect_ratio=:equal)
 plot(hcat(X_nominal...)',label=["x" "v"],xlabel="time step t")
 plot(hcat(U_nominal...)')
 
-# TVLQR policy
-A = []
-B = []
-for t = 1:T-1
-    x = X_nominal[t]
-    u = U_nominal[t]
-    h = H_nominal[t]
-    x⁺ = X_nominal[t+1]
-
-    fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
-    fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
-    fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
-
-    A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
-    push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
-    push!(B,-A⁺\ForwardDiff.jacobian(fu,u))
-end
-
-K = TVLQR(A,B,Q_lqr,R_lqr)
+K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
 # Samples
 N = 2*model.nx

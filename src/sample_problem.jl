@@ -258,7 +258,7 @@ function constraint_bounds(prob::SampleProblem)
     if prob.disturbance_ctrl
         for t = 1:T-1
             for i = 1:prob.N
-                cu[(M_nom + prob.M_dynamics + prob.M_ctrl + prob.M_stage + prob.M_general .+ (1:prob.M_uw))] .= Inf
+                cu[(M_nom + prob.M_dynamics + prob.M_policy + prob.M_stage + prob.M_general .+ (1:prob.M_uw))] .= Inf
             end
         end
     end

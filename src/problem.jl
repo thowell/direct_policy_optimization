@@ -106,7 +106,7 @@ function unpack(Z0,prob::TrajectoryOptimizationProblem)
     nu = prob.nu
     T = prob.T
     idx = prob.idx
-    
+
     X = [Z0[idx.x[t]] for t = 1:T]
     U = [Z0[idx.u[t]] for t = 1:T-1]
     H = [Z0[idx.h[t]] for t = 1:T-1]
