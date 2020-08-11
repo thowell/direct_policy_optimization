@@ -29,8 +29,8 @@ ul = -20.0
 
 tf0 = 0.36915
 h0 = tf0/(T-1)
-hu = h0
-hl = h0
+hu = 2.0*h0
+hl = 0.0*h0
 
 function discrete_dynamics(model::Biped,x⁺,x,u,h,t)
     if t == model.Tm
@@ -96,8 +96,8 @@ x1 = X_nominal[Tm]
 
 tf0 = 0.5*0.36915
 h0 = tf0/(T-1)
-hu = h0
-hl = h0
+hu = 2.0*h0
+hl = 0.0*h0
 
 xl_traj = [-Inf*ones(model.nx) for t = 1:T]
 xu_traj = [Inf*ones(model.nx) for t = 1:T]
