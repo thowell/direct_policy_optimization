@@ -13,8 +13,10 @@ include("objective.jl")
 # include("sample_objective.jl")
 #
 include("dynamics_constraints.jl")
-# include("stage_constraints.jl")
-# include("general_constraints.jl")
+include("contact_dynamics_constraints.jl")
+
+include("stage_constraints.jl")
+include("general_constraints.jl")
 #
 # include("sample_dynamics_constraints.jl")
 #

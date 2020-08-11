@@ -9,7 +9,7 @@ function stage_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
 	model = prob.model
 
 	m_shift = 0
-	for t = 1:T-1
+	for t = 1:T-2
 		if m_stage[t] > 0
 			x = Z[idx.x[t]]
 			u = Z[idx.u[t]]
@@ -29,7 +29,7 @@ function ∇stage_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 	shift = 0
 	m_shift = 0
 
-	for t = 1:T-1
+	for t = 1:T-2
 		if m_stage[t] > 0
 			c_tmp = zeros(m_stage[t])
 
@@ -67,7 +67,7 @@ function stage_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 	row = []
 	col = []
 	m_shift = 0
-	for t = 1:T-1
+	for t = 1:T-2
 		if m_stage[t] > 0
 			r_idx = r_shift + m_shift .+ (1:m_stage[t])
 

@@ -12,6 +12,7 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     Nh::Int
     M::Int # number of constraints
     M_dynamics::Int
+    M_contact_dynamics::Int
     M_stage::Int
     M_general::Int
     ul     # control lower bound
@@ -32,15 +33,15 @@ mutable struct TrajectoryOptimizationProblem <: Problem
 end
 
 function init_problem(nx,nu,T,model,obj;
-        ul=[-Inf*ones(nu) for t = 1:T-1],
-        uu=[Inf*ones(nu) for t = 1:T-1],
+        ul=[-Inf*ones(nu) for t = 1:T-2],
+        uu=[Inf*ones(nu) for t = 1:T-2],
         xl=[-Inf*ones(nx) for t = 1:T],
         xu=[Inf*ones(nx) for t = 1:T],
-        hl=[-Inf for t = 1:T-1],
-        hu=[Inf for t = 1:T-1],
+        hl=[-Inf for t = 1:T-2],
+        hu=[Inf for t = 1:T-2],
         stage_constraints::Bool=false,
-        m_stage=[0 for t=1:T-1],
-        stage_ineq=[(1:m_stage[t]) for t=1:T-1],
+        m_stage=[0 for t=1:T-2],
+        stage_ineq=[(1:m_stage[t]) for t=1:T-2],
         general_constraints::Bool=false,
         m_general=0,
         general_ineq=(1:m_general))
@@ -53,13 +54,14 @@ function init_problem(nx,nu,T,model,obj;
     N = Nx + Nu + Nh
 
     M_dynamics = nx*(T-2) + (T-3)
+    M_contact_dynamics = model.m_contact*(T-2)
     M_stage = stage_constraints*sum(m_stage)
     M_general = general_constraints*m_general
-    M = M_dynamics + M_stage + M_general
+    M = M_dynamics + M_contact_dynamics + M_stage + M_general
 
     return TrajectoryOptimizationProblem(nx,nu,T,
         N,Nx,Nu,Nh,
-        M,M_dynamics,M_stage,M_general,
+        M,M_dynamics,M_contact_dynamics,M_stage,M_general,
         ul,uu,
         xl,xu,
         hl,hu,
@@ -148,17 +150,21 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
     cl = zeros(M)
     cu = zeros(M)
 
-    # if prob.stage_constraints
-    #     m_shift = 0
-    #     for t = 1:T-1
-    #         cu[(prob.M_dynamics + m_shift .+ (1:prob.m_stage[t]))[prob.stage_ineq[t]]] .= Inf
-    #         m_shift += prob.m_stage[t]
-    #     end
-    # end
-    #
-    # if prob.general_constraints
-    #     cu[(prob.M_dynamics + prob.M_stage .+ (1:prob.M_general))[prob.general_ineq]] .= Inf
-    # end
+    for t = 1:T-2
+        cu[prob.M_dynamics .+ (1:prob.M_contact_dynamics)] .= Inf
+    end
+
+    if prob.stage_constraints
+        m_shift = 0
+        for t = 1:T-2
+            cu[(prob.M_dynamics + prob.M_contact_dynamics + m_shift .+ (1:prob.m_stage[t]))[prob.stage_ineq[t]]] .= Inf
+            m_shift += prob.m_stage[t]
+        end
+    end
+
+    if prob.general_constraints
+        cu[(prob.M_dynamics + prob.M_contact_dynamics + prob.M_stage .+ (1:prob.M_general))[prob.general_ineq]] .= Inf
+    end
 
     return cl, cu
 end
@@ -175,8 +181,12 @@ end
 
 function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
     dynamics_constraints!(view(c,1:prob.M_dynamics),Z,prob)
-    # prob.stage_constraints && stage_constraints!(view(c,prob.M_dynamics .+ (1:prob.M_stage)),Z,prob)
-    # prob.general_constraints && general_constraints!(view(c,prob.M_dynamics + prob.M_stage .+ (1:prob.M_general)),Z,prob)
+    contact_dynamics_constraints!(view(c,prob.M_dynamics .+ (1:prob.M_contact_dynamics)),Z,prob)
+
+    prob.stage_constraints && stage_constraints!(view(c,
+        prob.M_dynamics+prob.M_contact_dynamics .+ (1:prob.M_stage)),Z,prob)
+    prob.general_constraints && general_constraints!(view(c,
+        prob.M_dynamics+prob.M_contact_dynamics + prob.M_stage .+ (1:prob.M_general)),Z,prob)
 
     return nothing
 end
@@ -185,18 +195,25 @@ function eval_constraint_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     len_dyn_jac = length(sparsity_dynamics_jacobian(prob))
     dynamics_constraints_jacobian!(view(∇c,1:len_dyn_jac),Z,prob)
 
-    # len_stage_jac = length(stage_constraint_sparsity(prob))
-    # prob.stage_constraints && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob)
-    #
-    # len_general_jac = length(general_constraint_sparsity(prob))
-    # prob.general_constraints && ∇general_constraints!(view(∇c,len_dyn_jac+len_stage_jac .+ (1:len_general_jac)),Z,prob)
+    len_con_dyn_jac = length(sparsity_contact_dynamics_jacobian(prob))
+    contact_dynamics_constraints_jacobian!(view(∇c,len_dyn_jac .+ (1:len_con_dyn_jac)),Z,prob)
+
+    len_stage_jac = length(stage_constraint_sparsity(prob))
+    prob.stage_constraints && ∇stage_constraints!(view(∇c,len_dyn_jac+len_con_dyn_jac .+ (1:len_stage_jac)),Z,prob)
+
+    len_general_jac = length(general_constraint_sparsity(prob))
+    prob.general_constraints && ∇general_constraints!(view(∇c,len_dyn_jac+len_con_dyn_jac+len_stage_jac .+ (1:len_general_jac)),Z,prob)
     return nothing
 end
 
 function sparsity_jacobian(prob::TrajectoryOptimizationProblem)
     sparsity_dynamics = sparsity_dynamics_jacobian(prob)
-    # sparsity_stage = stage_constraint_sparsity(prob,r_shift=prob.M_dynamics)
-    # sparsity_general = general_constraint_sparsity(prob,r_shift=prob.M_dynamics+prob.M_stage)
-    #
-    # collect([sparsity_dynamics...,sparsity_stage...,sparsity_general...])
+    sparsity_contact_dynamics = sparsity_contact_dynamics_jacobian(prob,
+        r_shift=prob.M_dynamics)
+    sparsity_stage = stage_constraint_sparsity(prob,
+        r_shift=prob.M_dynamics+prob.M_contact_dynamics)
+    sparsity_general = general_constraint_sparsity(prob,
+        r_shift=prob.M_dynamics+prob.M_contact_dynamics+prob.M_stage)
+
+    collect([sparsity_dynamics...,sparsity_contact_dynamics...,sparsity_stage...,sparsity_general...])
 end

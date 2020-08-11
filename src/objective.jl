@@ -92,5 +92,26 @@ function objective_gradient!(∇l,Z,l::QuadraticTrackingObjective,model,idx,T)
     return nothing
 end
 
+mutable struct PenaltyObjective{T} <: Objective
+    α::T
+end
+
+function objective(Z,l::PenaltyObjective,model,idx,T)
+    J = 0
+    for t = 1:T-2
+        s = Z[idx.u[t][model.idx_s]]
+        J += s
+    end
+    return l.α*J
+end
+
+function objective_gradient!(∇l,Z,l::PenaltyObjective,model,idx,T)
+    for t = 1:T-2
+        u = Z[idx.u[t][model.idx_s]]
+        ∇l[idx.u[t][model.idx_s]] += l.α
+    end
+    return nothing
+end
+
 objective(Z,prob::TrajectoryOptimizationProblem) = objective(Z,prob.obj,prob.model,prob.idx,prob.T)
 objective_gradient!(∇l,Z,prob::TrajectoryOptimizationProblem) = objective_gradient!(∇l,Z,prob.obj,prob.model,prob.idx,prob.T)

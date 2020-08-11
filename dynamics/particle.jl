@@ -7,6 +7,9 @@ mutable struct Particle{T}
     nx
     nu
     nu_ctrl
+    nc
+    nf
+    nb
 
     idx_u
     idx_λ
@@ -14,6 +17,8 @@ mutable struct Particle{T}
     idx_ψ
     idx_η
     idx_s
+
+    m_contact
 end
 
 # Dimensions
@@ -25,6 +30,8 @@ nb = nc*nf
 
 nx = nq
 nu = nu_ctrl + nc + nb + nc + nb + 1
+
+m_contact = nc + 1
 
 idx_u = (1:nu_ctrl)
 idx_λ = nu_ctrl .+ (1:nc)
@@ -61,15 +68,6 @@ N_func(::Particle,q) = @SMatrix [0. 0. 1.]
 P_func(::Particle,q) = @SMatrix [1. 0. 0.;
                                  0. 1. 0.]
 
-model = Particle(m,μ,Δt,
-                 nx,nu,nu_ctrl,
-                 idx_u,
-                 idx_λ,
-                 idx_b,
-                 idx_ψ,
-                 idx_η,
-                 idx_s)
-
 function discrete_dynamics(model,x1,x2,x3,u,h,t)
     u_ctrl = u[model.idx_u]
     λ = u[model.idx_λ]
@@ -77,6 +75,17 @@ function discrete_dynamics(model,x1,x2,x3,u,h,t)
 
     (1/h[1])*(M_func(model,x1)*(x2 - x1) - M_func(model,x2)*(x3 - x2)) + h[1]*(0.5*C_func(model,x2,x3) - G_func(model,x2)) + transpose(B_func(model,x3))*u_ctrl + transpose(N_func(model,x3))*λ + transpose(P_func(model,x3))*b
 end
+
+model = Particle(m,μ,Δt,
+                 nx,nu,nu_ctrl,
+                 nc,nf,nb,
+                 idx_u,
+                 idx_λ,
+                 idx_b,
+                 idx_ψ,
+                 idx_η,
+                 idx_s,
+                 m_contact)
 
 function visualize!(vis,p::Particle,q; r=0.25)
 
