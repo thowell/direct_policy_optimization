@@ -14,8 +14,6 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     M_dynamics::Int
     M_stage::Int
     M_general::Int
-    x1     # initial state
-    xT     # goal state
     ul     # control lower bound
     uu     # control upper bound
     xl     # state lower bound
@@ -25,8 +23,6 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     idx    # indices
     model  # model
     obj    # objective
-    initial_constraint
-    goal_constraint
     stage_constraints
     m_stage
     stage_ineq
@@ -35,15 +31,13 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     general_ineq
 end
 
-function init_problem(nx,nu,T,x1,xT,model,obj;
+function init_problem(nx,nu,T,model,obj;
         ul=[-Inf*ones(nu) for t = 1:T-1],
         uu=[Inf*ones(nu) for t = 1:T-1],
         xl=[-Inf*ones(nx) for t = 1:T],
         xu=[Inf*ones(nx) for t = 1:T],
         hl=[-Inf for t = 1:T-1],
         hu=[Inf for t = 1:T-1],
-        initial_constraint::Bool=true,
-        goal_constraint::Bool=true,
         stage_constraints::Bool=false,
         m_stage=[0 for t=1:T-1],
         stage_ineq=[(1:m_stage[t]) for t=1:T-1],
@@ -54,11 +48,11 @@ function init_problem(nx,nu,T,x1,xT,model,obj;
     idx = init_indices(nx,nu,T)
 
     Nx = nx*T
-    Nu = nu*(T-1)
-    Nh = T-1
+    Nu = nu*(T-2)
+    Nh = T-2
     N = Nx + Nu + Nh
 
-    M_dynamics = nx*(T-1) + (T-2)
+    M_dynamics = nx*(T-2) + (T-3)
     M_stage = stage_constraints*sum(m_stage)
     M_general = general_constraints*m_general
     M = M_dynamics + M_stage + M_general
@@ -66,15 +60,12 @@ function init_problem(nx,nu,T,x1,xT,model,obj;
     return TrajectoryOptimizationProblem(nx,nu,T,
         N,Nx,Nu,Nh,
         M,M_dynamics,M_stage,M_general,
-        x1,xT,
         ul,uu,
         xl,xu,
         hl,hu,
         idx,
         model,
         obj,
-        initial_constraint,
-        goal_constraint,
         stage_constraints,
         m_stage,
         stage_ineq,
@@ -91,11 +82,13 @@ function pack(X0,U0,h0,prob::TrajectoryOptimizationProblem)
 
     Z0 = zeros(prob.N)
 
-    for t = 1:T-1
+    for t = 1:T-2
         Z0[idx.x[t]] = X0[t]
         Z0[idx.u[t]] = U0[t]
         Z0[idx.h[t]] = h0
     end
+
+    Z0[idx.x[T-1]] = X0[T-1]
     Z0[idx.x[T]] = X0[T]
 
     return Z0
@@ -108,8 +101,8 @@ function unpack(Z0,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
 
     X = [Z0[idx.x[t]] for t = 1:T]
-    U = [Z0[idx.u[t]] for t = 1:T-1]
-    H = [Z0[idx.h[t]] for t = 1:T-1]
+    U = [Z0[idx.u[t]] for t = 1:T-2]
+    H = [Z0[idx.h[t]] for t = 1:T-2]
 
     return X, U, H
 end
@@ -121,7 +114,6 @@ end
 
 
 function primal_bounds(prob::TrajectoryOptimizationProblem)
-
     T = prob.T
     idx = prob.idx
 
@@ -130,18 +122,21 @@ function primal_bounds(prob::TrajectoryOptimizationProblem)
     Zl = -Inf*ones(N)
     Zu = Inf*ones(N)
 
-    for t = 1:T-1
-        Zl[idx.x[t]] = (t==1 && prob.initial_constraint) ? prob.x1 : prob.xl[t]
+    for t = 1:T-2
+        Zl[idx.x[t]] = prob.xl[t]
         Zl[idx.u[t]] = prob.ul[t]
         Zl[idx.h[t]] = prob.hl[t]
 
-        Zu[idx.x[t]] = (t==1 && prob.initial_constraint) ? prob.x1 : prob.xu[t]
+        Zu[idx.x[t]] = prob.xu[t]
         Zu[idx.u[t]] = prob.uu[t]
         Zu[idx.h[t]] = prob.hu[t]
     end
 
-    Zl[idx.x[T]] = prob.goal_constraint ? prob.xT : prob.xl[T]
-    Zu[idx.x[T]] = prob.goal_constraint ? prob.xT : prob.xu[T]
+    Zl[idx.x[T-1]] = prob.xl[T-1]
+    Zu[idx.x[T-1]] = prob.xu[T-1]
+
+    Zl[idx.x[T]] = prob.xl[T]
+    Zu[idx.x[T]] = prob.xu[T]
 
     return Zl, Zu
 end
@@ -153,17 +148,17 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
     cl = zeros(M)
     cu = zeros(M)
 
-    if prob.stage_constraints
-        m_shift = 0
-        for t = 1:T-1
-            cu[(prob.M_dynamics + m_shift .+ (1:prob.m_stage[t]))[prob.stage_ineq[t]]] .= Inf
-            m_shift += prob.m_stage[t]
-        end
-    end
-
-    if prob.general_constraints
-        cu[(prob.M_dynamics + prob.M_stage .+ (1:prob.M_general))[prob.general_ineq]] .= Inf
-    end
+    # if prob.stage_constraints
+    #     m_shift = 0
+    #     for t = 1:T-1
+    #         cu[(prob.M_dynamics + m_shift .+ (1:prob.m_stage[t]))[prob.stage_ineq[t]]] .= Inf
+    #         m_shift += prob.m_stage[t]
+    #     end
+    # end
+    #
+    # if prob.general_constraints
+    #     cu[(prob.M_dynamics + prob.M_stage .+ (1:prob.M_general))[prob.general_ineq]] .= Inf
+    # end
 
     return cl, cu
 end
@@ -180,28 +175,28 @@ end
 
 function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
     dynamics_constraints!(view(c,1:prob.M_dynamics),Z,prob)
-    prob.stage_constraints && stage_constraints!(view(c,prob.M_dynamics .+ (1:prob.M_stage)),Z,prob)
-    prob.general_constraints && general_constraints!(view(c,prob.M_dynamics + prob.M_stage .+ (1:prob.M_general)),Z,prob)
+    # prob.stage_constraints && stage_constraints!(view(c,prob.M_dynamics .+ (1:prob.M_stage)),Z,prob)
+    # prob.general_constraints && general_constraints!(view(c,prob.M_dynamics + prob.M_stage .+ (1:prob.M_general)),Z,prob)
 
     return nothing
 end
 
 function eval_constraint_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     len_dyn_jac = length(sparsity_dynamics_jacobian(prob))
-    sparse_dynamics_constraints_jacobian!(view(∇c,1:len_dyn_jac),Z,prob)
+    dynamics_constraints_jacobian!(view(∇c,1:len_dyn_jac),Z,prob)
 
-    len_stage_jac = length(stage_constraint_sparsity(prob))
-    prob.stage_constraints && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob)
-
-    len_general_jac = length(general_constraint_sparsity(prob))
-    prob.general_constraints && ∇general_constraints!(view(∇c,len_dyn_jac+len_stage_jac .+ (1:len_general_jac)),Z,prob)
+    # len_stage_jac = length(stage_constraint_sparsity(prob))
+    # prob.stage_constraints && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob)
+    #
+    # len_general_jac = length(general_constraint_sparsity(prob))
+    # prob.general_constraints && ∇general_constraints!(view(∇c,len_dyn_jac+len_stage_jac .+ (1:len_general_jac)),Z,prob)
     return nothing
 end
 
 function sparsity_jacobian(prob::TrajectoryOptimizationProblem)
     sparsity_dynamics = sparsity_dynamics_jacobian(prob)
-    sparsity_stage = stage_constraint_sparsity(prob,r_shift=prob.M_dynamics)
-    sparsity_general = general_constraint_sparsity(prob,r_shift=prob.M_dynamics+prob.M_stage)
-
-    collect([sparsity_dynamics...,sparsity_stage...,sparsity_general...])
+    # sparsity_stage = stage_constraint_sparsity(prob,r_shift=prob.M_dynamics)
+    # sparsity_general = general_constraint_sparsity(prob,r_shift=prob.M_dynamics+prob.M_stage)
+    #
+    # collect([sparsity_dynamics...,sparsity_stage...,sparsity_general...])
 end

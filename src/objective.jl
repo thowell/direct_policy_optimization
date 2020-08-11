@@ -53,16 +53,18 @@ function objective(Z,l::QuadraticTrackingObjective,model,idx,T)
     c = l.c
 
     s = 0
-    for t = 1:T-1
-        x = Z[idx.x[t]]
-        u = Z[idx.u[t]]
+    for t = 1:T-2
+        u = Z[idx.u[t][model.idx_u]]
         h = Z[idx.h[t]]
-        x⁺ = Z[idx.x[t+1]]
 
-        s += stage_cost(model,x⁺,x,u,Q[t],R[t],x_ref[t],u_ref[t],h,c)
+        x3 = Z[idx.x[t+2]]
+        x3_ref = x_ref[t+2]
+        Q3 = Q[t+2]
+
+        s += h[1]*(x3-x3_ref)'*Q3*(x3-x3_ref)
+        s += h[1]*(u-u_ref[t])'*R[t]*(u-u_ref[t])
+        s += h[1]*c
     end
-    x = view(Z,idx.x[T])
-    s += terminal_cost(x,Q[T],x_ref[T])
 
     return s
 end
@@ -74,24 +76,18 @@ function objective_gradient!(∇l,Z,l::QuadraticTrackingObjective,model,idx,T)
     R = l.R
     c = l.c
 
-    for t = 1:T-1
-        x = Z[idx.x[t]]
-        u = Z[idx.u[t]]
+    for t = 1:T-2
+        u = Z[idx.u[t][model.idx_u]]
         h = Z[idx.h[t]]
-        x⁺ = Z[idx.x[t+1]]
 
-        stage_cost_x(z) = stage_cost(model,x⁺,z,u,Q[t],R[t],x_ref[t],u_ref[t],h,c)
-        stage_cost_u(z) = stage_cost(model,x⁺,x,z,Q[t],R[t],x_ref[t],u_ref[t],h,c)
-        stage_cost_h(z) = stage_cost(model,x⁺,x,u,Q[t],R[t],x_ref[t],u_ref[t],z,c)
-        stage_cost_x⁺(z) = stage_cost(model,z,x,u,Q[t],R[t],x_ref[t],u_ref[t],h,c)
+        x3 = Z[idx.x[t+2]]
+        x3_ref = x_ref[t+2]
+        Q3 = Q[t+2]
 
-        ∇l[idx.x[t]] += ForwardDiff.gradient(stage_cost_x,x)
-        ∇l[idx.u[t]] += ForwardDiff.gradient(stage_cost_u,u)
-        ∇l[idx.h[t]:idx.h[t]] += ForwardDiff.gradient(stage_cost_h,view(Z,idx.h[t]:idx.h[t]))
-        ∇l[idx.x[t+1]] += ForwardDiff.gradient(stage_cost_x⁺,x⁺)
+        ∇l[idx.x[t+2]] += 2.0*h[1]*Q3*(x3-x3_ref)
+        ∇l[idx.u[t][model.idx_u]] += 2.0*h[1]*R[t]*(u-u_ref[t])
+        ∇l[idx.h[t]] += c + (x3-x3_ref)'*Q3*(x3-x3_ref) + (u-u_ref[t])'*R[t]*(u-u_ref[t])
     end
-    x = view(Z,idx.x[T])
-    ∇l[idx.x[T]] += 2.0*Q[T]*(x-x_ref[T])
 
     return nothing
 end
