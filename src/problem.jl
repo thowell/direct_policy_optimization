@@ -6,6 +6,7 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     nx::Int # states
     nu::Int # controls
     T::Int # horizon
+    T_contact
     N::Int # number of decision variables
     Nx::Int
     Nu::Int
@@ -44,7 +45,8 @@ function init_problem(nx,nu,T,model,obj;
         stage_ineq=[(1:m_stage[t]) for t=1:T-2],
         general_constraints::Bool=false,
         m_general=0,
-        general_ineq=(1:m_general))
+        general_ineq=(1:m_general),
+        T_contact=[])
 
     idx = init_indices(nx,nu,T)
 
@@ -59,7 +61,8 @@ function init_problem(nx,nu,T,model,obj;
     M_general = general_constraints*m_general
     M = M_dynamics + M_contact_dynamics + M_stage + M_general
 
-    return TrajectoryOptimizationProblem(nx,nu,T,
+    return TrajectoryOptimizationProblem(nx,nu,
+        T,T_contact,
         N,Nx,Nu,Nh,
         M,M_dynamics,M_contact_dynamics,M_stage,M_general,
         ul,uu,

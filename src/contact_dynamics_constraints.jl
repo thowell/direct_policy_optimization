@@ -42,10 +42,10 @@ function contact_dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizat
         u = Z[idx.u[t]]
         h = Z[idx.h[t]]
 
-        medx2(z) = maximum_energy_dissipation(model,z,x3,u,h,t)
-        medx3(z) = maximum_energy_dissipation(model,x2,z,u,h,t)
-        medu(z) = maximum_energy_dissipation(model,x2,x3,z,h,t)
-        medh(z) = maximum_energy_dissipation(model,x2,x3,u,z,t)
+        medx2(z) = maximum_energy_dissipation(model,z,x3,u,h)
+        medx3(z) = maximum_energy_dissipation(model,x2,z,u,h)
+        medu(z) = maximum_energy_dissipation(model,x2,x3,z,h)
+        medh(z) = maximum_energy_dissipation(model,x2,x3,u,z)
         r_idx = (t-1)*m_contact .+ (1:model.nb)
 
         c_idx = idx.x[t+1]
@@ -119,7 +119,7 @@ function contact_dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizat
         shift += len
     end
 
-    ϕx(z) = ϕ_func(model,x)
+    ϕx(z) = ϕ_func(model,z)
     # c[(T-2)*m_contact .+ (1:model.nc)] = ϕ_func(model,Z[idx.x[1]])
     r_idx = (T-2)*m_contact .+ (1:model.nc)
     c_idx = idx.x[1]

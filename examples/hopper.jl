@@ -2,13 +2,11 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/hopper.jl")
 using Plots
 
-(13-3)/2 + 3
-(11-3)/2
 # Horizon
-T = 19
+T = 51
 Tm = convert(Int,(T-3)/2 + 3)
 
-tf = 1.0
+tf = 0.5
 model.Δt = tf/(T-1)
 
 zh = 0.1
@@ -37,13 +35,13 @@ ul = zeros(model.nu)
 ul[model.idx_u] .= -100.0
 
 # h = h0 (fixed timestep)
-hu = model.Δt
-hl = model.Δt
+hu = 2.0*model.Δt
+hl = 0.0*model.Δt
 qL
 # Objective
 Q = [t < T ? Diagonal([1.0,1.0,1.0,0.1,0.1]) : Diagonal(5.0*ones(model.nx)) for t = 1:T]
 R = [Diagonal([1.0e-1,1.0e-3]) for t = 1:T-2]
-c = 0.0
+c = 1.0
 
 # x1_ref = @SVector [0., model.r+zh, 0.5*model.r, 0., 0.]
 # xT_ref = @SVector [1.0, model.r+zh, 0.5*model.r, 0., 0.]
@@ -188,24 +186,25 @@ X0 = linear_interp(x1,xT,T)
 U0 = [0.001*rand(model.nu) for t = 1:T-2] # random controls
 
 # Pack trajectories into vector
-Z0 = pack(X0,U0,h0,prob)
+Z0 = pack(X0,U0,model.Δt,prob)
 @time Z_nominal = solve(prob_moi,copy(Z0))
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
-plot(hcat(U_nom...)[1:2,:]',linetype=:steppost)
+plot(hcat(U_nom...)[model.idx_u,:]',linetype=:steppost)
 
 s = [U_nom[t][model.idx_s] for t = 1:T-2]
 @assert norm(s,Inf) < 1.0e-5
 @assert norm(X_nom[Tm] - xM) < 1.0e-5
 @assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-5
-# using Colors
-# using CoordinateTransformations
-# using FileIO
-# using GeometryTypes
-# using LinearAlgebra
-# using MeshCat
-# using MeshIO
-# using Rotations
-#
-# vis = Visualizer()
-# open(vis)
+
+using Colors
+using CoordinateTransformations
+using FileIO
+using GeometryTypes
+using LinearAlgebra
+using MeshCat
+using MeshIO
+using Rotations
+
+vis = Visualizer()
+open(vis)
 visualize!(vis,model,X_nom)
