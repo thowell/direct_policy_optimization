@@ -19,6 +19,7 @@ include("contact_dynamics_constraints.jl")
 
 include("stage_constraints.jl")
 include("general_constraints.jl")
+
 #
 include("sample_dynamics_constraints.jl")
 include("sample_contact_dynamics_constraints.jl")

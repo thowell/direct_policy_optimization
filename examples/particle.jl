@@ -4,7 +4,8 @@ include("../src/velocity.jl")
 using Plots
 
 # Horizon
-T = 10
+T = 20
+model.Δt = 0.05
 
 # Initial and final states
 x1 = [0.0; 0.0; 1.0]
@@ -44,7 +45,7 @@ c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
 
-model.α = 10.0
+model.α = 100.0
 penalty_obj = PenaltyObjective(model.α)
 multi_obj = MultiObjective([obj,penalty_obj])
 
@@ -104,7 +105,7 @@ N = 2*model.nx
 models = [model for i =1:N]
 K0 = [rand(model.nu_ctrl,model.nx) for t = 1:T-2]
 β = 1.0
-w = 1.0e-2*ones(model.nx)
+w = 1.0e-5*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 

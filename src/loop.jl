@@ -1,114 +1,110 @@
 function general_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
 	nx = prob.nx
+	idx = prob.idx
 	T = prob.T
-	c[1:nx] = Z[prob.idx.x[1]] - Z[prob.idx.x[T]]
-	nothing
+	c[1:nx-1] = (Z[idx.x[3]] - Z[idx.x[T]])[2:end]
+
+	v1 = (Z[idx.x[3]] - Z[idx.x[2]])/Z[idx.h[1]]
+	vT = (Z[idx.x[T]] - Z[idx.x[T-1]])/Z[idx.h[T-2]]
+
+	c[nx-1 .+ (1:nx)] = v1 - vT
 end
 
 function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 	nx = prob.nx
-	T = prob.T
+	idx = prob.idx
 
-	s = 0
-	# c[1:nx] = Z[prob.idx.x[1]] - Z[prob.idx.x[T]]
+	shift = 0
 
-	r_idx = (1:nx)
+	r_idx = 1:nx-1
 
-	c_idx = prob.idx.x[1]
+	c_idx = idx.x[3][2:end]
 	len = length(r_idx)*length(c_idx)
-	∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
-	s += len
+	∇c[shift .+ (1:len)] = vec(Diagonal(ones(nx-1)))
+	shift += len
 
-	c_idx = prob.idx.x[T]
+	c_idx = idx.x[T][2:end]
 	len = length(r_idx)*length(c_idx)
-	∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)))
-	s += len
+	∇c[shift .+ (1:len)] = vec(Diagonal(-1.0*ones(nx-1)))
+	shift += len
+
+	# v1 = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]]
+	# vT = (Z[idx.x[10]] - Z[idx.x[9]])/Z[idx.h[9]]
+	#
+	# c[nx-1 .+ (1:nx)] = v1 - vT
+	r_idx = nx-1 .+ (1:nx)
+
+	c_idx = idx.x[2]
+	len = length(r_idx)*length(c_idx)
+	∇c[shift .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)./Z[idx.h[1]]))
+	shift += len
+
+	c_idx = idx.x[3]
+	len = length(r_idx)*length(c_idx)
+	∇c[shift .+ (1:len)] = vec(Diagonal(1.0*ones(nx)./Z[idx.h[1]]))
+	shift += len
+
+	c_idx = idx.h[1]
+	len = length(r_idx)*length(c_idx)
+	∇c[shift .+ (1:len)] = vec(-1.0*(Z[idx.x[3]] - Z[idx.x[2]])/(Z[idx.h[1]]*Z[idx.h[1]]))
+	shift += len
+
+	c_idx = idx.x[T-1]
+	len = length(r_idx)*length(c_idx)
+	∇c[shift .+ (1:len)] = vec(Diagonal(1.0*ones(nx)./Z[idx.h[T-2]]))
+	shift += len
+
+	c_idx = idx.x[T]
+	len = length(r_idx)*length(c_idx)
+	∇c[shift .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)./Z[idx.h[T-2]]))
+	shift += len
+
+	c_idx = idx.h[9]
+	len = length(r_idx)*length(c_idx)
+	∇c[shift .+ (1:len)] = vec(1.0*(Z[idx.x[T]] - Z[idx.x[T-1]])/(Z[idx.h[T-2]]*Z[idx.h[T-2]]))
+	shift += len
 
 	nothing
 end
 
 function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 		r_shift=0)
+
 	row = []
 	col = []
 
 	nx = prob.nx
-	T = prob.T
+	idx = prob.idx
 
-	r_idx = r_shift .+ (1:nx)
+	# c[1:nx] = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]]
 
-	c_idx = prob.idx.x[1]
+	r_idx = r_shift .+ (1:nx-1)
+
+	c_idx = idx.x[3][2:end]
 	row_col!(row,col,r_idx,c_idx)
 
-	c_idx = prob.idx.x[T]
+	c_idx = idx.x[T][2:end]
 	row_col!(row,col,r_idx,c_idx)
 
-	return collect(zip(row,col))
-end
+	r_idx = r_shift + nx-1 .+ (1:nx)
 
-function general_constraints!(c,Z,prob::SampleProblem)
-	T = prob.prob.T
-	N = prob.N
-	nx = prob.prob.nx
-	for i = 1:N
-		c[(i-1)*nx .+ (1:nx)] = Z[prob.idx_sample[i].x[1]] - Z[prob.idx_sample[i].x[T]]
-	end
-	nothing
-end
+	c_idx = idx.x[2]
+	row_col!(row,col,r_idx,c_idx)
 
-function ∇general_constraints!(∇c,Z,prob::SampleProblem)
-	T = prob.prob.T
-	N = prob.N
-	nx = prob.prob.nx
+	c_idx = idx.x[3]
+	row_col!(row,col,r_idx,c_idx)
 
-	s = 0
-	for i = 1:N
-		# c[(i-1)*nx .+ (1:nx)] = Z[idx[i].x[1]] - Z[idx[i].x[T]]
+	c_idx = idx.h[1]
+	row_col!(row,col,r_idx,c_idx)
 
-		r_idx = (i-1)*nx .+ (1:nx)
+	c_idx = idx.x[T-1]
+	row_col!(row,col,r_idx,c_idx)
 
-		c_idx = prob.idx_sample[i].x[1]
-		len = length(r_idx)*length(c_idx)
-		∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
-		s += len
+	c_idx = idx.x[T]
+	row_col!(row,col,r_idx,c_idx)
 
-		c_idx = prob.idx_sample[i].x[T]
-		len = length(r_idx)*length(c_idx)
-		∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)))
-		s += len
-	end
-	nothing
-end
-
-function general_constraint_sparsity(prob::SampleProblem;
-		r_shift=0)
-	row = []
-	col = []
-
-	T = prob.prob.T
-	N = prob.N
-	nx = prob.prob.nx
-
-	s = 0
-	for i = 1:N
-		# c[(i-1)*nx .+ (1:nx)] = Z[idx[i].x[1]] - Z[idx[i].x[T]]
-
-		r_idx = r_shift + (i-1)*nx .+ (1:nx)
-
-		c_idx = prob.idx_sample[i].x[1]
-
-		row_col!(row,col,r_idx,c_idx)
-		# len = length(r_idx)*length(c_idx)
-		# ∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
-		# s += len
-
-		c_idx = prob.idx_sample[i].x[T]
-		row_col!(row,col,r_idx,c_idx)
-
-		# len = length(r_idx)*length(c_idx)
-		# ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)))
-		# s += len
-	end
+	c_idx = idx.h[T-2]
+	row_col!(row,col,r_idx,c_idx)
 
 	return collect(zip(row,col))
 end
