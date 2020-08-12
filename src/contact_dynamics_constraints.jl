@@ -1,7 +1,5 @@
 function contact_dynamics_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
-    nx = prob.nx
-    nu = prob.nu
     T = prob.T
     model = prob.model
 
@@ -49,8 +47,6 @@ end
 
 function contact_dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
-    nx = prob.nx
-    nu = prob.nu
     T = prob.T
     model = prob.model
 
@@ -160,8 +156,6 @@ end
 function sparsity_contact_dynamics_jacobian(prob::TrajectoryOptimizationProblem;
         r_shift=0)
     idx = prob.idx
-    nx = prob.nx
-    nu = prob.nu
     T = prob.T
     model = prob.model
 

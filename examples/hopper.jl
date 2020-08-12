@@ -3,7 +3,7 @@ include("../dynamics/hopper.jl")
 using Plots
 
 # Horizon
-T = 51
+T = 21
 Tm = convert(Int,(T-3)/2 + 3)
 
 tf = 0.5

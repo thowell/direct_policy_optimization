@@ -4,7 +4,7 @@ function obj_l1(z,prob::SampleProblem)
 
     J = 0.0
     N = length(idx_slack)
-    for t = 1:T-1
+    for t = 1:T-2
         for i = 1:N
             s = view(z,idx_slack[i][t])
             J += sum(s)
@@ -19,7 +19,7 @@ function ∇obj_l1!(∇obj,z,prob::SampleProblem)
     idx_slack = prob.idx_slack
     α = prob.α
     N = length(idx_slack)
-    for t = 1:T-1
+    for t = 1:T-2
         for i = 1:N
             ∇obj[idx_slack[i][t]] .+= α
         end
@@ -36,7 +36,7 @@ function sample_disturbance_constraints!(c,z,prob::SampleProblem)
 
     N = length(idx_uw)
     nx = length(idx_uw[1][1])
-    for t = 1:T-1
+    for t = 1:T-2
         for i = 1:N
             ti = view(z,idx_slack[i][t])
             uwi = view(z,idx_uw[i][t])
@@ -62,7 +62,7 @@ function ∇sample_disturbance_constraints!(∇c,z,prob::SampleProblem)
     N = length(idx_uw)
     nx = length(idx_uw[1][1])
 
-    for t = 1:T-1
+    for t = 1:T-2
         for i = 1:N
             ti = view(z,idx_slack[i][t])
             uwi = view(z,idx_uw[i][t])
@@ -117,7 +117,7 @@ function sparsity_jacobian_sample_disturbance(prob::SampleProblem;
     N = length(idx_uw)
     nx = length(idx_uw[1][1])
 
-    for t = 1:T-1
+    for t = 1:T-2
         for i = 1:N
             # ti = view(z,idx_slack[i][t])
             # uwi = view(z,idx_sample[i].u[t][nu .+ (1:nw[i])])
@@ -164,7 +164,7 @@ function unpack_disturbance(Z0,prob::SampleProblem)
     T = prob.prob.T
     N = prob.N
 
-    Uw_sample = [[Z0[prob.idx_uw[i][t]] for t = 1:T-1] for i = 1:N]
+    Uw_sample = [[Z0[prob.idx_uw[i][t]] for t = 1:T-2] for i = 1:N]
 
     return Uw_sample
 end

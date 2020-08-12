@@ -19,7 +19,7 @@ function sample_objective(z,prob::SampleProblem)
             J += (xi - x_nom)'*Q[t]*(xi - x_nom)
         end
 
-        t==T && continue
+        t > T-2 && continue
         u_nom = view(z,idx_nom.u[t])
         h_nom = z[idx_nom.h[t]]
 
@@ -54,7 +54,7 @@ function ∇sample_objective!(∇obj,z,prob::SampleProblem)
             ∇obj[idx_nom.x[t]] -= 2.0*Q[t]*(xi - x_nom)*γ/N
         end
 
-        t==T && continue
+        t > T-2 && continue
         u_nom = view(z,idx_nom.u[t])
         h_nom = z[idx_nom.h[t]]
 

@@ -18,21 +18,22 @@ function sample_dynamics_constraints!(c,z,prob::SampleProblem)
     nx = length(idx_nom.x[1])
     nu = length(u_policy)
 
-    # dynamics + resampling (x1 is taken care of w/ primal bounds)
-    for t = 1:T-1
-        x⁺_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
-        xs⁺ = resample(x⁺_tmp,β=β,w=w) # resample
+    # dynamics + resampling (x1 and x2 are taken care of w/ primal bounds)
+    for t = 1:T-2
+        x3_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
+        x3s = resample(x3_tmp,β=β,w=w) # resample
 
         for i = 1:N
-            xi = view(z,idx_sample[i].x[t])
+            x1i = view(z,idx_sample[i].x[t])
+            x2i = view(z,idx_sample[i].x[t+1])
+            x3i = view(z,idx_sample[i].x[t+2])
+
             ui = view(z,idx_sample[i].u[t])
             hi = view(z,idx_sample[i].h[t])
 
-            xi⁺ = view(z,idx_sample[i].x[t+1])
-
-            c[shift .+ (1:nx)] = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,hi,t)
+            c[shift .+ (1:nx)] = discrete_dynamics(models[i],x1i,x2i,x3_tmp[i],ui,hi,t)
             shift += nx
-            c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
+            c[shift .+ (1:nx)] = x3s[i] - x3i
 
             if disturbance_ctrl
                 uwi = view(z,idx_uw[i][t])
@@ -41,7 +42,7 @@ function sample_dynamics_constraints!(c,z,prob::SampleProblem)
 
             shift += nx
 
-            if t < T-1
+            if t < T-2
                 hi⁺ = view(z,idx_sample[i].h[t+1])
 
                 c[shift + 1] = hi⁺[1] - hi[1]
@@ -74,49 +75,52 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::SampleProblem)
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
     s = 0
-    for t = 1:T-1
-        x⁺_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
-        x⁺_tmp_vec = vcat(x⁺_tmp...)
+    for t = 1:T-2
+        x3_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
+        x3_tmp_vec = vcat(x3_tmp...)
         idx_x_tmp_vec = vcat([idx_x_tmp[i].x[t] for i = 1:N]...)
-        xs⁺ = resample(x⁺_tmp,β=β,w=w) # resample
+        x3s = resample(x3_tmp,β=β,w=w) # resample
 
         for i = 1:N
-            xi = view(z,idx_sample[i].x[t])
+            x1i = view(z,idx_sample[i].x[t])
+            x2i = view(z,idx_sample[i].x[t+1])
+            x3i = view(z,idx_sample[i].x[t+2])
             ui = view(z,idx_sample[i].u[t])
             hi = z[idx_sample[i].h[t]]
-            xi⁺ = view(z,idx_sample[i].x[t+1])
 
-            dyn_x(a) = discrete_dynamics(models[i],x⁺_tmp[i],a,ui,hi,t)
-            dyn_u(a) = discrete_dynamics(models[i],x⁺_tmp[i],xi,a,hi,t)
-            dyn_h(a) = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,a,t)
-            dyn_x_tmp(a) = discrete_dynamics(models[i],a,xi,ui,hi,t)
-            resample_x_tmp(a) = resample_vec(a,nx,N,i,β=β,w=w) # resample
+            dyn_x1(a) = discrete_dynamics(models[i],a,x2i,x3_tmp[i],ui,hi,t)
+            dyn_x2(a) = discrete_dynamics(models[i],x1i,a,x3_tmp[i],ui,hi,t)
+            dyn_x3(a) = discrete_dynamics(models[i],x1i,x2i,a,ui,hi,t)
+            dyn_u(a) = discrete_dynamics(models[i],x1i,x2i,x3_tmp[i],a,hi,t)
+            dyn_h(a) = discrete_dynamics(models[i],x1i,x2i,x3_tmp[i],ui,a,t)
+            resample_x3_tmp(a) = resample_vec(a,nx,N,i,β=β,w=w) # resample
 
             # c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)
             r_idx = shift .+ (1:nx)
 
             c_idx = idx_sample[i].x[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x,xi)
             len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x,xi))
+            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x1,x1i))
+            s += len
+
+            c_idx = idx_sample[i].x[t+1]
+            len = length(r_idx)*length(c_idx)
+            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x2,x2i))
+            s += len
+
+            c_idx = idx_x_tmp[i].x[t]
+            len = length(r_idx)*length(c_idx)
+            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x3,x3_tmp[i]))
             s += len
 
             c_idx = idx_sample[i].u[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_u,ui)
             len = length(r_idx)*length(c_idx)
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_u,ui))
             s += len
 
             c_idx = idx_sample[i].h[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t]))
             len = length(r_idx)*length(c_idx)
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_h,view(z,idx_sample[i].h[t])))
-            s += len
-
-            c_idx = idx_x_tmp[i].x[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i])
-            len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i]))
             s += len
 
             shift += nx
@@ -124,16 +128,14 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::SampleProblem)
             # c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
             r_idx = shift .+ (1:nx)
 
-            c_idx = idx_sample[i].x[t+1]
-            # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nx))
+            c_idx = idx_sample[i].x[t+2]
             len = length(r_idx)*length(c_idx)
             ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)))
             s += len
 
             c_idx = idx_x_tmp_vec
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec)
             len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec))
+            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(resample_x3_tmp,x3_tmp_vec))
             s += len
 
             if disturbance_ctrl
@@ -147,7 +149,7 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::SampleProblem)
 
             shift += nx
 
-            if t < T-1
+            if t < T-2
                 r_idx = shift .+ (1:1)
 
                 c_idx = idx_sample[i].h[t+1]
@@ -196,52 +198,24 @@ function sparsity_jacobian_sample_dynamics(prob::SampleProblem;
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
     for t = 1:T-1
-        # h = z[idx_nom.h[t]]
-        # x⁺_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
-        # x⁺_tmp_vec = vcat(x⁺_tmp...)
         idx_x_tmp_vec = vcat([idx_x_tmp[i].x[t] for i = 1:N]...)
-        # xs⁺ = resample(x⁺_tmp,β=β,w=w) # resample
 
         for i = 1:N
-            # xi = view(z,idx_sample[i].x[t])
-            # ui = view(z,idx_sample[i].u[t])
-            # xi⁺ = view(z,idx_sample[i].x[t+1])
-            #
-            # dyn_x(a) = integration(models[i],x⁺_tmp[i],a,ui,h)
-            # dyn_u(a) = integration(models[i],x⁺_tmp[i],xi,a,h)
-            # dyn_h(a) = integration(models[i],x⁺_tmp[i],xi,ui,a)
-            # dyn_x_tmp(a) = integration(models[i],a,xi,ui,h)
-            # resample_x_tmp(a) = resample_vec(a,nx,N,i,β=β,w=w) # resample
-
-            # c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)
             r_idx = r_shift + shift .+ (1:nx)
 
             c_idx = idx_sample[i].x[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x,xi)
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x,xi))
-            # s += len
             row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_sample[i].u[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_u,ui)
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_u,ui))
-            # s += len
-            row_col!(row,col,r_idx,c_idx)
-
-            c_idx = idx_sample[i].h[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t]))
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t])))
-            # s += len
+            c_idx = idx_sample[i].x[t+1]
             row_col!(row,col,r_idx,c_idx)
 
             c_idx = idx_x_tmp[i].x[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i])
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i]))
-            # s += len
+            row_col!(row,col,r_idx,c_idx)
+
+            c_idx = idx_sample[i].u[t]
+            row_col!(row,col,r_idx,c_idx)
+
+            c_idx = idx_sample[i].h[t]
             row_col!(row,col,r_idx,c_idx)
 
             shift += nx
@@ -249,48 +223,26 @@ function sparsity_jacobian_sample_dynamics(prob::SampleProblem;
             # c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
             r_idx = r_shift + shift .+ (1:nx)
 
-            c_idx = idx_sample[i].x[t+1]
-            # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nx))
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)))
-            # s += len
+            c_idx = idx_sample[i].x[t+2]
             row_col!(row,col,r_idx,c_idx)
 
             c_idx = idx_x_tmp_vec
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec)
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec))
-            # s += len
             row_col!(row,col,r_idx,c_idx)
 
             if disturbance_ctrl
-                # uwi = view(z,idx_sample[i].u[t][nu .+ (1:nx)])
-                # c[shift .+ (1:nx)] += uwi
                 c_idx = idx_uw[i][t]
-                # len = length(r_idx)*length(c_idx)
-                # ∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
-                # s += len
                 row_col!(row,col,r_idx,c_idx)
             end
 
             shift += nx
 
-            if t < T-1
+            if t < T-2
                 r_idx = r_shift + shift .+ (1:1)
 
                 c_idx = idx_sample[i].h[t+1]
-
-                # len = length(r_idx)*length(c_idx)
-                # ∇c[s + 1] = 1.0
-                # s += len
-
                 row_col!(row,col,r_idx,c_idx)
 
                 c_idx = idx_sample[i].h[t]
-                # len = length(r_idx)*length(c_idx)
-                # ∇c[s + 1] = -1.0
-                # s += len
-
                 row_col!(row,col,r_idx,c_idx)
 
                 shift += 1

@@ -20,13 +20,13 @@ function sample_policy_constraints!(c,z,prob::SampleProblem)
     nu_policy = length(u_policy)
 
     # controller for samples
-    for t = 1:T-1
-        x_nom = view(z,idx_nom.x[t])
+    for t = 1:T-2
+        x_nom = view(z,idx_nom.x[t+2])
         u_nom = view(z,idx_nom.u[t][u_policy])
         K = view(z,idx_K[t])
 
         for i = 1:N
-            xi = view(z,idx_sample[i].x[t])
+            xi = view(z,idx_sample[i].x[t+2])
             ui = view(z,idx_sample[i].u[t][u_policy])
             ūi = view(z,idx_sample[i].u[t][(nu_policy+1):nu])
             # c[shift .+ (1:nu_policy)] = ui + K*(xi - x_nom) - u_nom
@@ -64,13 +64,13 @@ function ∇sample_policy_constraints!(∇c,z,prob::SampleProblem)
     s = 0
 
     # policy for samples
-    for t = 1:T-1
-        x_nom = view(z,idx_nom.x[t])
+    for t = 1:T-2
+        x_nom = view(z,idx_nom.x[t+2])
         u_nom = view(z,idx_nom.u[t][u_policy])
         K = view(z,idx_K[t])
 
         for i = 1:N
-            xi = view(z,idx_sample[i].x[t])
+            xi = view(z,idx_sample[i].x[t+2])
             ui = view(z,idx_sample[i].u[t][u_policy])
             ūi = view(z,idx_sample[i].u[t][(nu_policy+1):nu])
 
@@ -89,7 +89,7 @@ function ∇sample_policy_constraints!(∇c,z,prob::SampleProblem)
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(pK,K))
             s += len
 
-            c_idx = idx_sample[i].x[t]
+            c_idx = idx_sample[i].x[t+2]
             len = length(r_idx)*length(c_idx)
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(pxi,xi))
             s += len
@@ -99,7 +99,7 @@ function ∇sample_policy_constraints!(∇c,z,prob::SampleProblem)
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(pūi,ūi))
             s += len
 
-            c_idx = idx_nom.x[t]
+            c_idx = idx_nom.x[t+2]
             len = length(r_idx)*length(c_idx)
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(px_nom,x_nom))
             s += len
@@ -146,7 +146,7 @@ function sparsity_jacobian_sample_policy(prob::SampleProblem;
     col = []
 
     # controller for samples
-    for t = 1:T-1
+    for t = 1:T-2
         for i = 1:N
 
             r_idx = r_shift + shift .+ (1:nu_policy)
@@ -154,13 +154,13 @@ function sparsity_jacobian_sample_policy(prob::SampleProblem;
             c_idx = idx_K[t]
             row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_sample[i].x[t]
+            c_idx = idx_sample[i].x[t+2]
             row_col!(row,col,r_idx,c_idx)
 
             c_idx = idx_sample[i].u[t][(nu_policy+1):nu]
             row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_nom.x[t]
+            c_idx = idx_nom.x[t+2]
             row_col!(row,col,r_idx,c_idx)
 
             c_idx = idx_nom.u[t][u_policy]
