@@ -54,7 +54,7 @@ function init_problem(nx,nu,T,model,obj;
     N = Nx + Nu + Nh
 
     M_dynamics = nx*(T-2) + (T-3)
-    M_contact_dynamics = model.m_contact*(T-2)
+    M_contact_dynamics = model.m_contact*(T-2) + 2*model.nc
     M_stage = stage_constraints*sum(m_stage)
     M_general = general_constraints*m_general
     M = M_dynamics + M_contact_dynamics + M_stage + M_general
@@ -151,8 +151,9 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
     cu = zeros(M)
 
     for t = 1:T-2
-        cu[prob.M_dynamics .+ (1:prob.M_contact_dynamics)] .= Inf
+        cu[(prob.M_dynamics + (t-1)*prob.model.m_contact .+ (1:prob.model.m_contact))[(prob.model.nb+1):prob.model.m_contact]] .= Inf
     end
+    cu[(prob.M_dynamics + (T-2)*prob.model.m_contact .+ (1:2*prob.model.nc))] .= Inf
 
     if prob.stage_constraints
         m_shift = 0
@@ -216,4 +217,5 @@ function sparsity_jacobian(prob::TrajectoryOptimizationProblem)
         r_shift=prob.M_dynamics+prob.M_contact_dynamics+prob.M_stage)
 
     collect([sparsity_dynamics...,sparsity_contact_dynamics...,sparsity_stage...,sparsity_general...])
+    # collect([sparsity_dynamics...,sparsity_stage...,sparsity_general...])
 end

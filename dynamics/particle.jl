@@ -31,7 +31,7 @@ nb = nc*nf
 nx = nq
 nu = nu_ctrl + nc + nb + nc + nb + 1
 
-m_contact = nc + 1
+m_contact = nb + nc + nc + 3
 
 idx_u = (1:nu_ctrl)
 idx_λ = nu_ctrl .+ (1:nc)
@@ -74,6 +74,16 @@ function discrete_dynamics(model,x1,x2,x3,u,h,t)
     b = u[model.idx_b]
 
     (1/h[1])*(M_func(model,x1)*(x2 - x1) - M_func(model,x2)*(x3 - x2)) + h[1]*(0.5*C_func(model,x2,x3) - G_func(model,x2)) + transpose(B_func(model,x3))*u_ctrl + transpose(N_func(model,x3))*λ + transpose(P_func(model,x3))*b
+end
+
+function friction_cone(model,u)
+    @SVector [model.μ*u[model.idx_λ[1]] - sum(u[model.idx_b])]
+end
+
+function maximum_energy_dissipation(model,x2,x3,u,h)
+    ψ_stack = u[model.idx_ψ][1]*ones(model.nb)
+    η = u[model.idx_η]
+    P_func(model,x3)*(x3-x2)/h[1] + ψ_stack - η
 end
 
 model = Particle(m,μ,Δt,

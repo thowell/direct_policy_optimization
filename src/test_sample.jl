@@ -40,3 +40,18 @@ for (i,k) in enumerate(spar)
 end
 @assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmp_c,c0,Z0_test))) < 1.0e-10
 @assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_test)) < 1.0e-10
+
+c0 = zeros(prob.M_contact_dynamics)
+contact_dynamics_constraints!(c0,Z0_test,prob)
+tmp_c(c,z) = contact_dynamics_constraints!(c,z,prob)
+ForwardDiff.jacobian(tmp_c,c0,Z0_test)
+
+spar = sparsity_contact_dynamics_jacobian(prob)
+∇c_vec = zeros(length(spar))
+∇c = zeros(prob.M_contact_dynamics,prob.N)
+contact_dynamics_constraints_jacobian!(∇c_vec,Z0_test,prob)
+for (i,k) in enumerate(spar)
+    ∇c[k[1],k[2]] = ∇c_vec[i]
+end
+@assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmp_c,c0,Z0_test))) < 1.0e-10
+@assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_test)) < 1.0e-10
