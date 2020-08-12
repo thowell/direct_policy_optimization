@@ -175,7 +175,9 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     hu=[hu for t = 1:T-2],
 					general_constraints=true,
 					m_general=model.nx-1+model.nx,
-					general_ineq=(1:0)
+					general_ineq=(1:0),
+					contact_sequence=true,
+					T_contact_sequence=[Tm]
                     )
 
 # MathOptInterface problem
@@ -190,11 +192,12 @@ Z0 = pack(X0,U0,model.Δt,prob)
 @time Z_nominal = solve(prob_moi,copy(Z0))
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 plot(hcat(U_nom...)[model.idx_u,:]',linetype=:steppost)
-
 s = [U_nom[t][model.idx_s] for t = 1:T-2]
 @assert norm(s,Inf) < 1.0e-5
 @assert norm(X_nom[Tm] - xM) < 1.0e-5
 @assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-5
+λ = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
+plot(λ,linetype=:steppost)
 
 using Colors
 using CoordinateTransformations

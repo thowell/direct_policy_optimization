@@ -164,35 +164,35 @@ function primal_bounds(prob::TrajectoryOptimizationProblem)
     Zu[idx.x[T]] = prob.xu[T]
 
     # fixed contact sequence
-    # if prob.contact_sequence
-    #     for t = 1:T-2
-    #         if t in prob.T_contact
-    #             # Zl[idx.u[t][model.idx_λ]]
-    #             # Zu[idx.u[t][model.idx_λ]]
-    #             #
-    #             # Zl[idx.u[t][model.idx_b]]
-    #             # Zu[idx.u[t][model.idx_b]]
-    #             #
-    #             # Zl[idx.u[t][model.idx_ψ]]
-    #             # Zu[idx.u[t][model.idx_ψ]]
-    #
-    #             Zl[idx.u[t][model.idx_η]] .= 0.0
-    #             Zu[idx.u[t][model.idx_η]] .= 0.0
-    #         else
-    #             Zl[idx.u[t][model.idx_λ]] .= 0.0
-    #             Zu[idx.u[t][model.idx_λ]] .= 0.0
-    #
-    #             Zl[idx.u[t][model.idx_b]] .= 0.0
-    #             Zu[idx.u[t][model.idx_b]] .= 0.0
-    #
-    #             Zl[idx.u[t][model.idx_ψ]] .= 0.0
-    #             Zu[idx.u[t][model.idx_ψ]] .= 0.0
-    #
-    #             # Zl[idx.u[t][model.idx_η]]
-    #             # Zu[idx.u[t][model.idx_η]]
-    #         end
-    #     end
-    # end
+    if prob.contact_sequence
+        for t = 1:T-2
+            if t in prob.T_contact_sequence
+                # Zl[idx.u[t][model.idx_λ]]
+                # Zu[idx.u[t][model.idx_λ]]
+                #
+                # Zl[idx.u[t][model.idx_b]]
+                # Zu[idx.u[t][model.idx_b]]
+                #
+                # Zl[idx.u[t][model.idx_ψ]]
+                # Zu[idx.u[t][model.idx_ψ]]
+
+                # Zl[idx.u[t][model.idx_η]] .= 0.0
+                # Zu[idx.u[t][model.idx_η]] .= 0.0
+            else
+                # Zl[idx.u[t][model.idx_λ]] .= 0.0
+                # Zu[idx.u[t][model.idx_λ]] .= 0.0
+
+                # Zl[idx.u[t][model.idx_b]] .= 0.0
+                # Zu[idx.u[t][model.idx_b]] .= 0.0
+                #
+                # Zl[idx.u[t][model.idx_ψ]] .= 0.0
+                # Zu[idx.u[t][model.idx_ψ]] .= 0.0
+
+                # Zl[idx.u[t][model.idx_η]]
+                # Zu[idx.u[t][model.idx_η]]
+            end
+        end
+    end
 
     return Zl, Zu
 end
@@ -207,6 +207,12 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
     # contact dynamics
     # sdf
     cu[prob.M_dynamics .+ (1:prob.M_contact_sdf)] .= Inf
+    if prob.contact_sequence
+        for t in prob.T_contact_sequence
+            cu[prob.M_dynamics + (t-1)*prob.model.nc .+ (1:prob.model.nc)] .= 0.0
+        end
+    end
+
     # med
     cu[prob.M_dynamics+prob.M_contact_sdf .+ (1:prob.M_contact_med)] .= 0.0
     # fc

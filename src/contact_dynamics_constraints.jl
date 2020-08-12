@@ -33,7 +33,7 @@ function contact_dynamics_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
     end
 
     m_fc = model.nc*(T-2)
-    
+
     # complementarity
     for t = 1:T-2
         x3 = Z[idx.x[t+2]]
