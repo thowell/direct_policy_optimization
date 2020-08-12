@@ -6,7 +6,6 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     nx::Int # states
     nu::Int # controls
     T::Int # horizon
-    T_contact
     N::Int # number of decision variables
     Nx::Int
     Nu::Int
@@ -14,6 +13,10 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     M::Int # number of constraints
     M_dynamics::Int
     M_contact_dynamics::Int
+    M_contact_sdf::Int
+    M_contact_med::Int
+    M_contact_fc::Int
+    M_contact_comp::Int
     M_stage::Int
     M_general::Int
     ul     # control lower bound
@@ -31,6 +34,8 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     general_constraints
     m_general
     general_ineq
+    contact_sequence
+    T_contact_sequence
 end
 
 function init_problem(nx,nu,T,model,obj;
@@ -46,7 +51,8 @@ function init_problem(nx,nu,T,model,obj;
         general_constraints::Bool=false,
         m_general=0,
         general_ineq=(1:m_general),
-        T_contact=[])
+        contact_sequence::Bool=false,
+        T_contact_sequence=[])
 
     idx = init_indices(nx,nu,T)
 
@@ -56,15 +62,27 @@ function init_problem(nx,nu,T,model,obj;
     N = Nx + Nu + Nh
 
     M_dynamics = nx*(T-2) + (T-3)
-    M_contact_dynamics = model.m_contact*(T-2) + 2*model.nc
+    M_contact_sdf = model.nc*T
+    M_contact_med = model.nb*(T-2)
+    M_contact_fc = model.nc*(T-2)
+    M_contact_comp = 3*(T-2)
+    M_contact_dynamics = M_contact_sdf + M_contact_med + M_contact_fc + M_contact_comp
     M_stage = stage_constraints*sum(m_stage)
     M_general = general_constraints*m_general
     M = M_dynamics + M_contact_dynamics + M_stage + M_general
 
     return TrajectoryOptimizationProblem(nx,nu,
-        T,T_contact,
+        T,
         N,Nx,Nu,Nh,
-        M,M_dynamics,M_contact_dynamics,M_stage,M_general,
+        M,
+        M_dynamics,
+        M_contact_dynamics,
+        M_contact_sdf,
+        M_contact_med,
+        M_contact_fc,
+        M_contact_comp,
+        M_stage,
+        M_general,
         ul,uu,
         xl,xu,
         hl,hu,
@@ -76,7 +94,9 @@ function init_problem(nx,nu,T,model,obj;
         stage_ineq,
         general_constraints,
         m_general,
-        general_ineq)
+        general_ineq,
+        contact_sequence,
+        T_contact_sequence)
 end
 
 function pack(X0,U0,h0,prob::TrajectoryOptimizationProblem)
@@ -143,6 +163,37 @@ function primal_bounds(prob::TrajectoryOptimizationProblem)
     Zl[idx.x[T]] = prob.xl[T]
     Zu[idx.x[T]] = prob.xu[T]
 
+    # fixed contact sequence
+    # if prob.contact_sequence
+    #     for t = 1:T-2
+    #         if t in prob.T_contact
+    #             # Zl[idx.u[t][model.idx_λ]]
+    #             # Zu[idx.u[t][model.idx_λ]]
+    #             #
+    #             # Zl[idx.u[t][model.idx_b]]
+    #             # Zu[idx.u[t][model.idx_b]]
+    #             #
+    #             # Zl[idx.u[t][model.idx_ψ]]
+    #             # Zu[idx.u[t][model.idx_ψ]]
+    #
+    #             Zl[idx.u[t][model.idx_η]] .= 0.0
+    #             Zu[idx.u[t][model.idx_η]] .= 0.0
+    #         else
+    #             Zl[idx.u[t][model.idx_λ]] .= 0.0
+    #             Zu[idx.u[t][model.idx_λ]] .= 0.0
+    #
+    #             Zl[idx.u[t][model.idx_b]] .= 0.0
+    #             Zu[idx.u[t][model.idx_b]] .= 0.0
+    #
+    #             Zl[idx.u[t][model.idx_ψ]] .= 0.0
+    #             Zu[idx.u[t][model.idx_ψ]] .= 0.0
+    #
+    #             # Zl[idx.u[t][model.idx_η]]
+    #             # Zu[idx.u[t][model.idx_η]]
+    #         end
+    #     end
+    # end
+
     return Zl, Zu
 end
 
@@ -153,10 +204,15 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
     cl = zeros(M)
     cu = zeros(M)
 
-    for t = 1:T-2
-        cu[(prob.M_dynamics + (t-1)*prob.model.m_contact .+ (1:prob.model.m_contact))[(prob.model.nb+1):prob.model.m_contact]] .= Inf
-    end
-    cu[(prob.M_dynamics + (T-2)*prob.model.m_contact .+ (1:2*prob.model.nc))] .= Inf
+    # contact dynamics
+    # sdf
+    cu[prob.M_dynamics .+ (1:prob.M_contact_sdf)] .= Inf
+    # med
+    cu[prob.M_dynamics+prob.M_contact_sdf .+ (1:prob.M_contact_med)] .= 0.0
+    # fc
+    cu[prob.M_dynamics+prob.M_contact_sdf+prob.M_contact_med .+ (1:prob.M_contact_fc)] .= Inf
+    # comp
+    cu[prob.M_dynamics+prob.M_contact_sdf+prob.M_contact_med+prob.M_contact_fc .+ (1:prob.M_contact_comp)] .= Inf
 
     if prob.stage_constraints
         m_shift = 0
