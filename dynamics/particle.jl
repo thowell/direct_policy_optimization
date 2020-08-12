@@ -23,7 +23,7 @@ end
 
 # Dimensions
 nq = 3 # configuration dim
-nu_ctrl = 2
+nu_ctrl = 3
 nc = 1 # number of contact points
 nf = 4 # number of faces for friction cone pyramid
 nb = nc*nf
@@ -61,7 +61,8 @@ function ϕ_func(::Particle,q)
 end
 
 B_func(::Particle,q) = @SMatrix [1. 0. 0.;
-                                 0. 1. 0.]
+                                 0. 1. 0.;
+                                 0. 0. 1.]
 
 N_func(::Particle,q) = @SMatrix [0. 0. 1.]
 

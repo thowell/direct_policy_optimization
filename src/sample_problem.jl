@@ -19,6 +19,13 @@ mutable struct SampleProblem <: Problem
     M_general::Int
     M_uw::Int
 
+    ul
+    uu
+    xl
+    xu
+    hl
+    hh
+
     idx_nom
     idx_nom_z
     idx_sample
@@ -43,8 +50,6 @@ mutable struct SampleProblem <: Problem
 
     general_objective
 
-    sample_initial_constraint
-    sample_goal_constraint
     sample_general_constraints
     m_sample_general
     sample_general_ineq
@@ -52,11 +57,15 @@ end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
         u_policy=(1:prob.nu),
+        ul=[[-Inf*ones(nu) for t = 1:T-2] for i = 1:N],
+        uu=[[Inf*ones(nu) for t = 1:T-2] for i = 1:N],
+        xl=[[-Inf*ones(nx) for t = 1:T] for i = 1:N],
+        xu=[[Inf*ones(nx) for t = 1:T] for i = 1:N],
+        hl=[[-Inf for t = 1:T-2] for i = 1:N],
+        hu=[[Inf for t = 1:T-2] for i = 1:N],
         β=1.0,w=ones(prob.nx),γ=1.0,
         disturbance_ctrl=false,α=1.0,
         general_objective=false,
-        sample_initial_constraint=true,
-        sample_goal_constraint=false,
         sample_general_constraints=false,
         m_sample_general=0,
         sample_general_ineq=(1:m_sample_general))
@@ -78,7 +87,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
 
     M_dynamics = N*(2*nx*(T-2) + (T-3))
     M_contact_dynamics = N*(prob.M_contact_dynamics)
-    M_policy = N*nu_policy*(T-2)
+    M_policy = N*nu_policy*nx*(T-2)
     M_stage = prob.stage_constraints*N*sum(prob.m_stage)
     M_general = sample_general_constraints*m_sample_general
     M_uw = disturbance_ctrl*2*N*nx*(T-2)
@@ -109,7 +118,13 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
         prob,
         u_policy,
         N_nlp,Nx,Nu,Nh,Nxs,NK,Nuw,
-        M_nlp,M_dynamics,M_policy,M_stage,M_general,M_uw,
+        M_nlp,M_dynamics,M_contact_dynamics,M_policy,M_stage,M_general,M_uw,
+        ul,
+        uu,
+        xl,
+        xu,
+        hl,
+        hu,
         idx_nom,idx_nom_z,
         idx_sample,idx_x_tmp,idx_K,
         Q,R,H,
@@ -119,8 +134,6 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
         idx_uw,
         idx_slack,
         general_objective,
-        sample_initial_constraint,
-        sample_goal_constraint,
         sample_general_constraints,
         m_sample_general,
         sample_general_ineq
@@ -201,17 +214,14 @@ function primal_bounds(prob::SampleProblem)
     Zu[prob.idx_nom_z] = Zu_nom
 
     # sample initial conditions
-    for i = 1:prob.N
-        Zl[prob.idx_sample[i].x[1]] = prob.x1[i]
-        Zu[prob.idx_sample[i].x[1]] = prob.x1[i]
-    end
 
     # sample state and control bounds
-    for t = 1:prob.prob.T-2
+    for t = 1:prob.prob.T
         for i = 1:prob.N
-            Zl[prob.idx_sample[i].x[t]] = (t==1 && prob.sample_initial_constraint) ? prob.x1[1] : prob.prob.xl[t]
-            Zu[prob.idx_sample[i].x[t]] = (t==1 && prob.sample_initial_constraint) ? prob.x1[1] : prob.prob.xu[t]
+            Zl[prob.idx_sample[i].x[t]] = prob.prob.xl[t]
+            Zu[prob.idx_sample[i].x[t]] = prob.prob.xu[t]
 
+            t > T-2 && continue
             Zl[prob.idx_sample[i].u[t]] = prob.prob.ul[t]
             Zu[prob.idx_sample[i].u[t]] = prob.prob.uu[t]
 
@@ -219,15 +229,6 @@ function primal_bounds(prob::SampleProblem)
             Zu[prob.idx_sample[i].h[t]] = prob.prob.hu[t]
         end
     end
-
-    for i = 1:prob.N
-        Zl[prob.idx_sample[i].x[T-1]] = prob.prob.xl[T-1]
-        Zu[prob.idx_sample[i].x[T-1]] = prob.prob.xu[T-1]
-        Zl[prob.idx_sample[i].x[T]] = prob.sample_goal_constraint ? prob.prob.xT : prob.prob.xl[T]
-        Zu[prob.idx_sample[i].x[T]] = prob.sample_goal_constraint ? prob.prob.xT : prob.prob.xu[T]
-    end
-
-    #TODO sample goal constraints
 
     return Zl,Zu
 end
@@ -289,13 +290,18 @@ function eval_constraint!(c,Z,prob::SampleProblem)
 
    eval_constraint!(view(c,1:M),view(Z,prob.idx_nom_z),prob.prob)
 
-   sample_dynamics_constraints!(view(c,M .+ (1:prob.M_dynamics)),Z,prob)
-   #TODO
-   sample_policy_constraints!(view(c,M+prob.M_dynamics .+ (1:prob.M_policy)),Z,prob)
-   prob.prob.stage_constraints && sample_stage_constraints!(view(c,M+prob.M_dynamics+prob.M_policy .+ (1:prob.M_stage)),Z,prob)
-   prob.sample_general_constraints && general_constraints!(view(c,M+prob.M_dynamics+prob.M_policy+prob.M_stage .+ (1:prob.M_general)),Z,prob)
-
-   prob.disturbance_ctrl && (sample_disturbance_constraints!(view(c,M+prob.M_dynamics+prob.M_policy+prob.M_stage+prob.M_general .+ (1:prob.M_uw)),Z,prob))
+   sample_dynamics_constraints!(view(c,
+    M .+ (1:prob.M_dynamics)),Z,prob)
+   sample_contact_dynamics_constraints!(view(c,
+    M+prob.M_dynamics .+ (1:prob.M_contact_dynamics)),Z,prob)
+   sample_policy_constraints!(view(c,
+    M+prob.M_dynamics+prob.M_contact_dynamics .+ (1:prob.M_policy)),Z,prob)
+   prob.prob.stage_constraints && sample_stage_constraints!(view(c,
+    M+prob.M_dynamics+prob.M_contact_dynamics+prob.M_policy .+ (1:prob.M_stage)),Z,prob)
+   prob.sample_general_constraints && general_constraints!(view(c,
+    M+prob.M_dynamics+prob.M_contact_dynamics+prob.M_policy+prob.M_stage .+ (1:prob.M_general)),Z,prob)
+   prob.disturbance_ctrl && (sample_disturbance_constraints!(view(c,
+    M+prob.M_dynamics+prob.M_contact_dynamics+prob.M_policy+prob.M_stage+prob.M_general .+ (1:prob.M_uw)),Z,prob))
 
    return nothing
 end
@@ -309,19 +315,26 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
     len_dyn = length(sparsity_jacobian_sample_dynamics(prob))
     ∇sample_dynamics_constraints!(view(∇c,len .+ (1:len_dyn)),Z,prob)
 
-    #TODO
+    len_con_dyn = length(sparsity_jacobian_sample_contact_dynamics(prob))
+    ∇sample_contact_dynamics_constraints!(view(∇c,
+        len+len_dyn .+ (1:len_con_dyn)),Z,prob)
+
     len_policy = length(sparsity_jacobian_sample_policy(prob))
-    ∇sample_policy_constraints!(view(∇c,len+len_dyn .+ (1:len_policy)),Z,prob)
+    ∇sample_policy_constraints!(view(∇c,
+        len+len_dyn+len_con_dyn .+ (1:len_policy)),Z,prob)
 
     len_stage = length(sparsity_jacobian_sample_stage(prob))
-    prob.prob.stage_constraints && ∇sample_stage_constraints!(view(∇c,len+len_dyn+len_policy .+ (1:len_stage)),Z,prob)
+    prob.prob.stage_constraints && ∇sample_stage_constraints!(view(∇c,
+        len+len_dyn+len_con_dyn+len_policy .+ (1:len_stage)),Z,prob)
 
     len_general = length(general_constraint_sparsity(prob))
-    prob.sample_general_constraints && ∇general_constraints!(view(∇c,len+len_dyn+len_policy+len_stage .+ (1:len_general)),Z,prob)
+    prob.sample_general_constraints && ∇general_constraints!(view(∇c,
+        len+len_dyn+len_con_dyn+len_policy+len_stage .+ (1:len_general)),Z,prob)
 
     if prob.disturbance_ctrl
         len_dist = length(sparsity_jacobian_sample_disturbance(prob))
-        ∇sample_disturbance_constraints!(view(∇c,len+len_dyn+len_policy+len_stage+len_general .+ (1:len_dist)),Z,prob)
+        ∇sample_disturbance_constraints!(view(∇c,
+            len+len_dyn+len_con_dyn+len_policy+len_stage+len_general .+ (1:len_dist)),Z,prob)
     end
     return nothing
 end
@@ -330,14 +343,14 @@ function sparsity_jacobian(prob::SampleProblem)
     collect([sparsity_jacobian(prob.prob)...,
              sparsity_jacobian_sample_dynamics(prob,
                 r_shift=prob.prob.M)...,
-
-             #TODO
-             sparsity_jacobian_sample_policy(prob,
-                r_shift=prob.prob.M+prob.M_dynamics)...,
-             sparsity_jacobian_sample_stage(prob,
-                r_shift=prob.prob.M+prob.M_dynamics+prob.M_policy)...,
-             general_constraint_sparsity(prob,
-                r_shift=prob.prob.M+prob.M_dynamics+prob.M_policy+prob.M_stage)...,
-             sparsity_jacobian_sample_disturbance(prob,
-                r_shift=prob.prob.M+prob.M_dynamics+prob.M_policy+prob.M_stage+prob.M_general)...])
+            sparsity_jacobian_sample_contact_dynamics(prob,
+               r_shift=prob.prob.M+prob.M_dynamics)...,
+            sparsity_jacobian_sample_policy(prob,
+                r_shift=prob.prob.M+prob.M_dynamics+prob.M_contact_dynamics)...,
+            sparsity_jacobian_sample_stage(prob,
+                r_shift=prob.prob.M+prob.M_dynamics+prob.M_contact_dynamics+prob.M_policy)...,
+            general_constraint_sparsity(prob,
+                r_shift=prob.prob.M+prob.M_dynamics+prob.M_contact_dynamics+prob.M_policy+prob.M_stage)...,
+            sparsity_jacobian_sample_disturbance(prob,
+                r_shift=prob.prob.M+prob.M_dynamics+prob.M_contact_dynamics+prob.M_policy+prob.M_stage+prob.M_general)...])
 end

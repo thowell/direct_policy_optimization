@@ -197,7 +197,7 @@ function sparsity_jacobian_sample_dynamics(prob::SampleProblem;
     col = []
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
-    for t = 1:T-1
+    for t = 1:T-2
         idx_x_tmp_vec = vcat([idx_x_tmp[i].x[t] for i = 1:N]...)
 
         for i = 1:N

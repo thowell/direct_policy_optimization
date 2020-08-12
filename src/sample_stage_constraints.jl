@@ -116,7 +116,7 @@ function sparsity_jacobian_sample_stage(prob::SampleProblem;
 
     # stage constraints samples
 
-    for t = 1:T-1
+    for t = 1:T-2
         c_stage_tmp = zeros(m_stage[t])
         if m_stage[t] > 0
             for i = 1:N

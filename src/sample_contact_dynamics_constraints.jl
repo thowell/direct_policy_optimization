@@ -3,8 +3,9 @@ function sample_contact_dynamics_constraints!(c,Z,prob::SampleProblem)
     model = prob.prob.model
     M = prob.prob.M_contact_dynamics
     idx_sample = prob.idx_sample
+    N = prob.N
 
-    for i = 1:prob.N
+    for i = 1:N
         # signed distance function
         for t = 1:T
             x = Z[idx_sample[i].x[t]]
@@ -47,13 +48,12 @@ function sample_contact_dynamics_constraints!(c,Z,prob::SampleProblem)
     return nothing
 end
 
-function sample_contact_dynamics_constraints_jacobian!(∇c,Z,prob::SampleProblem)
-    idx = prob.idx
-    nx = prob.nx
-    nu = prob.nu
-    T = prob.T
-    model = prob.model
+function ∇sample_contact_dynamics_constraints!(∇c,Z,prob::SampleProblem)
+
+    T = prob.prob.T
+    model = prob.prob.model
     idx_sample = prob.idx_sample
+    N = prob.N
 
     shift = 0
 
@@ -159,15 +159,14 @@ function sample_contact_dynamics_constraints_jacobian!(∇c,Z,prob::SampleProble
     return nothing
 end
 
-function sparsity_sample_contact_dynamics_jacobian(prob::SampleProblem;
+function sparsity_jacobian_sample_contact_dynamics(prob::SampleProblem;
         r_shift=0)
-    idx = prob.idx
-    nx = prob.nx
-    nu = prob.nu
-    T = prob.T
-    model = prob.model
+
+    T = prob.prob.T
+    model = prob.prob.model
     M = prob.prob.M_contact_dynamics
     idx_sample = prob.idx_sample
+    N = prob.N
 
     row = []
     col = []

@@ -74,9 +74,6 @@ end
 
 N_func(::Hopper,q) = @SMatrix [0. 1. -cos(q[5]) 0. q[3]*sin(q[5])]
 
-# function P(::Hopper2D,q)
-#     @SMatrix [1. 0. sin(q[5]) 0. q[3]*cos(q[5])]
-# end
 function P_func(::Hopper,q)
     @SMatrix [1. 0. sin(q[5]) 0. q[3]*cos(q[5]);
               -1. 0. -sin(q[5]) 0. -q[3]*cos(q[5])]
@@ -107,7 +104,6 @@ qL = -Inf*ones(nq)
 qU = Inf*ones(nq)
 qL[3] = r/2.0
 qU[3] = r
-
 
 model = Hopper(mb,ml,Jb,Jl,r,μ,g,Δt,qL,qU,
                 nx,nu,nu_ctrl,
