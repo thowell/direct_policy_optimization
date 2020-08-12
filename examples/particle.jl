@@ -144,5 +144,5 @@ prob_sample_moi = init_MOI_Problem(prob_sample)
 Z0_sample = pack(X_nom,U_nom,H_nom[1],K0,prob_sample)
 
 # Solve
-# Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
 # Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)

@@ -24,7 +24,7 @@ mutable struct SampleProblem <: Problem
     xl
     xu
     hl
-    hh
+    hu
 
     idx_nom
     idx_nom_z
@@ -218,15 +218,15 @@ function primal_bounds(prob::SampleProblem)
     # sample state and control bounds
     for t = 1:prob.prob.T
         for i = 1:prob.N
-            Zl[prob.idx_sample[i].x[t]] = prob.prob.xl[t]
-            Zu[prob.idx_sample[i].x[t]] = prob.prob.xu[t]
+            Zl[prob.idx_sample[i].x[t]] = prob.xl[i][t]
+            Zu[prob.idx_sample[i].x[t]] = prob.xu[i][t]
 
             t > T-2 && continue
-            Zl[prob.idx_sample[i].u[t]] = prob.prob.ul[t]
-            Zu[prob.idx_sample[i].u[t]] = prob.prob.uu[t]
+            Zl[prob.idx_sample[i].u[t]] = prob.ul[i][t]
+            Zu[prob.idx_sample[i].u[t]] = prob.uu[i][t]
 
-            Zl[prob.idx_sample[i].h[t]] = prob.prob.hl[t]
-            Zu[prob.idx_sample[i].h[t]] = prob.prob.hu[t]
+            Zl[prob.idx_sample[i].h[t]] = prob.hl[i][t]
+            Zu[prob.idx_sample[i].h[t]] = prob.hu[i][t]
         end
     end
 
@@ -239,28 +239,43 @@ function constraint_bounds(prob::SampleProblem)
 
     # nominal constraints
     M_nom = prob.prob.M
+    N = prob.N
+    T = prob.prob.T
+
     cl_nom, cu_nom = constraint_bounds(prob.prob)
 
     cl[1:M_nom] = cl_nom
     cu[1:M_nom] = cu_nom
+
+    # contact dynamics constraints
+    for i = 1:N
+        # sdf
+        cu[M_nom + prob.M_dynamics + (i-1)*prob.prob.M_contact_dynamics .+ (1:prob.prob.M_contact_sdf)] .= Inf
+        # med
+        cu[M_nom + prob.M_dynamics + (i-1)*prob.prob.M_contact_dynamics + prob.prob.M_contact_sdf .+ (1:prob.prob.M_contact_med)] .= 0.0
+        # fc
+        cu[M_nom + prob.M_dynamics + (i-1)*prob.prob.M_contact_dynamics + prob.prob.M_contact_sdf + prob.prob.M_contact_med .+ (1:prob.prob.M_contact_fc)] .= Inf
+        # comp
+        cu[M_nom + prob.M_dynamics + (i-1)*prob.prob.M_contact_dynamics + prob.prob.M_contact_sdf + prob.prob.M_contact_med+prob.prob.M_contact_fc .+ (1:prob.prob.M_contact_comp)] .= Inf
+    end
 
     # sample stage constraints
     if prob.prob.stage_constraints
         m_shift = 0
         for t = 1:T-2
             for i = 1:prob.N
-                cu[(M_nom + prob.M_dynamics + prob.M_policy + m_shift .+ (1:prob.prob.m_stage[t]))[prob.prob.stage_ineq[t]]] .= Inf
+                cu[(M_nom + prob.M_dynamics + prob.M_contact_dynamics + prob.M_policy + m_shift .+ (1:prob.prob.m_stage[t]))[prob.prob.stage_ineq[t]]] .= Inf
                 m_shift += prob.prob.m_stage[t]
             end
         end
     end
 
     if prob.sample_general_constraints
-       cu[(M_nom + prob.M_dynamics + prob.M_policy + prob.M_stage .+ (1:prob.M_general))[prob.sample_general_ineq]] .= Inf
+       cu[(M_nom + prob.M_dynamics + prob.M_contact_dynamics + prob.M_policy + prob.M_stage .+ (1:prob.M_general))[prob.sample_general_ineq]] .= Inf
     end
 
     if prob.disturbance_ctrl
-        cu[(M_nom + prob.M_dynamics + prob.M_policy + prob.M_stage + prob.M_general .+ (1:prob.M_uw))] .= Inf
+        cu[(M_nom + prob.M_dynamics + prob.M_contact_dynamics + prob.M_policy + prob.M_stage + prob.M_general .+ (1:prob.M_uw))] .= Inf
     end
     return cl,cu
 end
