@@ -73,13 +73,13 @@ Z0 = pack(X0,U0,h0,prob)
 @time Z_nominal = solve(prob_moi,copy(Z0))
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
-x = [X_nom[t][1] for t = 1:T]
-z = [X_nom[t][3] for t = 1:T]
-λ = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
-s = [U_nom[t][model.idx_s] for t = 1:T-2]
-@show sum(s)
-plot(x)
-plot(z)
+x_nom = [X_nom[t][1] for t = 1:T]
+z_nom = [X_nom[t][3] for t = 1:T]
+λ_nom = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
+s_nom = [U_nom[t][model.idx_s] for t = 1:T-2]
+@show sum(s_nom)
+plot(x_nom)
+plot(z_nom)
 
 # using Colors
 # using CoordinateTransformations
@@ -104,7 +104,7 @@ N = 2*model.nx
 models = [model for i =1:N]
 K0 = [rand(model.nu_ctrl,model.nx) for t = 1:T-2]
 β = 1.0
-w = 1.0e-8*ones(model.nx)
+w = 1.0e-2*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -146,3 +146,32 @@ Z0_sample = pack(X_nom,U_nom,H_nom[1],K0,prob_sample)
 # Solve
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
 # Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
+
+X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+
+s = [U_nom_sample[t][model.idx_s] for t = 1:T-2]
+@assert sum(s) < 1.0e-5
+
+pltz = plot(label="",xlabel="time (s)",ylabel="z",title="Particle",
+	legend=:topright)
+t_span = range(0,stop=model.Δt*(T-1),length=T)
+for i = 1:N
+	z_sample = [X_sample[i][t][3] for t = 1:T]
+	pltz = plot!(t_span,z_sample,label="")
+end
+pltz = plot!(t_span,z_nom,color=:purple,label="nominal",width=2.0)
+z_nom_sample =  [X_nom_sample[t][3] for t = 1:T]
+pltz = plot!(t_span,z_nom_sample,color=:orange,label="sample nominal",width=2.0)
+display(pltz)
+
+pltx = plot(label="",xlabel="time (s)",ylabel="x",title="Particle",
+	legend=:bottomright)
+t_span = range(0,stop=model.Δt*(T-1),length=T)
+for i = 1:N
+	x_sample = [X_sample[i][t][1] for t = 1:T]
+	pltx = plot!(t_span,x_sample,label="")
+end
+pltx = plot!(t_span,x_nom,color=:purple,label="nominal",width=2.0)
+x_nom_sample =  [X_nom_sample[t][1] for t = 1:T]
+pltx = plot!(t_span,x_nom_sample,color=:orange,label="sample nominal",width=2.0)
+display(pltx)
