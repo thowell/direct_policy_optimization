@@ -249,19 +249,17 @@ function constraint_bounds(prob::SampleProblem)
         end
     end
 
-    if prob.sample_general_constraints
-        for t = 1:T-1
-            cu[(M_nom + prob.M_dynamics + prob.M_policy + prob.M_stage .+ (1:prob.M_general))[prob.sample_general_ineq]] .= Inf
-        end
-    end
+    prob.sample_general_constraints && (cu[(M_nom + prob.M_dynamics
+        + prob.M_policy
+        + prob.M_stage
+        .+ (1:prob.M_general))[prob.sample_general_ineq]] .= Inf)
 
-    if prob.disturbance_ctrl
-        for t = 1:T-1
-            for i = 1:prob.N
-                cu[(M_nom + prob.M_dynamics + prob.M_policy + prob.M_stage + prob.M_general .+ (1:prob.M_uw))] .= Inf
-            end
-        end
-    end
+    prob.disturbance_ctrl && (cu[(M_nom + prob.M_dynamics
+        + prob.M_policy
+        + prob.M_stage
+        + prob.M_general
+        .+ (1:prob.M_uw))] .= Inf)
+
     return cl,cu
 end
 
