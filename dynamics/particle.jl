@@ -25,7 +25,7 @@ end
 nq = 3 # configuration dim
 nu_ctrl = 2
 nc = 1 # number of contact points
-nf = 2 # number of faces for friction cone pyramid
+nf = 4 # number of faces for friction cone pyramid
 nb = nc*nf
 
 nx = nq
@@ -66,7 +66,9 @@ B_func(::Particle,q) = @SMatrix [1. 0. 0.;
 N_func(::Particle,q) = @SMatrix [0. 0. 1.]
 
 P_func(::Particle,q) = @SMatrix [1. 0. 0.;
-                                 0. 1. 0.]
+                                 -1. 0. 0.;
+                                 0. 1. 0.;
+                                 0. -1. 0.]
 
 function discrete_dynamics(model,x1,x2,x3,u,h,t)
     u_ctrl = u[model.idx_u]
