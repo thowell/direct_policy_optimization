@@ -43,6 +43,19 @@ tmp_o(z) = eval_objective(prob_sample,z)
 eval_objective_gradient!(∇obj_,Z0_sample,prob_sample)
 @assert norm(ForwardDiff.gradient(tmp_o,Z0_sample) - ∇obj_) < 1.0e-10
 
+tmp_o(z) = sample_objective(z,prob_sample)
+∇obj_ = zeros(prob_sample.N_nlp)
+∇sample_objective!(∇obj_,Z0_sample,prob_sample)
+@assert norm(ForwardDiff.gradient(tmp_o,Z0_sample) - ∇obj_) < 1.0e-10
+
+include("sample_penalty_objective.jl")
+tmp_o(z) = sample_general_objective(z,prob_sample)
+∇obj_ = zeros(prob_sample.N_nlp)
+∇sample_general_objective!(∇obj_,Z0_sample,prob_sample)
+@assert norm(ForwardDiff.gradient(tmp_o,Z0_sample) - ∇obj_) < 1.0e-10
+
+
+
 c0 = zeros(prob_sample.M_contact_dynamics)
 sample_contact_dynamics_constraints!(c0,Z0_sample,prob_sample)
 tmp_c(c,z) = sample_contact_dynamics_constraints!(c,z,prob_sample)

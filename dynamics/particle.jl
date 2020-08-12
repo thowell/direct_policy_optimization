@@ -18,7 +18,7 @@ mutable struct Particle{T}
     idx_η
     idx_s
 
-    m_contact
+    α
 end
 
 # Dimensions
@@ -30,8 +30,6 @@ nb = nc*nf
 
 nx = nq
 nu = nu_ctrl + nc + nb + nc + nb + 1
-
-m_contact = nb + nc + nc + 3
 
 idx_u = (1:nu_ctrl)
 idx_λ = nu_ctrl .+ (1:nc)
@@ -89,6 +87,8 @@ function maximum_energy_dissipation(model,x2,x3,u,h)
     P_func(model,x3)*(x3-x2)/h[1] + ψ_stack - η
 end
 
+α_particle = 1.0
+
 model = Particle(m,μ,Δt,
                  nx,nu,nu_ctrl,
                  nc,nf,nb,
@@ -98,7 +98,7 @@ model = Particle(m,μ,Δt,
                  idx_ψ,
                  idx_η,
                  idx_s,
-                 m_contact)
+                 α_particle)
 
 function visualize!(vis,p::Particle,q; r=0.25)
 

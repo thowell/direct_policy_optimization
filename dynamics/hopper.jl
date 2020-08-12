@@ -26,7 +26,7 @@ mutable struct Hopper
     idx_η
     idx_s
 
-    m_contact
+    α
 end
 
 # Dimensions
@@ -38,8 +38,6 @@ nb = nc*nf
 
 nx = nq
 nu = nu_ctrl + nc + nb + nc + nb + 1
-
-m_contact = nb + nc + nc + 3
 
 idx_u = (1:nu_ctrl)
 idx_λ = nu_ctrl .+ (1:nc)
@@ -105,6 +103,8 @@ qU = Inf*ones(nq)
 qL[3] = r/2.0
 qU[3] = r
 
+α_hopper = 1.0
+
 model = Hopper(mb,ml,Jb,Jl,r,μ,g,Δt,qL,qU,
                 nx,nu,nu_ctrl,
                 nc,nf,nb,
@@ -114,7 +114,7 @@ model = Hopper(mb,ml,Jb,Jl,r,μ,g,Δt,qL,qU,
                 idx_ψ,
                 idx_η,
                 idx_s,
-                m_contact)
+                α_hopper)
 
 # Visualization
 function visualize!(vis,model::Hopper,q;verbose=false)

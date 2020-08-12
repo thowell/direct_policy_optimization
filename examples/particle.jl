@@ -43,7 +43,9 @@ c = 0.0
 
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
-penalty_obj = PenaltyObjective(10.0)
+
+model.α = 10.0
+penalty_obj = PenaltyObjective(model.α)
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
@@ -134,7 +136,8 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
 	hu=hu_traj_sample,
     sample_general_constraints=true,
     m_sample_general=N*model.nx,
-    sample_general_ineq=(1:0))
+    sample_general_ineq=(1:0),
+	general_objective=true)
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 

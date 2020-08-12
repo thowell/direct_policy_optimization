@@ -51,7 +51,8 @@ X_ref[Tm] = xM
 
 obj = QuadraticTrackingObjective(Q,R,c,
     [X_ref[t] for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
-penalty_obj = PenaltyObjective(1000.0)
+model.α = 1000.0
+penalty_obj = PenaltyObjective(model.α)
 multi_obj = MultiObjective([obj,penalty_obj])
 
 function general_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
