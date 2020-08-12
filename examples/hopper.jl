@@ -2,10 +2,14 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/hopper.jl")
 using Plots
 
+(13-3)/2 + 3
+(11-3)/2
 # Horizon
-T = 11
-Tm = 7
-model.Δt = 0.1
+T = 19
+Tm = convert(Int,(T-3)/2 + 3)
+
+tf = 1.0
+model.Δt = tf/(T-1)
 
 zh = 0.1
 # Initial and final states
@@ -187,10 +191,12 @@ U0 = [0.001*rand(model.nu) for t = 1:T-2] # random controls
 Z0 = pack(X0,U0,h0,prob)
 @time Z_nominal = solve(prob_moi,copy(Z0))
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
+plot(hcat(U_nom...)[1:2,:]',linetype=:steppost)
 
 s = [U_nom[t][model.idx_s] for t = 1:T-2]
-@show sum(s)
-
+@assert norm(s,Inf) < 1.0e-5
+@assert norm(X_nom[Tm] - xM) < 1.0e-5
+@assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-5
 # using Colors
 # using CoordinateTransformations
 # using FileIO
@@ -203,6 +209,3 @@ s = [U_nom[t][model.idx_s] for t = 1:T-2]
 # vis = Visualizer()
 # open(vis)
 visualize!(vis,model,X_nom)
-
-@assert norm(X_nom[7] - xM) < 1.0e-6
-@assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-6
