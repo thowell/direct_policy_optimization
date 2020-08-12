@@ -100,15 +100,21 @@ model = Particle(m,μ,Δt,
                  idx_s,
                  α_particle)
 
-function visualize!(vis,p::Particle,q; r=0.25)
+function visualize!(vis,p::Particle,q;
+        r=0.25,color=[RGBA(1, 0, 0, 1.0) for i = 1:length(q)])
 
-    setobject!(vis["particle"], HyperRectangle(Vec(0,0,0),Vec(2r,2r,2r)))
-
+    for (i,q_traj) in enumerate(q)
+        setobject!(vis["particle_$i"], HyperRectangle(Vec(0,0,0),Vec(2r,2r,2r)),
+            MeshPhongMaterial(color=color[i]))
+    end
     anim = MeshCat.Animation(convert(Int,floor(1/p.Δt)))
 
-    for t = 1:length(q)
+    T = length(q[1])
+    for t = 1:T
         MeshCat.atframe(anim,t) do
-            settransform!(vis["particle"], Translation(q[t][1:3]...))
+            for (i,q_traj) in enumerate(q)
+                settransform!(vis["particle_$i"], Translation(q_traj[t][1:3]...))
+            end
         end
     end
     # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))

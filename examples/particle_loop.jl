@@ -109,7 +109,7 @@ plot(λ,linetype=:steppost)
 #
 # vis = Visualizer()
 # open(vis)
-visualize!(vis,model,X_nom)
+visualize!(vis,model,[X_nom])
 
 # samples
 Q_lqr = [t < T ? Diagonal([10.0;10.0;10.0]) : Diagonal([10.0; 10.0; 10.0]) for t = 1:T]
@@ -211,3 +211,6 @@ pltx = plot!(t_span,x_nom,color=:purple,label="nominal",width=2.0)
 x_nom_sample =  [X_nom_sample[t][1] for t = 1:T]
 pltx = plot!(t_span,x_nom_sample,color=:orange,label="sample nominal",width=2.0)
 display(pltx)
+
+visualize!(vis,model,[X_nom, X_nom_sample],
+	color=[RGBA(1, 0, 0, 1.0), RGBA(0, 1, 0, 1.0)])
