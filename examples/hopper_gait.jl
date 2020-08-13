@@ -7,7 +7,7 @@ using Plots
 T = 51
 Tm = convert(Int,(T-3)/2 + 3)
 
-tf = 0.5
+tf = 1.0
 model.Δt = tf/(T-1)
 
 zh = 0.1
@@ -21,14 +21,13 @@ xT = [1.0, model.r+zh, model.r, 0., 0.]
 xu_traj = [model.qU for t=1:T]
 xl_traj = [model.qL for t=1:T]
 
-xu_traj[3] = x1
+xu_traj[3] = [x1[1:2]; Inf*ones(3)]
 # xu_traj[Tm] = xM
 # xu_traj[T] = xT
 
-xl_traj[3] = x1
+xl_traj[3] = [x1[1:2]; -Inf*ones(3)]
 # xl_traj[Tm] = xM
 # xl_traj[T] = xT
-
 # ul <= u <= uu
 uu = Inf*ones(model.nu)
 uu[model.idx_u] .= 100.0
@@ -36,20 +35,20 @@ ul = zeros(model.nu)
 ul[model.idx_u] .= -100.0
 
 # h = h0 (fixed timestep)
-hu = model.Δt
-hl = model.Δt
+hu = 2.0*model.Δt
+hl = 0.0*model.Δt
 
 # Objective
 Q = [t < T ? Diagonal([1.0,1.0,1.0,0.1,0.1]) : Diagonal(5.0*ones(model.nx)) for t = 1:T]
 R = [Diagonal([1.0e-1,1.0e-3]) for t = 1:T-2]
-c = 0.0
+c = 1.0
 
 X_ref = linear_interp(x1,xT,T)
 X_ref[Tm] = xM
 
 obj = QuadraticTrackingObjective(Q,R,c,
     [X_ref[t] for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
-model.α = 10.0
+model.α = 100.0
 penalty_obj = PenaltyObjective(model.α)
 multi_obj = MultiObjective([obj,penalty_obj])
 
@@ -91,6 +90,7 @@ z_nom = [X_nom[t][3] for t = 1:T]
 @assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-5
 λ = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
 plot(λ,linetype=:steppost)
+plot([ϕ_func(model,X_nom[t])[1] for t = 1:T],linetype=:steppost)
 
 using Colors
 using CoordinateTransformations
@@ -108,12 +108,12 @@ visualize!(vis,model,X_nom)
 # samples
 Q_lqr = [t < T ? Diagonal([10.0;10.0;10.0;1.0;1.0]) : Diagonal([10.0; 10.0; 10.0;1.0;1.0]) for t = 1:T]
 R_lqr = [Diagonal([1.0; 1.0e-1]) for t = 1:T-2]
-H_lqr = [0.0 for t = 1:T-1]
+H_lqr = [10.0 for t = 1:T-1]
 
 # Samples
 N = 2*model.nx
 models = [model for i =1:N]
-K0 = [rand(model.nu_ctrl*(2*model.nx + 2*model.nc)) for t = 1:T-2]
+K0 = [rand(model.nu_ctrl*(2*model.nx-1 + 2*model.nc)) for t = 1:T-2]
 β = 1.0
 w = 1.0e-5*ones(model.nx)
 γ = 1.0
@@ -136,7 +136,7 @@ hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 function policy(model::Hopper,K,x1,x2,x3,ū,h,x1_nom,x2_nom,x3_nom,u_nom,ū_nom,h_nom)
 	v = (x3 - x2)/h[1]
 	v_nom = (x3_nom - x2_nom)/h_nom[1]
-	u_nom - reshape(K,model.nu_ctrl,2*model.nx + 2*model.nc)*[x3 - x3_nom;
+	u_nom - reshape(K,model.nu_ctrl,2*model.nx-1 + 2*model.nc)*[(x3 - x3_nom)[2:5];
 																   v - v_nom;
 																   ϕ_func(model,x3) - ϕ_func(model,x3_nom);
 																   ū[model.nu_ctrl .+ (1:model.nc)] - ū_nom[model.nu_ctrl .+ (1:model.nc)]]
@@ -145,7 +145,7 @@ end
 prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
 	u_policy=model.idx_u,
-	nK = model.nu_ctrl*(2*model.nx + 2*model.nc),
+	nK = model.nu_ctrl*(2*model.nx-1 + 2*model.nc),
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
     α=1.0e-1,
@@ -200,7 +200,7 @@ pltx = plot!(t_span,x_nom,color=:purple,label="nominal",width=2.0)
 x_nom_sample =  [X_nom_sample[t][1] for t = 1:T]
 pltx = plot!(t_span,x_nom_sample,color=:orange,label="sample nominal",width=2.0)
 display(pltx)
-savefig(pltz,joinpath(@__DIR__,"results/hopper_x_T$T.png"))
+savefig(pltx,joinpath(@__DIR__,"results/hopper_x_T$T.png"))
 
 plt_sdf = plot(label="",xlabel="time (s)",ylabel="sdf",title="Hopper",
 	legend=:bottomright)
