@@ -97,7 +97,7 @@ plot(z_nom)
 
 # samples
 Q_lqr = [t < T ? Diagonal([10.0;10.0;10.0]) : Diagonal([100.0; 100.0; 100.0]) for t = 1:T]
-R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+R_lqr = [Diagonal(1.0e-1*ones(model.nu_ctrl)) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 
 # Samples

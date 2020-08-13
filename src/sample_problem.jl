@@ -92,8 +92,8 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
 
     M_dynamics = N*(2*nx*(T-2) + (T-3))
     M_contact_dynamics = N*(prob.M_contact_dynamics)
-    M_policy = N*nu_policy*nx*(T-2)
-    M_stage = prob.stage_constraints*N*sum(prob.m_stage)
+    M_policy = N*nu_policy*(T-2)
+    M_stage = prob.stage_constraints*N*prob.M_stage
     M_general = sample_general_constraints*m_sample_general
     M_uw = disturbance_ctrl*2*N*nx*(T-2)
 

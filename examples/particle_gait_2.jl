@@ -4,7 +4,7 @@ include("../src/loop.jl")
 using Plots
 
 # Horizon
-T = 51
+T = 25
 Tm = convert(Int,(T-3)/2 + 3)
 
 tf = 1.0
@@ -122,7 +122,7 @@ N = 2*model.nx
 models = [model for i =1:N]
 K0 = [rand(model.nu_ctrl,model.nx) for t = 1:T-2]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-1*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -184,7 +184,7 @@ Z0_sample = pack(X_nom,U_nom,H_nom[1],K0,prob_sample)
 # Solve
 #NOTE: run multiple times to get good solution
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
-# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
+Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 X_sample[1][Tm-3]
