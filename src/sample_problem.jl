@@ -2,6 +2,7 @@ mutable struct SampleProblem <: Problem
     prob::TrajectoryOptimizationProblem
 
     u_policy
+    nK
 
     N_nlp::Int # number of decision variables
     Nx::Int
@@ -60,6 +61,7 @@ end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
         u_policy=(1:prob.nu),
+        nK=length(u_policy)*prob.nx,
         ul=[[-Inf*ones(nu) for t = 1:T-2] for i = 1:N],
         uu=[[Inf*ones(nu) for t = 1:T-2] for i = 1:N],
         xl=[[-Inf*ones(nx) for t = 1:T] for i = 1:N],
@@ -86,14 +88,14 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
     Nu = N*nu*(T-2)
     Nh = N*(T-2)
     Nxs = N*(nx*(T-2))
-    NK = nu_policy*nx*(T-2)
+    NK = nK*(T-2)
     Nuw = disturbance_ctrl*2*N*nx*(T-2)
     N_nlp = prob.N + Nx + Nu + Nh + Nxs + NK + Nuw
 
     M_dynamics = N*(2*nx*(T-2) + (T-3))
     M_contact_dynamics = N*(prob.M_contact_dynamics)
     M_policy = N*nu_policy*(T-2)
-    M_stage = prob.stage_constraints*N*prob.M_stage
+    M_stage = prob.stage_constraints*N*sum(prob.m_stage)
     M_general = sample_general_constraints*m_sample_general
     M_uw = disturbance_ctrl*2*N*nx*(T-2)
 
@@ -121,7 +123,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
 
     return SampleProblem(
         prob,
-        u_policy,
+        u_policy,nK,
         N_nlp,Nx,Nu,Nh,Nxs,NK,Nuw,
         M_nlp,M_dynamics,M_contact_dynamics,M_policy,M_stage,M_general,M_uw,
         ul,
