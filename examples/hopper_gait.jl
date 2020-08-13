@@ -49,7 +49,7 @@ X_ref[Tm] = xM
 
 obj = QuadraticTrackingObjective(Q,R,c,
     [X_ref[t] for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
-model.α = 100.0
+model.α = 10.0
 penalty_obj = PenaltyObjective(model.α)
 multi_obj = MultiObjective([obj,penalty_obj])
 
@@ -125,36 +125,6 @@ for i = 1:N
 	xu_traj_sample[i][2] = x1_sample[i]
 end
 
-xl_traj_sample[1][Tm-1] = xM
-xu_traj_sample[1][Tm-1] = xM
-
-xl_traj_sample[2][Tm-1] = xM
-xu_traj_sample[2][Tm-1] = xM
-
-xl_traj_sample[3][Tm-1] = xM
-xu_traj_sample[3][Tm-1] = xM
-
-xl_traj_sample[4][Tm-1] = xM
-xu_traj_sample[4][Tm-1] = xM
-
-xl_traj_sample[5][Tm-1] = xM
-xu_traj_sample[5][Tm-1] = xM
-
-xl_traj_sample[6][Tm+1] = xM
-xu_traj_sample[6][Tm+1] = xM
-
-xl_traj_sample[7][Tm+1] = xM
-xu_traj_sample[7][Tm+1] = xM
-
-xl_traj_sample[8][Tm+1] = xM
-xu_traj_sample[8][Tm+1] = xM
-
-xl_traj_sample[9][Tm+1] = xM
-xu_traj_sample[9][Tm+1] = xM
-
-xl_traj_sample[10][Tm+1] = xM
-xu_traj_sample[10][Tm+1] = xM
-
 ul_traj_sample = [[ul for t = 1:T-2] for i = 1:N]
 uu_traj_sample = [[uu for t = 1:T-2] for i = 1:N]
 
@@ -176,7 +146,9 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
     sample_general_constraints=true,
     m_sample_general=N*(model.nx-1 + model.nx),
     sample_general_ineq=(1:0),
-	general_objective=true)
+	general_objective=true,
+	sample_contact_sequence=true,
+	T_sample_contact_sequence=[[Tm],[Tm],[Tm],[Tm],[Tm],[Tm],[Tm],[Tm],[Tm],[Tm]])
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
