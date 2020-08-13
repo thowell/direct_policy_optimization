@@ -163,37 +163,6 @@ function primal_bounds(prob::TrajectoryOptimizationProblem)
     Zl[idx.x[T]] = prob.xl[T]
     Zu[idx.x[T]] = prob.xu[T]
 
-    # fixed contact sequence
-    if prob.contact_sequence
-        for t = 1:T-2
-            if t in prob.T_contact_sequence
-                # Zl[idx.u[t][model.idx_λ]]
-                # Zu[idx.u[t][model.idx_λ]]
-                #
-                # Zl[idx.u[t][model.idx_b]]
-                # Zu[idx.u[t][model.idx_b]]
-                #
-                # Zl[idx.u[t][model.idx_ψ]]
-                # Zu[idx.u[t][model.idx_ψ]]
-
-                # Zl[idx.u[t][model.idx_η]] .= 0.0
-                # Zu[idx.u[t][model.idx_η]] .= 0.0
-            else
-                # Zl[idx.u[t][model.idx_λ]] .= 0.0
-                # Zu[idx.u[t][model.idx_λ]] .= 0.0
-
-                # Zl[idx.u[t][model.idx_b]] .= 0.0
-                # Zu[idx.u[t][model.idx_b]] .= 0.0
-                #
-                # Zl[idx.u[t][model.idx_ψ]] .= 0.0
-                # Zu[idx.u[t][model.idx_ψ]] .= 0.0
-
-                # Zl[idx.u[t][model.idx_η]]
-                # Zu[idx.u[t][model.idx_η]]
-            end
-        end
-    end
-
     return Zl, Zu
 end
 

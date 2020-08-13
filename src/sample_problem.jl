@@ -53,6 +53,9 @@ mutable struct SampleProblem <: Problem
     sample_general_constraints
     m_sample_general
     sample_general_ineq
+
+    sample_contact_sequence
+    T_sample_contact_sequence
 end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
@@ -68,7 +71,9 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
         general_objective=false,
         sample_general_constraints=false,
         m_sample_general=0,
-        sample_general_ineq=(1:m_sample_general))
+        sample_general_ineq=(1:m_sample_general),
+        sample_contact_sequence::Bool=false,
+        T_sample_contact_sequence=[[]])
 
     nx = prob.nx
     nu = prob.nu
@@ -136,7 +141,9 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
         general_objective,
         sample_general_constraints,
         m_sample_general,
-        sample_general_ineq
+        sample_general_ineq,
+        sample_contact_sequence,
+        T_sample_contact_sequence
         )
 end
 
@@ -257,6 +264,15 @@ function constraint_bounds(prob::SampleProblem)
         cu[M_nom + prob.M_dynamics + (i-1)*prob.prob.M_contact_dynamics + prob.prob.M_contact_sdf + prob.prob.M_contact_med .+ (1:prob.prob.M_contact_fc)] .= Inf
         # comp
         cu[M_nom + prob.M_dynamics + (i-1)*prob.prob.M_contact_dynamics + prob.prob.M_contact_sdf + prob.prob.M_contact_med+prob.prob.M_contact_fc .+ (1:prob.prob.M_contact_comp)] .= Inf
+    end
+
+    # fixed contact sequence
+    if prob.sample_contact_sequence
+        for (i,seq) in enumerate(prob.T_sample_contact_sequence)
+            for t in seq
+                cu[M_nom + prob.M_dynamics + (i-1)*prob.prob.M_contact_dynamics + (t-1)*prob.prob.model.nc .+ (1:prob.prob.model.nc)] .= 0.0
+            end
+        end
     end
 
     # sample stage constraints
