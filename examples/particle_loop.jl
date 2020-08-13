@@ -4,7 +4,7 @@ include("../src/loop.jl")
 using Plots
 
 # Horizon
-T = 15
+T = 51
 Tm = convert(Int,(T-3)/2 + 3)
 
 tf = 1.0
@@ -96,19 +96,19 @@ plot(hcat(U_nom...)[model.idx_u,:]',linetype=:steppost)
 @assert norm(s_nom,Inf) < 1.0e-5
 @assert norm(X_nom[Tm] - xM) < 1.0e-5
 @assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-5
-plot(λ,linetype=:steppost)
+plot(λ_nom,linetype=:steppost)
 
-# using Colors
-# using CoordinateTransformations
-# using FileIO
-# using GeometryTypes
-# using LinearAlgebra
-# using MeshCat
-# using MeshIO
-# using Rotations
-#
-# vis = Visualizer()
-# open(vis)
+using Colors
+using CoordinateTransformations
+using FileIO
+using GeometryTypes
+using LinearAlgebra
+using MeshCat
+using MeshIO
+using Rotations
+
+vis = Visualizer()
+open(vis)
 visualize!(vis,model,[X_nom])
 
 # samples
@@ -197,8 +197,9 @@ for i = 1:N
 end
 pltz = plot!(t_span,z_nom,color=:purple,label="nominal",width=2.0)
 z_nom_sample =  [X_nom_sample[t][3] for t = 1:T]
-pltz = plot!(t_span,z_nom_sample,color=:orange,label="sample nominal",width=2.0)
+pltz = plot!(t_span,z_nom_sample,color=:orange,label="sample nominal",width=2.0,legend=:bottomright)
 display(pltz)
+savefig(pltz,joinpath(@__DIR__,"results/particle_soft_conact_z_T$T.png"))
 
 pltx = plot(label="",xlabel="time (s)",ylabel="x",title="Particle",
 	legend=:bottomright)
@@ -211,6 +212,7 @@ pltx = plot!(t_span,x_nom,color=:purple,label="nominal",width=2.0)
 x_nom_sample =  [X_nom_sample[t][1] for t = 1:T]
 pltx = plot!(t_span,x_nom_sample,color=:orange,label="sample nominal",width=2.0)
 display(pltx)
+savefig(pltz,joinpath(@__DIR__,"results/particle_soft_conact_z_T$T.png"))
 
 visualize!(vis,model,[X_nom, X_nom_sample],
 	color=[RGBA(1, 0, 0, 1.0), RGBA(0, 1, 0, 1.0)])
