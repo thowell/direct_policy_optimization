@@ -166,7 +166,7 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
 	u_policy=model.idx_u,
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=1.0e-1,
+    α=1.0e-3,
 	ul=ul_traj_sample,
 	uu=uu_traj_sample,
 	xl=xl_traj_sample,
@@ -185,7 +185,7 @@ Z0_sample = pack(X_nom,U_nom,H_nom[1],K0,prob_sample)
 # Solve
 #NOTE: run multiple times to get good solution
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
-# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
+Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
