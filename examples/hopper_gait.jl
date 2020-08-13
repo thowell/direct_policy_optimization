@@ -85,12 +85,17 @@ x_nom = [X_nom[t][1] for t = 1:T]
 y_nom = [X_nom[t][2] for t = 1:T]
 z_nom = [X_nom[t][3] for t = 1:T]
 
+t_nom = zeros(T-2)
+for t = 2:T-2
+    t_nom[t] = t_nom[t-1] + H_nom[t-1]
+end
+
 @assert norm(s_nom,Inf) < 1.0e-5
 @assert norm(ϕ_func(model,X_nom[Tm]) - ϕ_func(model,xM)) < 1.0e-5
 @assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-5
 λ = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
-plot(λ,linetype=:steppost)
-plot([ϕ_func(model,X_nom[t])[1] for t = 1:T],linetype=:steppost)
+plot(t_nom,λ,linetype=:steppost)
+plot(t_nom,[ϕ_func(model,X_nom[t])[1] for t = 3:T],linetype=:steppost)
 
 using Colors
 using CoordinateTransformations
@@ -176,16 +181,21 @@ X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(
 s = [U_nom_sample[t][model.idx_s] for t = 1:T-2]
 @assert norm(s,Inf) < 1.0e-5
 
+t_sample = zeros(T-2)
+for t = 2:T-2
+    t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
+end
+
 pltz = plot(label="",xlabel="time (s)",ylabel="z",title="Hopper",
 	legend=:topright)
-t_span = range(0,stop=model.Δt*(T-1),length=T)
+
 for i = 1:N
 	z_sample = [X_sample[i][t][3] for t = 1:T]
-	pltz = plot!(t_span,z_sample,label="")
+	pltz = plot!(t_sample,z_sample[3:T],label="")
 end
-pltz = plot!(t_span,z_nom,color=:purple,label="nominal",width=2.0)
+pltz = plot!(t_nom,z_nom[3:T],color=:purple,label="nominal",width=2.0)
 z_nom_sample =  [X_nom_sample[t][3] for t = 1:T]
-pltz = plot!(t_span,z_nom_sample,color=:orange,label="sample nominal",width=2.0,legend=:bottomright)
+pltz = plot!(t_sample,z_nom_sample[3:T],color=:orange,label="sample nominal",width=2.0,legend=:bottomright)
 display(pltz)
 savefig(pltz,joinpath(@__DIR__,"results/hopper_z_T$T.png"))
 
@@ -194,11 +204,11 @@ pltx = plot(label="",xlabel="time (s)",ylabel="x",title="Hopper",
 t_span = range(0,stop=model.Δt*(T-1),length=T)
 for i = 1:N
 	x_sample = [X_sample[i][t][1] for t = 1:T]
-	pltx = plot!(t_span,x_sample,label="")
+	pltx = plot!(t_sample,x_sample[3:T],label="")
 end
-pltx = plot!(t_span,x_nom,color=:purple,label="nominal",width=2.0)
+pltx = plot!(t_nom,x_nom[3:T],color=:purple,label="nominal",width=2.0)
 x_nom_sample =  [X_nom_sample[t][1] for t = 1:T]
-pltx = plot!(t_span,x_nom_sample,color=:orange,label="sample nominal",width=2.0)
+pltx = plot!(t_sample,x_nom_sample[3:T],color=:orange,label="sample nominal",width=2.0)
 display(pltx)
 savefig(pltx,joinpath(@__DIR__,"results/hopper_x_T$T.png"))
 
@@ -206,10 +216,10 @@ plt_sdf = plot(label="",xlabel="time (s)",ylabel="sdf",title="Hopper",
 	legend=:bottomright)
 for i = 1:N
 	sdf_sample = [ϕ_func(model,X_sample[i][t])[1] for t = 1:T]
-	plt_sdf = plot!(t_span,sdf_sample,label="")
+	plt_sdf = plot!(t_sample,sdf_sample[3:T],label="")
 end
-plt_sdf = plot!(t_span,[ϕ_func(model,X_nom[t])[1] for t = 1:T],color=:purple,label="nominal",width=2.0)
-plt_sdf = plot!(t_span,[ϕ_func(model,X_nom_sample[t])[1] for t = 1:T],color=:orange,label="sample nominal",width=2.0)
+plt_sdf = plot!(t_nom,[ϕ_func(model,X_nom[t])[1] for t = 3:T],color=:purple,label="nominal",width=2.0)
+plt_sdf = plot!(t_sample,[ϕ_func(model,X_nom_sample[t])[1] for t = 3:T],color=:orange,label="sample nominal",width=2.0)
 display(plt_sdf)
 savefig(plt_sdf,joinpath(@__DIR__,"results/hopper_sdf_T$T.png"))
 
