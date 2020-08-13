@@ -223,4 +223,14 @@ plt_sdf = plot!(t_sample,[ϕ_func(model,X_nom_sample[t])[1] for t = 3:T],color=:
 display(plt_sdf)
 savefig(plt_sdf,joinpath(@__DIR__,"results/hopper_sdf_T$T.png"))
 
+plt_ctrl = plot(label="",xlabel="time (s)",ylabel="ctrl",title="Hopper",
+	legend=:bottomright)
+for i = 1:N
+	plt_ctrl = plot!(t_sample,hcat(U_sample[i]...)[1:model.nu_ctrl,:]',label="")
+end
+plt_ctrl = plot!(t_nom,hcat(U_nom...)[1:model.nu_ctrl,:]',color=:purple,label="nominal",width=2.0)
+plt_ctrl = plot!(t_sample,hcat(U_nom_sample...)[1:model.nu_ctrl,:]',color=:orange,label="sample nominal",width=2.0)
+display(plt_ctrl)
+savefig(plt_ctrl,joinpath(@__DIR__,"results/hopper_ctrl_T$T.png"))
+
 visualize!(vis,model,X_nom_sample)
