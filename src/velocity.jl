@@ -2,7 +2,7 @@ function general_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
 	nx = prob.nx
 	idx = prob.idx
 
-	c[1:nx] = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]] #- [1.0;0.0;0.0]
+	c[1:nx] = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]] - [1.0;0.0;1.0]
 end
 
 function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)

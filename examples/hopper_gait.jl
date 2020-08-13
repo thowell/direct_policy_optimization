@@ -41,7 +41,7 @@ hl = 0.0*model.Δt
 # Objective
 Q = [t < T ? Diagonal([1.0,1.0,1.0,0.1,0.1]) : Diagonal(5.0*ones(model.nx)) for t = 1:T]
 R = [Diagonal([1.0e-1,1.0e-3]) for t = 1:T-2]
-c = 1.0
+c = 10.0
 
 X_ref = linear_interp(x1,xT,T)
 X_ref[Tm] = xM
@@ -120,7 +120,7 @@ N = 2*model.nx
 models = [model for i =1:N]
 K0 = [rand(model.nu_ctrl*(2*model.nx-1 + 2*model.nc)) for t = 1:T-2]
 β = 1.0
-w = 1.0e-5*ones(model.nx)
+w = 1.0e-8*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -141,10 +141,12 @@ hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 function policy(model::Hopper,K,x1,x2,x3,ū,h,x1_nom,x2_nom,x3_nom,u_nom,ū_nom,h_nom)
 	v = (x3 - x2)/h[1]
 	v_nom = (x3_nom - x2_nom)/h_nom[1]
+	λ = ū[(1:model.nc)]
+	λ_nom = ū_nom[(1:model.nc)]
 	u_nom - reshape(K,model.nu_ctrl,2*model.nx-1 + 2*model.nc)*[(x3 - x3_nom)[2:5];
 																   v - v_nom;
 																   ϕ_func(model,x3) - ϕ_func(model,x3_nom);
-																   ū[model.nu_ctrl .+ (1:model.nc)] - ū_nom[model.nu_ctrl .+ (1:model.nc)]]
+																   λ - λ_nom]
 end
 
 prob_sample = init_sample_problem(prob,models,x1_sample,
@@ -153,7 +155,7 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
 	nK = model.nu_ctrl*(2*model.nx-1 + 2*model.nc),
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=1.0e-1,
+    α=1.0,
 	ul=ul_traj_sample,
 	uu=uu_traj_sample,
 	xl=xl_traj_sample,
