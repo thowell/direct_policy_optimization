@@ -105,7 +105,7 @@ N = 2*model.nx
 models = [model for i =1:N]
 K0 = [rand(model.nu_ctrl*model.nx*2) for t = 1:T-2]
 β = 1.0
-w = 1.0e-1*ones(model.nx)
+w = 1.0e-2*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -124,10 +124,10 @@ hl_traj_sample = [[hl for t = 1:T-2] for i = 1:N]
 hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 
 # policy
-function policy(model::Particle,K,x1,x2,x3,u,h,x1_nom,x2_nom,x3_nom,u_nom,h_nom)
+function policy(model::Particle,K,x1,x2,x3,ū,h,x1_nom,x2_nom,x3_nom,u_nom,ū_nom,h_nom)
 	v = (x3 - x2)/h[1]
 	v_nom = (x3_nom - x2_nom)/h_nom[1]
-	u_nom - reshape(K,model.nu_ctrl,2*model.nx)*[x3 - x3_nom; v - v_nom]
+	u_nom - reshape(K,model.nu_ctrl,model.nx*2)*[x3 - x3_nom; v - v_nom]
 end
 
 prob_sample = init_sample_problem(prob,models,x1_sample,
@@ -147,7 +147,6 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
     m_sample_general=N*model.nx,
     sample_general_ineq=(1:0),
 	general_objective=true)
-
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Z0_sample = pack(X_nom,U_nom,H_nom[1],K0,prob_sample)

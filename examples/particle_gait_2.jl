@@ -4,7 +4,7 @@ include("../src/loop.jl")
 using Plots
 
 # Horizon
-T = 25
+T = 51
 Tm = convert(Int,(T-3)/2 + 3)
 
 tf = 1.0
@@ -99,18 +99,18 @@ plot(hcat(U_nom...)[model.idx_u,:]',linetype=:steppost)
 @assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-5
 plot(λ_nom,linetype=:steppost)
 
-using Colors
-using CoordinateTransformations
-using FileIO
-using GeometryTypes
-using LinearAlgebra
-using MeshCat
-using MeshIO
-using Rotations
-
-vis = Visualizer()
-open(vis)
-visualize!(vis,model,[X_nom])
+# using Colors
+# using CoordinateTransformations
+# using FileIO
+# using GeometryTypes
+# using LinearAlgebra
+# using MeshCat
+# using MeshIO
+# using Rotations
+#
+# vis = Visualizer()
+# open(vis)
+# visualize!(vis,model,[X_nom])
 
 # samples
 Q_lqr = [t < T ? Diagonal([10.0;10.0;10.0]) : Diagonal([10.0; 10.0; 10.0]) for t = 1:T]
@@ -120,9 +120,9 @@ H_lqr = [0.0 for t = 1:T-1]
 # Samples
 N = 2*model.nx
 models = [model for i =1:N]
-K0 = [rand(model.nu_ctrl,model.nx) for t = 1:T-2]
+K0 = [rand(model.nu_ctrl*model.nx*2) for t = 1:T-2]
 β = 1.0
-w = 1.0e-1*ones(model.nx)
+w = 1.0e-3*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -158,12 +158,19 @@ uu_traj_sample = [[uu for t = 1:T-2] for i = 1:N]
 hl_traj_sample = [[hl for t = 1:T-2] for i = 1:N]
 hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 
+function policy(model::Particle,K,x1,x2,x3,ū,h,x1_nom,x2_nom,x3_nom,u_nom,ū_nom,h_nom)
+	v = (x3 - x2)/h[1]
+	v_nom = (x3_nom - x2_nom)/h_nom[1]
+	u_nom - reshape(K,model.nu_ctrl,2*model.nx)*[x3 - x3_nom; v - v_nom]
+end
+
 prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
 	u_policy=model.idx_u,
+	nK=length(model.idx_u)*model.nx*2,
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=1.0e-1,
+    α=1.0,
 	ul=ul_traj_sample,
 	uu=uu_traj_sample,
 	xl=xl_traj_sample,
@@ -184,7 +191,7 @@ Z0_sample = pack(X_nom,U_nom,H_nom[1],K0,prob_sample)
 # Solve
 #NOTE: run multiple times to get good solution
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 X_sample[1][Tm-3]
