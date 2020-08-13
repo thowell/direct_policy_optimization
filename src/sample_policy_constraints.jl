@@ -154,7 +154,7 @@ function ∇sample_policy_constraints!(∇c,z,prob::SampleProblem)
 
             c_idx = idx_nom.h[t]
             len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(phi,view(z,idx_nom.h[t])))
+            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(ph_nom,view(z,idx_nom.h[t])))
             s += len
 
             c_idx = idx_sample[i].u[t][u_policy]

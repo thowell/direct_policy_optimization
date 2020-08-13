@@ -108,8 +108,8 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
     shift += N*prob.N
     idx_x_tmp = [init_indices(nx,0,T-1,time=false,shift=shift + (i-1)*(nx*(T-2))) for i = 1:N]
     shift += N*(nx*(T-2))
-    idx_K = [shift + (t-1)*(nu_policy*nx) .+ (1:nu_policy*nx) for t = 1:T-2]
-    shift += (T-2)*nu_policy*nx
+    idx_K = [shift + (t-1)*nK .+ (1:nK) for t = 1:T-2]
+    shift += (T-2)*nK
 
     if disturbance_ctrl
         idx_uw = [[shift + (i-1)*nx*(T-2) + (t-1)*nx .+ (1:nx)  for t = 1:T-2] for i = 1:N]
