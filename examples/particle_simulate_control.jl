@@ -140,12 +140,12 @@ uu_traj_sample = [[uu for t = 1:T-2] for i = 1:N]
 hl_traj_sample = [[hl for t = 1:T-2] for i = 1:N]
 hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 
-function policy(model::Particle,K,x1,x2,x3,ū,h,x1_nom,x2_nom,x3_nom,u_nom,ū_nom,h_nom)
+function policy(model::Particle,K,x1,x2,x3,u,h,x1_nom,x2_nom,x3_nom,u_nom,h_nom)
 	v = (x3 - x2)/h[1]
 	v_nom = (x3_nom - x2_nom)/h_nom[1]
-	u_nom - reshape(K,model.nu_ctrl,model.nx + 2*model.nc)*[x3 - x3_nom;
+	u_nom[model.idx_u] - reshape(K,model.nu_ctrl,model.nx + 2*model.nc)*[x3 - x3_nom;
 											   ϕ_func(model,x3) - ϕ_func(model,x3_nom);
-											   ū[1:model.nc] - ū_nom[1:model.nc]]
+											   u[model.idx_λ] - u_nom[model.idx_λ]]
 end
 
 prob_sample = init_sample_problem(prob,models,x1_sample,
@@ -179,8 +179,10 @@ Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
+t_nominal = zeros(T-2)
 t_sample = zeros(T-2)
 for t = 2:T-2
+	t_nominal[t] = t_nominal[t-1] + H_nom[t-1]
     t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
 end
 
@@ -189,29 +191,27 @@ s = [U_nom_sample[t][model.idx_s] for t = 1:T-2]
 
 pltz = plot(label="",xlabel="time (s)",ylabel="z",title="Particle",
 	legend=:topright)
-t_span = range(0,stop=model.Δt*(T-1),length=T)
 for i = 1:N
-	z_sample = [X_sample[i][t][3] for t = 1:T]
-	pltz = plot!(t_span,z_sample,label="")
+	z_sample = [X_sample[i][t][3] for t = 3:T]
+	pltz = plot!(t_sample,z_sample,label="")
 end
-pltz = plot!(t_span,z_nom,color=:purple,label="nominal",width=2.0)
+pltz = plot!(t_nominal,z_nom[3:T],color=:purple,label="nominal",width=2.0)
 z_nom_sample =  [X_nom_sample[t][3] for t = 1:T]
-pltz = plot!(t_span,z_nom_sample,color=:orange,label="sample nominal",width=2.0,legend=:bottomright)
+pltz = plot!(t_sample,z_nom_sample[3:T],color=:orange,label="sample nominal",width=2.0,legend=:bottomright)
 display(pltz)
-savefig(pltz,joinpath(@__DIR__,"results/particle_soft_contact_v2_z_T$T.png"))
+# savefig(pltz,joinpath(@__DIR__,"results/particle_soft_contact_v2_z_T$T.png"))
 
 pltx = plot(label="",xlabel="time (s)",ylabel="x",title="Particle",
 	legend=:bottomright)
-t_span = range(0,stop=model.Δt*(T-1),length=T)
 for i = 1:N
 	x_sample = [X_sample[i][t][1] for t = 1:T]
-	pltx = plot!(t_span,x_sample,label="")
+	pltx = plot!(t_sample,x_sample[3:T],label="")
 end
-pltx = plot!(t_span,x_nom,color=:purple,label="nominal",width=2.0)
+pltx = plot!(t_nominal,x_nom[3:T],color=:purple,label="nominal",width=2.0)
 x_nom_sample =  [X_nom_sample[t][1] for t = 1:T]
-pltx = plot!(t_span,x_nom_sample,color=:orange,label="sample nominal",width=2.0)
+pltx = plot!(t_sample,x_nom_sample[3:T],color=:orange,label="sample nominal",width=2.0)
 display(pltx)
-savefig(pltz,joinpath(@__DIR__,"results/particle_soft_contact_v2_z_T$T.png"))
+# savefig(pltz,joinpath(@__DIR__,"results/particle_soft_contact_v2_z_T$T.png"))
 
 # visualize!(vis,model,[X_nom, X_nom_sample],
 # 	color=[RGBA(1, 0, 0, 1.0), RGBA(0, 1, 0, 1.0)])
@@ -220,12 +220,12 @@ K_nom_sample = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-2]
 
 # simulate policy
 include("../src/simulate.jl")
-T_scale = 10
+T_scale = 9
 T_sim = T_scale*T
 
 X_sim_policy, U_sim_policy, dt_sim_policy = simulate_policy(model,
 	X_nom_sample,U_nom_sample,H_nom_sample,K_nom_sample,T_sim,
-	α=100.0,slack_tol=1.0e-6,tol=1.0e-6,c_tol=1.0e-6)
+	α=100.0,slack_tol=1.0e-5,tol=1.0e-5,c_tol=1.0e-5)
 model.Δt = dt_sim_policy
 
 X_sim_nom, U_sim_nom, dt_sim_nom = simulate_nominal(model,
@@ -237,14 +237,14 @@ for t = 2:T_sim-2
     t_sim[t] = t_sim[t-1] + dt_sim_policy
 end
 sum(H_nom_sample)
-visualize!(vis,model,[X_sim_policy, X_sim_nom],color=[RGBA(0, 1, 0, 1.0),RGBA(1, 0, 0, 1.0)])
+# visualize!(vis,model,[X_sim_policy, X_sim_nom],color=[RGBA(0, 1, 0, 1.0),RGBA(1, 0, 0, 1.0)])
 
 plt_track = plot(t_sample,hcat(X_nom_sample[3:T]...)',color=:red,label=["nominal" "" ""],
 	title="Particle tracking performance ($(T_scale)T)",
 	xlabel="time (s)",
 	ylabel="state",
 	legend=:topleft)
-# plt_track = plot!(t_sim,hcat(X_sim_nom[3:T_sim]...)',color=:purple,label=["open loop" "" ""])
+plt_track = plot!(t_sim,hcat(X_sim_nom[3:T_sim]...)',color=:purple,label=["open loop" "" ""])
 plt_track = plot!(t_sim,hcat(X_sim_policy[3:T_sim]...)',color=:orange,label=["policy" "" ""])
 
-savefig(plt_track,joinpath(@__DIR__,"results/particle_tracking_$(T_scale)T.png"))
+# savefig(plt_track,joinpath(@__DIR__,"results/particle_tracking_$(T_scale)T.png"))

@@ -84,6 +84,7 @@ end
 @assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmp_c,c0,Z0_sample))) < 1.0e-10
 @assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_sample)) < 1.0e-10
 
+include("../src/general_constraints.jl")
 c0 = zeros(prob_sample.M_nlp)
 eval_constraint!(c0,Z0_sample,prob_sample)
 tmp_c(c,z) = eval_constraint!(c,z,prob_sample)
@@ -100,6 +101,7 @@ end
 @assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_sample)) < 1.0e-10
 
 # policy constraint for simulation
+include("../src/simulate.jl")
 
 c0 = zeros(model.nu_ctrl)
 general_constraints!(c0,Z0_sim,prob_sim)

@@ -91,7 +91,7 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim;
 		ul_sim[model.idx_u] .= -Inf
 
 		# policy
-		pi = PolicyInfo(X_nom[k:k+2],U_nom[k:k],H_nom[k:k],K_nom[k:k],dt_sim)
+		pi = PolicyInfo(X_nom[k:k+2],U_nom[k:k],H_nom[k:k],K_nom[k:k])
 
 		general_constraint=true
 		m_general=model.nu_ctrl
@@ -200,13 +200,13 @@ function general_constraints!(c,z,prob::TrajectoryOptimizationProblem)
     x1 = view(z,idx.x[1])
     x2 = view(z,idx.x[2])
     x3 = view(z,idx.x[3])
-    u = view(z,idx.u[1][prob.model.idx_u])
-    ū = view(z,idx.u[1][(nu_policy+1):nu])
-    h = view(z,idx.h[1])
+    u = view(z,idx.u[1])
+    h = z[idx.h[1]]
+
     c[(1:nu_policy)] = policy(model,
-		pi.K[1],x1,x2,x3,ū,pi.Δt,
+		pi.K[1],x1,x2,x3,u,h,
 		pi.X[1],pi.X[2],pi.X[3],
-		pi.U[1][prob.model.idx_u],pi.U[1][prob.model.nu_ctrl+1:prob.model.nu],pi.Δt) - u
+		pi.U[1],pi.H[1]) - u[prob.model.idx_u]
 
     nothing
 end
@@ -223,13 +223,14 @@ function ∇general_constraints!(∇c,z,prob::TrajectoryOptimizationProblem)
     x1 = view(z,idx.x[1])
     x2 = view(z,idx.x[2])
     x3 = view(z,idx.x[3])
-    u = view(z,idx.u[1][u_policy])
-    ū = view(z,idx.u[1][(nu_policy+1):nu])
+    u = view(z,idx.u[1])
+	h = z[idx.h[1]]
 
-    px1(y) = policy(model,pi.K[1],y,x2,x3,ū,pi.Δt,pi.X[1],pi.X[2],pi.X[3],pi.U[1][prob.model.idx_u],pi.U[1][prob.model.nu_ctrl+1:prob.model.nu],pi.Δt)
-    px2(y) = policy(model,pi.K[1],x1,y,x3,ū,pi.Δt,pi.X[1],pi.X[2],pi.X[3],pi.U[1][prob.model.idx_u],pi.U[1][prob.model.nu_ctrl+1:prob.model.nu],pi.Δt)
-    px3(y) = policy(model,pi.K[1],x1,x2,y,ū,pi.Δt,pi.X[1],pi.X[2],pi.X[3],pi.U[1][prob.model.idx_u],pi.U[1][prob.model.nu_ctrl+1:prob.model.nu],pi.Δt)
-    pū(y) = policy(model,pi.K[1],x1,x2,x3,y,pi.Δt,pi.X[1],pi.X[2],pi.X[3],pi.U[1][prob.model.idx_u],pi.U[1][prob.model.nu_ctrl+1:prob.model.nu],pi.Δt)
+    px1(y) = policy(model,pi.K[1],y,x2,x3,u,h,pi.X[1],pi.X[2],pi.X[3],pi.U[1],pi.H[1])
+    px2(y) = policy(model,pi.K[1],x1,y,x3,u,h,pi.X[1],pi.X[2],pi.X[3],pi.U[1],pi.H[1])
+    px3(y) = policy(model,pi.K[1],x1,x2,y,u,h,pi.X[1],pi.X[2],pi.X[3],pi.U[1],pi.H[1])
+    pu(y) = policy(model,pi.K[1],x1,x2,x3,y,h,pi.X[1],pi.X[2],pi.X[3],pi.U[1],pi.H[1]) - y[prob.model.idx_u]
+	ph(y) = policy(model,pi.K[1],x1,x2,x3,u,y,pi.X[1],pi.X[2],pi.X[3],pi.U[1],pi.H[1])
 
 	s = 0
 
@@ -250,14 +251,14 @@ function ∇general_constraints!(∇c,z,prob::TrajectoryOptimizationProblem)
     ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(px3,x3))
     s += len
 
-    c_idx = idx.u[1][(nu_policy+1):nu]
+    c_idx = idx.u[1]
     len = length(r_idx)*length(c_idx)
-    ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(pū,ū))
+    ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(pu,u))
     s += len
 
-    c_idx = idx.u[1][u_policy]
+    c_idx = idx.h[1]
     len = length(r_idx)*length(c_idx)
-    ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nu_policy)))
+    ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(ph,view(z,idx.h[1])))
     s += len
 
     nothing
@@ -290,10 +291,10 @@ function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 	    c_idx = idx.x[3]
 		row_col!(row,col,r_idx,c_idx)
 
-	    c_idx = idx.u[1][(nu_policy+1):nu]
+	    c_idx = idx.u[1]
 		row_col!(row,col,r_idx,c_idx)
 
-	    c_idx = idx.u[1][u_policy]
+	    c_idx = idx.h[1]
 		row_col!(row,col,r_idx,c_idx)
 	end
 
