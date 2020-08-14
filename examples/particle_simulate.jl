@@ -85,64 +85,9 @@ plot(z_nom)
 # Simulate
 
 # simulation time step
+include("../src/simulate.jl")
 
-function simulate(model,xpp,xp,dt_sim,tf;
-		tol=1.0e-6,c_tol=1.0e-6,α=100.0)
-
-    T_sim = floor(convert(Int,tf/dt_sim)) + 1
-
-	# Bounds
-	# xl <= x <= xu
-	xu_sim = [xpp,xp,Inf*ones(model.nx)]
-	xl_sim = [xpp,xp,-Inf*ones(model.nx)]
-
-	# ul <= u <= uu
-	uu_sim = Inf*ones(model.nu)
-	uu_sim[model.idx_u] .= 0.0
-	ul_sim = zeros(model.nu)
-	ul_sim[model.idx_u] .= 0.0
-
-	# h = h0 (fixed timestep)
-	hu_sim = dt_sim
-	hl_sim = dt_sim
-
-	model.α = α
-	penalty_obj = PenaltyObjective(model.α)
-	multi_obj = MultiObjective([penalty_obj])
-
-	X_traj = [xpp,xp]
-	U_traj = []
-
-	for t = 1:T_sim
-		# xl <= x <= xu
-		xu_sim = [X_traj[t],X_traj[t+1],Inf*ones(model.nx)]
-		xl_sim = [X_traj[t],X_traj[t+1],-Inf*ones(model.nx)]
-
-		# Problem
-		prob_sim = init_problem(model.nx,model.nu,3,model,multi_obj,
-		                    xl=xl_sim,
-		                    xu=xu_sim,
-		                    ul=[ul_sim],
-		                    uu=[uu_sim],
-		                    hl=[dt_sim],
-		                    hu=[dt_sim]
-		                    )
-		# MathOptInterface problem
-		prob_sim_moi = init_MOI_Problem(prob_sim)
-
-		# Pack trajectories into vector
-		Z0_sim = pack([X_traj[t],X_traj[t+1],X_traj[t+1]],[t == 1 ? rand(model.nu) : U_traj[t-1]],dt_sim,prob_sim)
-
-		@time Z_sim_sol = solve(prob_sim_moi,copy(Z0_sim),tol=tol,c_tol=c_tol)
-		X_sol, U_sol, H_sol = unpack(Z_sim_sol,prob_sim)
-
-		push!(X_traj,X_sol[end])
-		push!(U_traj,U_sol[1])
-	end
-	return X_traj, U_traj
-end
-
-X_sim, U_sim = simulate(model,X_nom[1],X_nom[2],0.01,1.0)
+X_sim, U_sim = simulate(model,X_nom[1],X_nom[2],0.01,2.0)
 
 using Colors
 using CoordinateTransformations

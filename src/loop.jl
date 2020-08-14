@@ -73,39 +73,40 @@ function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 	row = []
 	col = []
 
-	nx = prob.nx
-	idx = prob.idx
+	if prob.general_constraints
+		nx = prob.nx
+		idx = prob.idx
 
-	# c[1:nx] = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]]
+		# c[1:nx] = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]]
 
-	r_idx = r_shift .+ (1:nx-1)
+		r_idx = r_shift .+ (1:nx-1)
 
-	c_idx = idx.x[3][2:end]
-	row_col!(row,col,r_idx,c_idx)
+		c_idx = idx.x[3][2:end]
+		row_col!(row,col,r_idx,c_idx)
 
-	c_idx = idx.x[T][2:end]
-	row_col!(row,col,r_idx,c_idx)
+		c_idx = idx.x[T][2:end]
+		row_col!(row,col,r_idx,c_idx)
 
-	r_idx = r_shift + nx-1 .+ (1:nx)
+		r_idx = r_shift + nx-1 .+ (1:nx)
 
-	c_idx = idx.x[2]
-	row_col!(row,col,r_idx,c_idx)
+		c_idx = idx.x[2]
+		row_col!(row,col,r_idx,c_idx)
 
-	c_idx = idx.x[3]
-	row_col!(row,col,r_idx,c_idx)
+		c_idx = idx.x[3]
+		row_col!(row,col,r_idx,c_idx)
 
-	c_idx = idx.h[1]
-	row_col!(row,col,r_idx,c_idx)
+		c_idx = idx.h[1]
+		row_col!(row,col,r_idx,c_idx)
 
-	c_idx = idx.x[T-1]
-	row_col!(row,col,r_idx,c_idx)
+		c_idx = idx.x[T-1]
+		row_col!(row,col,r_idx,c_idx)
 
-	c_idx = idx.x[T]
-	row_col!(row,col,r_idx,c_idx)
+		c_idx = idx.x[T]
+		row_col!(row,col,r_idx,c_idx)
 
-	c_idx = idx.h[T-2]
-	row_col!(row,col,r_idx,c_idx)
-
+		c_idx = idx.h[T-2]
+		row_col!(row,col,r_idx,c_idx)
+	end
 	return collect(zip(row,col))
 end
 
@@ -197,41 +198,43 @@ function general_constraint_sparsity(prob::SampleProblem;
 	row = []
 	col = []
 
-	nx = prob.prob.nx
-	idx_sample = prob.idx_sample
-	T = prob.prob.T
+	if prob.sample_general_constraints
+		nx = prob.prob.nx
+		idx_sample = prob.idx_sample
+		T = prob.prob.T
 
-	m = nx-1
+		m = nx-1
 
-	# c[1:nx] = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]]
-	for i = 1:prob.N
-		r_idx = r_shift + (i-1)*(m+nx) .+ (1:m)
+		# c[1:nx] = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]]
+		for i = 1:prob.N
+			r_idx = r_shift + (i-1)*(m+nx) .+ (1:m)
 
-		c_idx = idx_sample[i].x[3][2:end]
-		row_col!(row,col,r_idx,c_idx)
+			c_idx = idx_sample[i].x[3][2:end]
+			row_col!(row,col,r_idx,c_idx)
 
-		c_idx = idx_sample[i].x[T][2:end]
-		row_col!(row,col,r_idx,c_idx)
+			c_idx = idx_sample[i].x[T][2:end]
+			row_col!(row,col,r_idx,c_idx)
 
-		r_idx = r_shift + (i-1)*(m+nx) + m .+ (1:nx)
+			r_idx = r_shift + (i-1)*(m+nx) + m .+ (1:nx)
 
-		c_idx = idx_sample[i].x[2]
-		row_col!(row,col,r_idx,c_idx)
+			c_idx = idx_sample[i].x[2]
+			row_col!(row,col,r_idx,c_idx)
 
-		c_idx = idx_sample[i].x[3]
-		row_col!(row,col,r_idx,c_idx)
+			c_idx = idx_sample[i].x[3]
+			row_col!(row,col,r_idx,c_idx)
 
-		c_idx = idx_sample[i].h[1]
-		row_col!(row,col,r_idx,c_idx)
+			c_idx = idx_sample[i].h[1]
+			row_col!(row,col,r_idx,c_idx)
 
-		c_idx = idx_sample[i].x[T-1]
-		row_col!(row,col,r_idx,c_idx)
+			c_idx = idx_sample[i].x[T-1]
+			row_col!(row,col,r_idx,c_idx)
 
-		c_idx = idx_sample[i].x[T]
-		row_col!(row,col,r_idx,c_idx)
+			c_idx = idx_sample[i].x[T]
+			row_col!(row,col,r_idx,c_idx)
 
-		c_idx = idx_sample[i].h[T-2]
-		row_col!(row,col,r_idx,c_idx)
+			c_idx = idx_sample[i].h[T-2]
+			row_col!(row,col,r_idx,c_idx)
+		end
 	end
 
 	return collect(zip(row,col))
