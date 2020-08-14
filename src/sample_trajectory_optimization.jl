@@ -6,6 +6,8 @@ include("utils.jl")
 include("integration.jl")
 include("indices.jl")
 
+include("policy.jl")
+
 include("problem.jl")
 include("sample_problem.jl")
 #
@@ -24,7 +26,6 @@ include("general_constraints.jl")
 include("sample_dynamics_constraints.jl")
 include("sample_contact_dynamics_constraints.jl")
 
-include("policy.jl")
 include("sample_policy_constraints.jl")
 #
 include("sample_stage_constraints.jl")

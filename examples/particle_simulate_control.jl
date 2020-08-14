@@ -99,18 +99,18 @@ plot(hcat(U_nom...)[model.idx_u,:]',linetype=:steppost)
 @assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-5
 plot(λ_nom,linetype=:steppost)
 
-# using Colors
-# using CoordinateTransformations
-# using FileIO
-# using GeometryTypes
-# using LinearAlgebra
-# using MeshCat
-# using MeshIO
-# using Rotations
-#
-# vis = Visualizer()
-# open(vis)
-visualize!(vis,model,[X_nom])
+using Colors
+using CoordinateTransformations
+using FileIO
+using GeometryTypes
+using LinearAlgebra
+using MeshCat
+using MeshIO
+using Rotations
+
+vis = Visualizer()
+open(vis)
+# visualize!(vis,model,[X_nom])
 
 # samples
 Q_lqr = [t < T ? Diagonal([10.0;10.0;10.0]) : Diagonal([10.0; 10.0; 10.0]) for t = 1:T]
@@ -120,7 +120,7 @@ H_lqr = [0.0 for t = 1:T-1]
 # Samples
 N = 2*model.nx
 models = [model for i =1:N]
-K0 = [rand(model.nu_ctrl*model.nx*2) for t = 1:T-2]
+K0 = [rand(model.nu_ctrl*model.nx) for t = 1:T-2]
 β = 1.0
 w = 1.0e-3*ones(model.nx)
 γ = 1.0
@@ -161,13 +161,13 @@ hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 function policy(model::Particle,K,x1,x2,x3,ū,h,x1_nom,x2_nom,x3_nom,u_nom,ū_nom,h_nom)
 	v = (x3 - x2)/h[1]
 	v_nom = (x3_nom - x2_nom)/h_nom[1]
-	u_nom - reshape(K,model.nu_ctrl,2*model.nx)*[x3 - x3_nom; v - v_nom]
+	u_nom - reshape(K,model.nu_ctrl,model.nx)*(x3 - x3_nom)
 end
 
 prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
 	u_policy=model.idx_u,
-	nK=length(model.idx_u)*model.nx*2,
+	nK=length(model.idx_u)*model.nx,
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
     α=1.0,
@@ -194,8 +194,7 @@ Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
 # Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
-X_sample[1][Tm-3]
-X_sample[2][Tm-2]
+
 s = [U_nom_sample[t][model.idx_s] for t = 1:T-2]
 @assert sum(s) < 1.0e-5
 
@@ -225,8 +224,8 @@ pltx = plot!(t_span,x_nom_sample,color=:orange,label="sample nominal",width=2.0)
 display(pltx)
 savefig(pltz,joinpath(@__DIR__,"results/particle_soft_contact_v2_z_T$T.png"))
 
-visualize!(vis,model,[X_nom, X_nom_sample],
-	color=[RGBA(1, 0, 0, 1.0), RGBA(0, 1, 0, 1.0)])
+# visualize!(vis,model,[X_nom, X_nom_sample],
+# 	color=[RGBA(1, 0, 0, 1.0), RGBA(0, 1, 0, 1.0)])
 
 K_nom = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-2]
 
@@ -235,165 +234,10 @@ U_nom = U_nom_sample
 H_nom = H_nom_sample
 
 # simulate policy
-function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim;
-		tol = 1.0e-6,c_tol = 1.0e-6,slack_tol = 1.0e-5,α = 100.0)
-
-	tf = sum(H_nom)
-	t_sim = range(0,stop=tf,length=T_sim)
-	times = [(t-1)*H_nom[t] for t = 1:T-2]
-
-
-	# ul <= u <= uu
-	uu_sim = Inf*ones(model.nu)
-	uu_sim[model.idx_u] .= Inf
-	ul_sim = zeros(model.nu)
-	ul_sim[model.idx_u] .= -Inf
-
-	# h = h0 (fixed timestep)
-	hu_sim = dt_sim
-	hl_sim = dt_sim
-
-	model.α = α
-	penalty_obj = PenaltyObjective(model.α)
-	multi_obj = MultiObjective([penalty_obj])
-
-	X_traj = [X_nom[1],X_nom[2]]
-	U_traj = []
-
-	# for t = 1:T_sim
-	t = 1
-	# xl <= x <= xu
-	xu_sim = [X_traj[t],X_traj[t+1],Inf*ones(model.nx)]
-	xl_sim = [X_traj[t],X_traj[t+1],-Inf*ones(model.nx)]
-
-	k = searchsortedlast(times,t_sim[t])
-	x1_nom = X_nom[k]
-	x2_nom = X_nom[k+1]
-	x3_nom = X_nom[k+2]
-	u_nom = U_nom[k]
-	K = K_nom[k]
-
-	function general_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
-		idx = prob.idx
-		u_policy = prob.model.idx_u
-		nu_policy = length(u_policy)
-
-		x1 = view(Z,idx.x[1])
-		x2 = view(Z,idx.x[2])
-		x3 = view(Z,idx.x[3])
-		u = view(Z,idx.u[1][u_policy])
-		ū = view(Z,idx.u[1][(nu_policy+1):nu])
-		c[u_policy] = policy(prob.model,K,x1,x2,x3,ū,dt_sim,x1_nom,x2_nom,x3_nom,u_nom[u_policy],u_nom[nu_policy+1:prob.model.nu],dt_sim) - u
-	end
-
-	function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
-		idx = prob.idx
-		u_policy = prob.model.idx_u
-		nu_policy = length(u_policy)
-
-		x1 = view(Z,idx.x[1])
-		x2 = view(Z,idx.x[2])
-		x3 = view(Z,idx.x[3])
-		u = view(Z,idx.u[1][u_policy])
-		ū = view(Z,idx.u[1][(nu_policy+1):nu])
-
-		px1(y) = policy(prob.model,K,y,x2,x3,ū,dt_sim,x1_nom,x2_nom,x3_nom,u_nom[u_policy],u_nom[nu_policy+1:prob.model.nu],dt_sim) - u
-		px2(y) = policy(prob.model,K,x1,y,x3,ū,dt_sim,x1_nom,x2_nom,x3_nom,u_nom[u_policy],u_nom[nu_policy+1:prob.model.nu],dt_sim) - u
-		px3(y) = policy(prob.model,K,x1,x2,y,ū,dt_sim,x1_nom,x2_nom,x3_nom,u_nom[u_policy],u_nom[nu_policy+1:prob.model.nu],dt_sim) - u
-		pū(y) = policy(prob.model,K,x1,x2,x3,y,dt_sim,x1_nom,x2_nom,x3_nom,u_nom[u_policy],u_nom[nu_policy+1:prob.model.nu],dt_sim) - u
-
-		s = 0
-		r_idx = u_policy
-
-		c_idx = idx.x[1]
-		len = length(r_idx)*length(c_idx)
-		∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(px1,x1))
-		s += len
-
-		c_idx = idx.x[2]
-		len = length(r_idx)*length(c_idx)
-		∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(px2,x2))
-		s += len
-
-		c_idx = idx.x[3]
-		len = length(r_idx)*length(c_idx)
-		∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(px3,x3))
-		s += len
-
-		c_idx = idx.u[1][u_policy]
-		len = length(r_idx)*length(c_idx)
-		∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nu_policy)))
-		s += len
-
-		c_idx = idx.u[1][(nu_policy+1):nu]
-		len = length(r_idx)*length(c_idx)
-		∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(pū,ū))
-		s += len
-
-		nothing
-	end
-
-	function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
-			r_shift=0)
-
-		idx = prob.idx
-		u_policy = prob.model.idx_u
-		nu_policy = length(u_policy)
-
-		row = []
-		col = []
-
-		r_idx = r_shift .+ u_policy
-
-		c_idx = idx.x[1]
-		row_col!(row,col,r_idx,c_idx)
-
-		c_idx = idx.x[2]
-		row_col!(row,col,r_idx,c_idx)
-
-		c_idx = idx.x[3]
-		row_col!(row,col,r_idx,c_idx)
-
-		c_idx = idx.u[1][u_policy]
-		row_col!(row,col,r_idx,c_idx)
-
-		c_idx = idx.u[1][(nu_policy+1):nu]
-		row_col!(row,col,r_idx,c_idx)
-
-		return collect(zip(row,col))
-	end
-
-	# Problem
-	prob_sim = init_problem(model.nx,model.nu,3,model,multi_obj,
-						xl=xl_sim,
-						xu=xu_sim,
-						ul=[ul_sim],
-						uu=[uu_sim],
-						hl=[dt_sim],
-						hu=[dt_sim],
-						general_constraints=true,
-						m_general=model.nu_ctrl,
-						general_ineq=(1:0)
-						)
-	# MathOptInterface problem
-	prob_sim_moi = init_MOI_Problem(prob_sim)
-
-	# Pack trajectories into vector
-	# Z0_sim = pack([X_traj[t],X_traj[t+1],X_traj[t+1]],[t == 1 ? U_nom[1] : U_traj[end]],dt_sim,prob_sim)
-	Z0_sim = rand(prob_sim.N)
-	Z_sim_sol = solve(prob_sim_moi,copy(Z0_sim))#,tol=tol,c_tol=c_tol)
-	X_sol, U_sol, H_sol = unpack(Z_sim_sol,prob_sim)
-
-	@assert U_sol[1][model.idx_s] < slack_tol
-
-	push!(X_traj,X_sol[end])
-	push!(U_traj,U_sol[1])
-	# end
-
-	return X_traj, U_traj, dt_sim
-end
-
-H_nom_sample
-X_sim, U_sim, dt_sim = simulate_policy(model,X_nom_sample,U_nom_sample,H_nom_sample,K_nom,200)
+include("../src/simulate.jl")
+T_sim = 100
+X_sim, U_sim, dt_sim = simulate_policy(model,
+	X_nom_sample,U_nom_sample,H_nom_sample,K_nom,T_sim,
+	α=100.0,slack_tol=1.0e-5,tol=1.0e-6,c_tol=1.0e-6)
 model.Δt = dt_sim
 visualize!(vis,model,[X_sim],color=[RGBA(1, 0, 0, 1.0)])

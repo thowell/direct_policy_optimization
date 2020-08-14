@@ -100,17 +100,17 @@ end
 @assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_sample)) < 1.0e-10
 
 # policy constraint for simulation
-# c0 = zeros(model.nu_ctrl)
-# general_constraints!(c0,Z0_sim,prob_sim)
-# tmp_c(c,z) = general_constraints!(c,z,prob_sim)
-# ForwardDiff.jacobian(tmp_c,c0,Z0_sim)
-#
-# spar = general_constraint_sparsity(prob_sim)
-# ∇c_vec = zeros(length(spar))
-# ∇c = zeros(model.nu_ctrl,prob_sim.N)
-# ∇general_constraints!(∇c_vec,Z0_sim,prob_sim)
-# for (i,k) in enumerate(spar)
-#     ∇c[k[1],k[2]] = ∇c_vec[i]
-# end
-# @assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmp_c,c0,Z0_sim))) < 1.0e-10
-# @assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_sim)) < 1.0e-10
+c0 = zeros(model.nu_ctrl)
+general_constraints!(c0,Z0_sim,prob_sim)
+tmp_c(c,z) = general_constraints!(c,z,prob_sim)
+ForwardDiff.jacobian(tmp_c,c0,Z0_sim)
+
+spar = general_constraint_sparsity(prob_sim)
+∇c_vec = zeros(length(spar))
+∇c = zeros(model.nu_ctrl,prob_sim.N)
+∇general_constraints!(∇c_vec,Z0_sim,prob_sim)
+for (i,k) in enumerate(spar)
+    ∇c[k[1],k[2]] = ∇c_vec[i]
+end
+@assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmp_c,c0,Z0_sim))) < 1.0e-10
+@assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_sim)) < 1.0e-10

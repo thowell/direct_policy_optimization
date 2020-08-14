@@ -36,6 +36,8 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     general_ineq
     contact_sequence
     T_contact_sequence
+
+    policy_info::PolicyInfo
 end
 
 function init_problem(nx,nu,T,model,obj;
@@ -52,7 +54,8 @@ function init_problem(nx,nu,T,model,obj;
         m_general=0,
         general_ineq=(1:m_general),
         contact_sequence::Bool=false,
-        T_contact_sequence=[])
+        T_contact_sequence=[],
+        policy_info=PolicyInfo())
 
     idx = init_indices(nx,nu,T)
 
@@ -96,7 +99,8 @@ function init_problem(nx,nu,T,model,obj;
         m_general,
         general_ineq,
         contact_sequence,
-        T_contact_sequence)
+        T_contact_sequence,
+        policy_info)
 end
 
 function pack(X0,U0,h0,prob::TrajectoryOptimizationProblem)
