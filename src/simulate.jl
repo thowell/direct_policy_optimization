@@ -1,64 +1,3 @@
-# function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
-#         _norm=2,
-#         ul=-Inf*ones(length(u_nom[1])),
-#         uu=Inf*ones(length(u_nom[1])))
-#     T = length(Kc)+1
-#     times = [(t-1)*Δt for t = 1:T-1]
-#     tf = Δt*T
-#     t_sim = range(0,stop=tf,length=T_sim)
-#     dt_sim = tf/(T_sim-1)
-#
-#     z_rollout = [z0]
-#     u_rollout = []
-#     J = 0.0
-#     Jx = 0.0
-#     Ju = 0.0
-#     for tt = 1:T_sim-1
-#         t = t_sim[tt]
-#         k = searchsortedlast(times,t)
-#         z = z_rollout[end] + dt_sim*w[:,tt]
-#         u = u_nom[k] - Kc[k]*(z - z_nom[k])
-#
-#         # clip controls
-#         u = max.(u,ul)
-#         u = min.(u,uu)
-#
-#         push!(z_rollout,rk3(model,z,u,dt_sim))
-#         push!(u_rollout,u)
-#         if _norm == 2
-#             J += (z_rollout[end]-z_nom[k+1])'*Q[k+1]*(z_rollout[end]-z_nom[k+1])
-#             J += (u_rollout[end]-u_nom[k])'*R[k]*(u_rollout[end]-u_nom[k])
-#             Jx += (z_rollout[end]-z_nom[k+1])'*Q[k+1]*(z_rollout[end]-z_nom[k+1])
-#             Ju += (u_rollout[end]-u_nom[k])'*R[k]*(u_rollout[end]-u_nom[k])
-#         else
-#             J += norm(sqrt(Q[k+1])*(z_rollout[end]-z_nom[k+1]),_norm)
-#             J += norm(sqrt(R[k])*(u-u_nom[k]),_norm)
-#             Jx += norm(sqrt(Q[k+1])*(z_rollout[end]-z_nom[k+1]),_norm)
-#             Ju += norm(sqrt(R[k])*(u-u_nom[k]),_norm)
-#         end
-#     end
-#     return z_rollout, u_rollout, J/(T_sim-1), Jx/(T_sim-1), Ju/(T_sim-1)
-# end
-#
-# function nominal_trajectories(z_nom,u_nom,T_sim,Δt)
-#     T = length(z_nom)
-#     times = [(t-1)*Δt for t = 1:T-1]
-#     tf = Δt*T
-#     t_sim = range(0,stop=tf,length=T_sim)
-#     dt_sim = tf/(T_sim-1)
-#
-#     _z_nom = [z_nom[1]]
-#     _u_nom = []
-#     for tt = 1:T_sim-1
-#         t = t_sim[tt]
-#         k = searchsortedlast(times,t)
-#
-#         push!(_z_nom,z_nom[k])
-#         push!(_u_nom,u_nom[k])
-#     end
-#     return _z_nom, _u_nom
-# end
-
 function simulate(model,xpp,xp,dt_sim,tf;
 		tol=1.0e-6,c_tol=1.0e-6,α=100.0,slack_tol=1.0e-5)
 
@@ -118,17 +57,12 @@ end
 function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim;
 		tol=1.0e-6,c_tol=1.0e-6,α=100.0,slack_tol=1.0e-5)
 
+	tf = sum(H_nom)
 	times = [(t-1)*H_nom[t] for t = 1:T-2]
     t_sim = range(0,stop=tf,length=T_sim)
     dt_sim = tf/(T_sim-1)
 
 	# Bounds
-
-	# ul <= u <= uu
-	uu_sim = Inf*ones(model.nu)
-	uu_sim[model.idx_u] .= Inf
-	ul_sim = zeros(model.nu)
-	ul_sim[model.idx_u] .= -Inf
 
 	# h = h0 (fixed timestep)
 	hu_sim = dt_sim
@@ -149,8 +83,18 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim;
 		xu_sim = [X_traj[t],X_traj[t+1],Inf*ones(model.nx)]
 		xl_sim = [X_traj[t],X_traj[t+1],-Inf*ones(model.nx)]
 
+		# ul <= u <= uu
+		uu_sim = Inf*ones(model.nu)
+		ul_sim = zeros(model.nu)
+
+		uu_sim[model.idx_u] .= Inf
+		ul_sim[model.idx_u] .= -Inf
+
 		# policy
 		pi = PolicyInfo(X_nom[k:k+2],U_nom[k:k],H_nom[k:k],K_nom[k:k],dt_sim)
+
+		general_constraint=true
+		m_general=model.nu_ctrl
 
 		# Problem
 		prob_sim = init_problem(model.nx,model.nu,3,model,multi_obj,
@@ -160,8 +104,8 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim;
 			                    uu=[uu_sim],
 			                    hl=[dt_sim],
 			                    hu=[dt_sim],
-								general_constraints=true,
-								m_general=model.nu_ctrl,
+								general_constraints=general_constraint,
+								m_general=m_general,
 								general_ineq=(1:0),
 			                    policy_info=pi)
 
@@ -174,7 +118,69 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim;
 		@time Z_sim_sol = solve(prob_sim_moi,copy(Z0_sim),tol=tol,c_tol=c_tol)
 		X_sol, U_sol, H_sol = unpack(Z_sim_sol,prob_sim)
 
-		# @assert U_sol[1][model.idx_s] < slack_tol
+		@assert U_sol[1][model.idx_s] < slack_tol
+
+		push!(X_traj,X_sol[end])
+		push!(U_traj,U_sol[1])
+	end
+	return X_traj, U_traj, dt_sim
+end
+
+function simulate_nominal(model,X_nom,U_nom,H_nom,K_nom,T_sim;
+		tol=1.0e-6,c_tol=1.0e-6,α=100.0,slack_tol=1.0e-5)
+
+	tf = sum(H_nom)
+	times = [(t-1)*H_nom[t] for t = 1:T-2]
+    t_sim = range(0,stop=tf,length=T_sim)
+    dt_sim = tf/(T_sim-1)
+
+	# Bounds
+
+	# h = h0 (fixed timestep)
+	hu_sim = dt_sim
+	hl_sim = dt_sim
+
+	model.α = α
+	penalty_obj = PenaltyObjective(model.α)
+	multi_obj = MultiObjective([penalty_obj])
+
+	X_traj = [X_nom[1],X_nom[2]]
+	U_traj = []
+
+	for t = 1:T_sim
+
+	    k = searchsortedlast(times,t_sim[t])
+
+		# xl <= x <= xu
+		xu_sim = [X_traj[t],X_traj[t+1],Inf*ones(model.nx)]
+		xl_sim = [X_traj[t],X_traj[t+1],-Inf*ones(model.nx)]
+
+		# ul <= u <= uu
+		uu_sim = Inf*ones(model.nu)
+		ul_sim = zeros(model.nu)
+
+		uu_sim[model.idx_u] = U_nom[k][model.idx_u]
+		ul_sim[model.idx_u] = U_nom[k][model.idx_u]
+
+		# Problem
+		prob_sim = init_problem(model.nx,model.nu,3,model,multi_obj,
+			                    xl=xl_sim,
+			                    xu=xu_sim,
+			                    ul=[ul_sim],
+			                    uu=[uu_sim],
+			                    hl=[dt_sim],
+			                    hu=[dt_sim])
+
+		# MathOptInterface problem
+		prob_sim_moi = init_MOI_Problem(prob_sim)
+
+		# Pack trajectories into vector
+		Z0_sim = pack([X_traj[t],X_traj[t+1],X_traj[t+1]],[t == 1 ? U_nom[1] : U_traj[t-1]],dt_sim,prob_sim)
+
+		@time Z_sim_sol = solve(prob_sim_moi,copy(Z0_sim),tol=tol,c_tol=c_tol)
+		X_sol, U_sol, H_sol = unpack(Z_sim_sol,prob_sim)
+
+		@assert U_sol[1][model.idx_s] < slack_tol
 
 		push!(X_traj,X_sol[end])
 		push!(U_traj,U_sol[1])
@@ -259,6 +265,7 @@ end
 
 function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
     r_shift=0)
+
 	nx = prob.nx
     nu = prob.nu
 	u_policy = prob.model.idx_u
@@ -268,24 +275,27 @@ function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 
 	row = []
 	col = []
+
     # controller for samples
 
-    r_idx = r_shift .+ (1:nu_policy)
+	if prob.general_constraints
+	    r_idx = r_shift .+ (1:nu_policy)
 
-    c_idx = idx.x[1]
-	row_col!(row,col,r_idx,c_idx)
+	    c_idx = idx.x[1]
+		row_col!(row,col,r_idx,c_idx)
 
-    c_idx = idx.x[2]
-	row_col!(row,col,r_idx,c_idx)
+	    c_idx = idx.x[2]
+		row_col!(row,col,r_idx,c_idx)
 
-    c_idx = idx.x[3]
-	row_col!(row,col,r_idx,c_idx)
+	    c_idx = idx.x[3]
+		row_col!(row,col,r_idx,c_idx)
 
-    c_idx = idx.u[1][(nu_policy+1):nu]
-	row_col!(row,col,r_idx,c_idx)
+	    c_idx = idx.u[1][(nu_policy+1):nu]
+		row_col!(row,col,r_idx,c_idx)
 
-    c_idx = idx.u[1][u_policy]
-	row_col!(row,col,r_idx,c_idx)
+	    c_idx = idx.u[1][u_policy]
+		row_col!(row,col,r_idx,c_idx)
+	end
 
     return collect(zip(row,col))
 end

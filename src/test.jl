@@ -100,6 +100,7 @@ end
 @assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_sample)) < 1.0e-10
 
 # policy constraint for simulation
+
 c0 = zeros(model.nu_ctrl)
 general_constraints!(c0,Z0_sim,prob_sim)
 tmp_c(c,z) = general_constraints!(c,z,prob_sim)
