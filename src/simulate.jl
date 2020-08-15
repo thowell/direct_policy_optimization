@@ -54,7 +54,7 @@ function simulate(model,xpp,xp,dt_sim,tf;
 	return X_traj, U_traj
 end
 
-function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim,x1,x2;
+function simulate_policy1(model,X_nom,U_nom,H_nom,K_nom,T_sim,x1,x2;
 		tol=1.0e-6,c_tol=1.0e-6,α=100.0,slack_tol=1.0e-5)
 
 	tf = sum(H_nom)
@@ -75,7 +75,7 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim,x1,x2;
 	X_traj = [x1,x2]
 	U_traj = []
 
-	for t = 1:T_sim
+	for t = 1:T_sim-2
 
 	    k = searchsortedlast(times,t_sim[t])
 
@@ -113,12 +113,16 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim,x1,x2;
 		prob_sim_moi = init_MOI_Problem(prob_sim)
 
 		# Pack trajectories into vector
-		Z0_sim = pack([X_traj[t],X_traj[t+1],X_traj[t+1]],[t == 1 ? U_nom[1] : U_traj[t-1]],dt_sim,prob_sim)
+		Z0_sim = pack([X_traj[t],X_traj[t+1],X_traj[t+1]],[rand(model.nu)],dt_sim,prob_sim)
+
 
 		@time Z_sim_sol = solve(prob_sim_moi,copy(Z0_sim),tol=tol,c_tol=c_tol)
 		X_sol, U_sol, H_sol = unpack(Z_sim_sol,prob_sim)
 
-		@assert U_sol[1][model.idx_s] < slack_tol
+		println("t: $(t_sim[t])")
+		println(X_traj[end])
+		println("s: $(U_sol[1][model.idx_s])")
+		@assert norm(U_sol[1][model.idx_s],Inf) < slack_tol
 
 		push!(X_traj,X_sol[end])
 		push!(U_traj,U_sol[1])
@@ -126,7 +130,7 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim,x1,x2;
 	return X_traj, U_traj, dt_sim
 end
 
-function simulate_nominal(model,X_nom,U_nom,H_nom,K_nom,T_sim,dt_sim,x1,x2,x3,u1;
+function simulate_nominal(model,X_nom,U_nom,H_nom,K_nom,T_sim,dt_sim,x1,x2;
 		tol=1.0e-6,c_tol=1.0e-6,α=100.0,slack_tol=1.0e-5)
 
 	tf = sum(H_nom)
@@ -143,10 +147,10 @@ function simulate_nominal(model,X_nom,U_nom,H_nom,K_nom,T_sim,dt_sim,x1,x2,x3,u1
 	penalty_obj = PenaltyObjective(model.α)
 	multi_obj = MultiObjective([penalty_obj])
 
-	X_traj = [x1,x2,x3]
-	U_traj = [u1]
+	X_traj = [x1,x2]
+	U_traj = []
 
-	for t = 2:T_sim
+	for t = 1:T_sim-2
 
 	    k = searchsortedlast(times,t_sim[t])
 
