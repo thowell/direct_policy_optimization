@@ -25,26 +25,6 @@ mutable struct QuadraticTrackingObjective <: Objective
     u_ref
 end
 
-function quadratic_cost(x,u,Q,R,x_ref,u_ref)
-    (x-x_ref)'*Q*(x-x_ref) + (u-u_ref)'*R*(u-u_ref)
-end
-
-function stage_cost(model,x⁺,x,u,Q,R,x_ref,u_ref,h,c)
-    # xm = xm_rk3_implicit(model,x⁺,x,u,h)
-    #
-    # ℓ1 = quadratic_cost(x,u,Q,R,x_ref,u_ref)
-    # ℓ2 = quadratic_cost(xm,u,Q,R,x_ref,u_ref)
-    # ℓ3 = quadratic_cost(x⁺,u,Q,R,x_ref,u_ref)
-    #
-    # return h[1]/6.0*ℓ1 + 4.0*h[1]/6.0*ℓ2 + h[1]/6.0*ℓ3 + c*h[1]
-    ℓ1 = quadratic_cost(x,u,Q,R,x_ref,u_ref)
-    return h[1]*ℓ1 + c*h[1]
-end
-
-function terminal_cost(x,Q,x_ref)
-    return (x-x_ref)'*Q*(x-x_ref)
-end
-
 function objective(Z,l::QuadraticTrackingObjective,model,idx,T)
     x_ref = l.x_ref
     u_ref = l.u_ref
@@ -53,17 +33,18 @@ function objective(Z,l::QuadraticTrackingObjective,model,idx,T)
     c = l.c
 
     s = 0
-    for t = 1:T-2
+    for t = 1:T
+        x = Z[idx.x[t]]
+        h = (t == 1 || t == 2) ? Z[idx.h[1]] : Z[idx.h[t-2]]
+        s += h*(x-x_ref[t])'*Q[t]*(x-x_ref[t])
+
+        t > T-2 && continue
+
         u = Z[idx.u[t][model.idx_u]]
         h = Z[idx.h[t]]
 
-        x3 = Z[idx.x[t+2]]
-        x3_ref = x_ref[t+2]
-        Q3 = Q[t+2]
-
-        s += h[1]*(x3-x3_ref)'*Q3*(x3-x3_ref)
-        s += h[1]*(u-u_ref[t])'*R[t]*(u-u_ref[t])
-        s += h[1]*c
+        s += h*(u-u_ref[t])'*R[t]*(u-u_ref[t])
+        s += h*c
     end
 
     return s
@@ -76,17 +57,20 @@ function objective_gradient!(∇l,Z,l::QuadraticTrackingObjective,model,idx,T)
     R = l.R
     c = l.c
 
-    for t = 1:T-2
+    for t = 1:T
+        x = Z[idx.x[t]]
+        h_idx = ((t == 1 || t == 2) ? idx.h[1] : idx.h[t-2])
+
+        ∇l[idx.x[t]] += 2.0*Z[h_idx]*Q[t]*(x-x_ref[t])
+        ∇l[h_idx] += (x-x_ref[t])'*Q[t]*(x-x_ref[t])
+
+        t > T-2 && continue
+
         u = Z[idx.u[t][model.idx_u]]
         h = Z[idx.h[t]]
 
-        x3 = Z[idx.x[t+2]]
-        x3_ref = x_ref[t+2]
-        Q3 = Q[t+2]
-
-        ∇l[idx.x[t+2]] += 2.0*h[1]*Q3*(x3-x3_ref)
-        ∇l[idx.u[t][model.idx_u]] += 2.0*h[1]*R[t]*(u-u_ref[t])
-        ∇l[idx.h[t]] += c + (x3-x3_ref)'*Q3*(x3-x3_ref) + (u-u_ref[t])'*R[t]*(u-u_ref[t])
+        ∇l[idx.u[t][model.idx_u]] += 2.0*h*R[t]*(u-u_ref[t])
+        ∇l[idx.h[t]] += c + (u-u_ref[t])'*R[t]*(u-u_ref[t])
     end
 
     return nothing

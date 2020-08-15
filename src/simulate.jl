@@ -54,13 +54,13 @@ function simulate(model,xpp,xp,dt_sim,tf;
 	return X_traj, U_traj
 end
 
-function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim;
+function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim,x1,x2;
 		tol=1.0e-6,c_tol=1.0e-6,α=100.0,slack_tol=1.0e-5)
 
 	tf = sum(H_nom)
 	times = [(t-1)*H_nom[t] for t = 1:T-2]
     t_sim = range(0,stop=tf,length=T_sim)
-    dt_sim = tf/(T_sim-1)
+	dt_sim = tf/(T_sim-1)
 
 	# Bounds
 
@@ -72,7 +72,7 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim;
 	penalty_obj = PenaltyObjective(model.α)
 	multi_obj = MultiObjective([penalty_obj])
 
-	X_traj = [X_nom[1],X_nom[2]]
+	X_traj = [x1,x2]
 	U_traj = []
 
 	for t = 1:T_sim
@@ -126,13 +126,12 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim;
 	return X_traj, U_traj, dt_sim
 end
 
-function simulate_nominal(model,X_nom,U_nom,H_nom,K_nom,T_sim;
+function simulate_nominal(model,X_nom,U_nom,H_nom,K_nom,T_sim,dt_sim,x1,x2,x3,u1;
 		tol=1.0e-6,c_tol=1.0e-6,α=100.0,slack_tol=1.0e-5)
 
 	tf = sum(H_nom)
 	times = [(t-1)*H_nom[t] for t = 1:T-2]
     t_sim = range(0,stop=tf,length=T_sim)
-    dt_sim = tf/(T_sim-1)
 
 	# Bounds
 
@@ -144,10 +143,10 @@ function simulate_nominal(model,X_nom,U_nom,H_nom,K_nom,T_sim;
 	penalty_obj = PenaltyObjective(model.α)
 	multi_obj = MultiObjective([penalty_obj])
 
-	X_traj = [X_nom[1],X_nom[2]]
-	U_traj = []
+	X_traj = [x1,x2,x3]
+	U_traj = [u1]
 
-	for t = 1:T_sim
+	for t = 2:T_sim
 
 	    k = searchsortedlast(times,t_sim[t])
 

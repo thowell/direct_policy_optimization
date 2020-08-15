@@ -220,7 +220,7 @@ K_nom_sample = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-2]
 
 # simulate policy
 include("../src/simulate.jl")
-T_scale = 9
+T_scale =
 T_sim = T_scale*T
 
 X_sim_policy, U_sim_policy, dt_sim_policy = simulate_policy(model,
