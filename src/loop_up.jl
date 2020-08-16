@@ -2,12 +2,12 @@ function general_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
 	nx = prob.nx
 	idx = prob.idx
 	T = prob.T
-	c[1:nx] = (Z[idx.x[3]] - Z[idx.x[T]])
+	c[1:nx] = (Z[idx.x[2]] - Z[idx.x[T]])
 
-	v1 = (Z[idx.x[3]] - Z[idx.x[2]])/Z[idx.h[1]]
+	v1 = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]]
 	vT = (Z[idx.x[T]] - Z[idx.x[T-1]])/Z[idx.h[T-2]]
 
-	c[nx-1 .+ (1:nx)] = v1 - vT
+	c[nx .+ (1:nx)] = v1 - vT
 end
 
 function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
@@ -18,7 +18,7 @@ function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 
 	r_idx = 1:nx
 
-	c_idx = idx.x[3]
+	c_idx = idx.x[2]
 	len = length(r_idx)*length(c_idx)
 	∇c[shift .+ (1:len)] = vec(Diagonal(ones(nx)))
 	shift += len
@@ -34,19 +34,19 @@ function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 	# c[nx-1 .+ (1:nx)] = v1 - vT
 	r_idx = nx .+ (1:nx)
 
-	c_idx = idx.x[2]
+	c_idx = idx.x[1]
 	len = length(r_idx)*length(c_idx)
 	∇c[shift .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)./Z[idx.h[1]]))
 	shift += len
 
-	c_idx = idx.x[3]
+	c_idx = idx.x[2]
 	len = length(r_idx)*length(c_idx)
 	∇c[shift .+ (1:len)] = vec(Diagonal(1.0*ones(nx)./Z[idx.h[1]]))
 	shift += len
 
 	c_idx = idx.h[1]
 	len = length(r_idx)*length(c_idx)
-	∇c[shift .+ (1:len)] = vec(-1.0*(Z[idx.x[3]] - Z[idx.x[2]])/(Z[idx.h[1]]*Z[idx.h[1]]))
+	∇c[shift .+ (1:len)] = vec(-1.0*(Z[idx.x[2]] - Z[idx.x[1]])/(Z[idx.h[1]]*Z[idx.h[1]]))
 	shift += len
 
 	c_idx = idx.x[T-1]
@@ -81,7 +81,7 @@ function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 
 		r_idx = r_shift .+ (1:nx)
 
-		c_idx = idx.x[3]
+		c_idx = idx.x[2]
 		row_col!(row,col,r_idx,c_idx)
 
 		c_idx = idx.x[T]
@@ -89,10 +89,10 @@ function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 
 		r_idx = r_shift + nx .+ (1:nx)
 
-		c_idx = idx.x[2]
+		c_idx = idx.x[1]
 		row_col!(row,col,r_idx,c_idx)
 
-		c_idx = idx.x[3]
+		c_idx = idx.x[2]
 		row_col!(row,col,r_idx,c_idx)
 
 		c_idx = idx.h[1]
@@ -120,9 +120,9 @@ function general_constraints!(c,Z,prob::SampleProblem)
 	m = nx
 
 	for i = 1:prob.N
-		c[(i-1)*(m+nx) .+ (1:m)] = (Z[idx_sample[i].x[3]] - Z[idx_sample[i].x[T]])
+		c[(i-1)*(m+nx) .+ (1:m)] = (Z[idx_sample[i].x[2]] - Z[idx_sample[i].x[T]])
 
-		v1 = (Z[idx_sample[i].x[3]] - Z[idx_sample[i].x[2]])/Z[idx_sample[i].h[1]]
+		v1 = (Z[idx_sample[i].x[2]] - Z[idx_sample[i].x[1]])/Z[idx_sample[i].h[1]]
 		vT = (Z[idx_sample[i].x[T]] - Z[idx_sample[i].x[T-1]])/Z[idx_sample[i].h[T-2]]
 
 		c[(i-1)*(m+nx) + m .+ (1:nx)] = v1 - vT
@@ -142,7 +142,7 @@ function ∇general_constraints!(∇c,Z,prob::SampleProblem)
 	for i = 1:prob.N
 		r_idx = (i-1)*(m+nx) .+ (1:m)
 
-		c_idx = idx_sample[i].x[3]
+		c_idx = idx_sample[i].x[2]
 		len = length(r_idx)*length(c_idx)
 		∇c[shift .+ (1:len)] = vec(Diagonal(ones(m)))
 		shift += len
@@ -158,19 +158,19 @@ function ∇general_constraints!(∇c,Z,prob::SampleProblem)
 		# c[nx-1 .+ (1:nx)] = v1 - vT
 		r_idx = (i-1)*(m+nx) + m .+ (1:nx)
 
-		c_idx = idx_sample[i].x[2]
+		c_idx = idx_sample[i].x[1]
 		len = length(r_idx)*length(c_idx)
 		∇c[shift .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)./Z[idx_sample[i].h[1]]))
 		shift += len
 
-		c_idx = idx_sample[i].x[3]
+		c_idx = idx_sample[i].x[2]
 		len = length(r_idx)*length(c_idx)
 		∇c[shift .+ (1:len)] = vec(Diagonal(1.0*ones(nx)./Z[idx_sample[i].h[1]]))
 		shift += len
 
 		c_idx = idx_sample[i].h[1]
 		len = length(r_idx)*length(c_idx)
-		∇c[shift .+ (1:len)] = vec(-1.0*(Z[idx_sample[i].x[3]] - Z[idx_sample[i].x[2]])/(Z[idx_sample[i].h[1]]*Z[idx_sample[i].h[1]]))
+		∇c[shift .+ (1:len)] = vec(-1.0*(Z[idx_sample[i].x[2]] - Z[idx_sample[i].x[1]])/(Z[idx_sample[i].h[1]]*Z[idx_sample[i].h[1]]))
 		shift += len
 
 		c_idx = idx_sample[i].x[T-1]
@@ -209,7 +209,7 @@ function general_constraint_sparsity(prob::SampleProblem;
 		for i = 1:prob.N
 			r_idx = r_shift + (i-1)*(m+nx) .+ (1:m)
 
-			c_idx = idx_sample[i].x[3]
+			c_idx = idx_sample[i].x[2]
 			row_col!(row,col,r_idx,c_idx)
 
 			c_idx = idx_sample[i].x[T]
@@ -217,10 +217,10 @@ function general_constraint_sparsity(prob::SampleProblem;
 
 			r_idx = r_shift + (i-1)*(m+nx) + m .+ (1:nx)
 
-			c_idx = idx_sample[i].x[2]
+			c_idx = idx_sample[i].x[1]
 			row_col!(row,col,r_idx,c_idx)
 
-			c_idx = idx_sample[i].x[3]
+			c_idx = idx_sample[i].x[2]
 			row_col!(row,col,r_idx,c_idx)
 
 			c_idx = idx_sample[i].h[1]

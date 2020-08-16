@@ -23,11 +23,11 @@ xl = -Inf*ones(model.nx)
 xu_traj = [xu for t=1:T]
 xl_traj = [xl for t=1:T]
 
-xu_traj[3] = x1
+xu_traj[2] = x1
 # xu_traj[Tm] = xM
 # xu_traj[T] = xT
 
-xl_traj[3] = x1
+xl_traj[2] = x1
 # xl_traj[Tm] = xM
 # xl_traj[T] = xT
 
@@ -96,7 +96,7 @@ plot(z_nom)
 plot(hcat(U_nom...)[model.idx_u,:]',linetype=:steppost)
 @assert norm(s_nom,Inf) < 1.0e-5
 @assert norm(ϕ_func(model,X_nom[Tm])) < 1.0e-5
-@assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-5
+@assert norm(X_nom[2][2:end] - X_nom[T][2:end]) < 1.0e-5
 plot(λ_nom,linetype=:steppost)
 
 # using Colors
@@ -120,9 +120,9 @@ H_lqr = [0.0 for t = 1:T-1]
 # Samples
 N = 2*model.nx
 models = [model for i =1:N]
-K0 = [rand(model.nu_ctrl*(2*model.nx-1 + 2*model.nc + model.nb)) for t = 1:T-2]
+K0 = [rand(model.nu_ctrl*(model.nx + 2*model.nc)) for t = 1:T-2]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-4*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -141,22 +141,16 @@ hl_traj_sample = [[hl for t = 1:T-2] for i = 1:N]
 hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 
 function policy(model::Particle,K,x1,x2,x3,u,h,x1_nom,x2_nom,x3_nom,u_nom,h_nom)
-	v = legendre(model,x1,x2,x3,u,h)
-	v_nom = legendre(model,x1_nom,x2_nom,x3_nom,u_nom,h_nom)
-
-	u_nom[model.idx_u] - reshape(K,model.nu_ctrl,2*model.nx-1 + 2*model.nc + model.nb)*[(x3 - x3_nom)[2:end];
-												v - v_nom;
+	u_nom[model.idx_u] - reshape(K,model.nu_ctrl,model.nx + 2*model.nc)*[(x3 - x3_nom);
 											    ϕ_func(model,x3) - ϕ_func(model,x3_nom);
-											    u[model.idx_λ] - u_nom[model.idx_λ];
-												u[model.idx_b] - u_nom[model.idx_b]]
+											    u[model.idx_λ] - u_nom[model.idx_λ]
+												]
 end
 
-length(model.idx_b)
-model.nb
 prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
 	u_policy=model.idx_u,
-	nK=length(model.idx_u)*(2*model.nx-1 + 2*model.nc + model.nb),
+	nK=length(model.idx_u)*(model.nx + 2*model.nc),
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
     α=1.0,
@@ -167,7 +161,7 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
 	hl=hl_traj_sample,
 	hu=hu_traj_sample,
     sample_general_constraints=true,
-    m_sample_general=N*(model.nx-1 + 2*model.nx),
+    m_sample_general=N*(model.nx-1 + model.nx),
     sample_general_ineq=(1:0),
 	general_objective=true,
 	sample_contact_sequence=true,
@@ -185,7 +179,7 @@ Z0_sample = pack(X_nom,_U_nom,H_nom[1],K0,prob_sample)
 # Solve
 #NOTE: run multiple times to get good solution
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
+Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=1000)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
@@ -197,7 +191,7 @@ for t = 2:T-2
 end
 
 s = [U_nom_sample[t][model.idx_s] for t = 1:T-2]
-@assert sum(s) < 1.0e-5
+@assert norm(s,Inf) < 1.0e-5
 
 pltz = plot(label="",xlabel="time (s)",ylabel="z",title="Particle",
 	legend=:topright)
@@ -234,7 +228,7 @@ U_nom = U_nom_sample
 H_nom = H_nom_sample
 
 include("../src/velocity.jl")
-T_scale = 3
+T_scale = 2
 T_sim = T_scale*T
 
 tf = sum(H_nom)
@@ -242,15 +236,13 @@ times = [(t-1)*H_nom[t] for t = 1:T-2]
 t_sim = range(0,stop=tf,length=T_sim)
 dt_sim = tf/(T_sim-1)
 
-v1_sample = (X_nom_sample[3] - X_nom_sample[2])/H_nom_sample[1]
-
-v1_sim = (X_sim_policy[3] - X_sim_policy[2])/dt_sim_policy
+v1_sample = (X_nom_sample[2] - X_nom_sample[1])/H_nom_sample[1]
 
 # xl <= x <= xu
 xu_vel = [Inf*ones(model.nx) for t = 1:3]
 xl_vel = [-Inf*ones(model.nx) for t = 1:3]
-xu_vel[3] = X_nom[3]
-xl_vel[3] = X_nom[3]
+xu_vel[2] = X_nom[2]
+xl_vel[2] = X_nom[2]
 
 # ul <= u <= uu
 uu_vel = Inf*ones(model.nu)
@@ -284,35 +276,31 @@ Z0_vel = pack([X_nom[1],X_nom[2],X_nom[3]],[U_nom[1]],dt_sim,prob_vel)
 @time Z_vel_sol = solve(prob_vel_moi,copy(Z0_vel),tol=1.0e-6,c_tol=1.0e-6)
 X_vel_sol, U_vel_sol, H_vel_sol = unpack(Z_vel_sol,prob_vel)
 
-norm(X_vel_sol[3] - X_nom[3])
-v_vel = (X_vel_sol[3] - X_vel_sol[2])/dt_sim
+norm(X_vel_sol[2] - X_nom[2])
+v_vel = (X_vel_sol[2] - X_vel_sol[1])/dt_sim
 norm(v1_sample - v_vel)
 
 include("../src/simulate.jl")
 
 X_sim_policy, U_sim_policy, dt_sim_policy = simulate_policy(model,
 	X_nom_sample,U_nom_sample,H_nom_sample,K_nom_sample,T_sim,X_vel_sol[1],X_vel_sol[2],
-	α=100.0,slack_tol=1.0,tol=1.0e-5,c_tol=1.0e-5)
+	α=100.0,slack_tol=1.0e-5,tol=1.0e-5,c_tol=1.0e-5)
 model.Δt = dt_sim_policy
 
 
-v1_sim = (X_sim_policy[3] - X_sim_policy[2])/dt_sim_policy
+v1_sim = (X_sim_policy[2] - X_sim_policy[1])/dt_sim_policy
 v1_sample
-v_vel
 
 X_sim_nom, U_sim_nom, dt_sim_nom = simulate_nominal(model,
 	X_nom_sample,U_nom_sample,H_nom_sample,K_nom_sample,T_sim,dt_sim,
 	X_vel_sol[1],X_vel_sol[2],
-	α=1000.0,slack_tol=1.0e-3,tol=1.0e-5,c_tol=1.0e-5)
+	α=100.0,slack_tol=1.0e-5,tol=1.0e-5,c_tol=1.0e-5)
 
 t_sim = zeros(T_sim-2)
 for t = 2:T_sim-2
     t_sim[t] = t_sim[t-1] + dt_sim_nom
 end
 
-t_sim
-X_sim_policy
-sum(H_nom_sample)
 # visualize!(vis,model,[X_sim_policy, X_sim_nom],color=[RGBA(0, 1, 0, 1.0),RGBA(1, 0, 0, 1.0)])
 
 t_nominal = zeros(T-2)
@@ -322,13 +310,13 @@ for t = 2:T-2
     t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
 end
 
-plt_track = plot(t_sample,hcat(X_nom_sample[3:T]...)',color=:red,label=["nominal" "" ""],
+plt_track = plot([-H_nom[1],t_sample...],hcat(X_nom_sample[2:T]...)',color=:red,label=["nominal" "" ""],
 	title="Particle tracking performance ($(T_scale)T)",
 	xlabel="time (s)",
 	ylabel="state",
 	legend=:topleft)
 
-plt_track = plot!(t_sim,hcat(X_sim_nom[3:T_sim]...)',color=:purple,label=["open loop" "" ""])
-plt_track = plot!(t_sim,hcat(X_sim_policy[3:T_sim]...)',color=:orange,label=["policy" "" ""])
+plt_track = plot!([-dt_sim_nom,t_sim...],hcat(X_sim_nom[2:T_sim]...)',color=:purple,label=["open loop" "" ""])
+plt_track = plot!([-dt_sim_policy,t_sim...],hcat(X_sim_policy[2:T_sim]...)',color=:orange,label=["policy" "" ""])
 
 # savefig(plt_track,joinpath(@__DIR__,"results/particle_tracking_$(T_scale)T.png"))
