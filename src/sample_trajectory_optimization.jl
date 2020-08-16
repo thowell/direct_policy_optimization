@@ -4,6 +4,7 @@ const MOI = MathOptInterface
 
 include("utils.jl")
 include("integration.jl")
+include("discrete_mechanics.jl")
 include("indices.jl")
 
 include("policy.jl")

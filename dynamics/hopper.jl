@@ -80,14 +80,6 @@ end
 B_func(::Hopper,q) = @SMatrix [0. 0. 0. 1. -1.;
                             0. 0. 1. 0. 0.]
 
-function discrete_dynamics(model,x1,x2,x3,u,h,t)
-    u_ctrl = u[model.idx_u]
-    λ = u[model.idx_λ]
-    b = u[model.idx_b]
-
-    (1/h[1])*(M_func(model,x1)*(x2 - x1) - M_func(model,x2)*(x3 - x2)) + h[1]*(0.5*C_func(model,x2,x3) - G_func(model,x2)) + transpose(B_func(model,x3))*u_ctrl + transpose(N_func(model,x3))*λ + transpose(P_func(model,x3))*b
-end
-
 function friction_cone(model,u)
     @SVector [model.μ*u[model.idx_λ[1]] - sum(u[model.idx_b])]
 end

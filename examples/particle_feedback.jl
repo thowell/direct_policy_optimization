@@ -1,6 +1,6 @@
 include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/particle.jl")
-include("../src/velocity.jl")
+# include("../src/velocity.jl")
 using Plots
 
 # Horizon
@@ -18,10 +18,10 @@ v1 = [0.0; 0.0; 0.0]
 xu_traj = [Inf*ones(model.nx) for t=1:T]
 xl_traj = [-Inf*ones(model.nx) for t=1:T]
 
-# xu_traj[1] = x1
+xu_traj[1] = x1
 xu_traj[2] = x1
 
-# xl_traj[1] = x1
+xl_traj[1] = x1
 xl_traj[2] = x1
 
 xu_traj[T] = xT
@@ -57,8 +57,8 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     uu=[uu for t = 1:T-2],
                     hl=[hl for t = 1:T-2],
                     hu=[hu for t = 1:T-2],
-					general_constraints=true,
-					m_general=model.nx,
+					general_constraints=false,
+					m_general=model.nx*0,
 					general_ineq=(1:0),
 					v1=v1
                     )
@@ -108,7 +108,7 @@ H_lqr = [0.0 for t = 1:T-1]
 # Samples
 N = 2*model.nx
 models = [model for i =1:N]
-K0 = [rand(model.nu_ctrl*(2*model.nx)) for t = 1:T-2]
+K0 = [rand(model.nu_ctrl*(model.nx)) for t = 1:T-2]
 β = 1.0
 w = 1.0e-5*ones(model.nx)
 γ = 1.0
@@ -118,6 +118,8 @@ xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 
 for i = 1:N
+	xl_traj_sample[i][1] = x1_sample[i]
+	xu_traj_sample[i][1] = x1_sample[i]
 	xl_traj_sample[i][2] = x1_sample[i]
 	xu_traj_sample[i][2] = x1_sample[i]
 end
@@ -130,15 +132,15 @@ hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 
 # policy
 function policy(model::Particle,K,x1,x2,x3,u,h,x1_nom,x2_nom,x3_nom,u_nom,h_nom)
-	v = legendre(model,x2,x3,u,h)
-	v_nom = legendre(model,x2_nom,x3_nom,u_nom,h_nom)
-	u_nom[model.idx_u] - reshape(K,model.nu_ctrl,(2*model.nx))*[x3 - x3_nom; v - v_nom]
+	# v = legendre(model,x2,x3,u,h)
+	# v_nom = legendre(model,x2_nom,x3_nom,u_nom,h_nom)
+	u_nom[model.idx_u] - reshape(K,model.nu_ctrl,(model.nx))*(x3 - x3_nom)#; v - v_nom]
 end
 
 prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
 	u_policy=model.idx_u,
-	nK=model.nu_ctrl*(2*model.nx),
+	nK=model.nu_ctrl*(model.nx),
     β=β,w=w,γ=γ,
     disturbance_ctrl=false,
     α=1.0,
@@ -148,8 +150,8 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
 	xu=xu_traj_sample,
 	hl=hl_traj_sample,
 	hu=hu_traj_sample,
-    sample_general_constraints=true,
-    m_sample_general=N*model.nx,
+    sample_general_constraints=false,
+    m_sample_general=0*N*model.nx,
     sample_general_ineq=(1:0),
 	general_objective=true)
 prob_sample_moi = init_MOI_Problem(prob_sample)
@@ -294,7 +296,7 @@ plt_track = plot([-H_nom_sample[1],t_sample...],hcat(X_nom_sample[2:T]...)',colo
 	xlabel="time (s)",
 	ylabel="state",
 	legend=:right)
-# plt_track = plot!([-dt_sim_nom,t_sim...],hcat(X_sim_nom[2:T_sim]...)',color=:purple,label=["open loop" "" ""])
+plt_track = plot!([-dt_sim_nom,t_sim...],hcat(X_sim_nom[2:T_sim]...)',color=:purple,label=["open loop" "" ""])
 plt_track = plot!([-dt_sim_policy,t_sim...],hcat(X_sim_policy[2:T_sim]...)',color=:orange,label=["policy" "" ""])
 
 # savefig(plt_track,joinpath(@__DIR__,"results/particle_tracking_$(T_scale)T.png"))

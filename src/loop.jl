@@ -4,8 +4,8 @@ function general_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
 	T = prob.T
 	c[1:nx-1] = (Z[idx.x[2]] - Z[idx.x[T]])[2:end]
 
-	v1 = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]]
-	vT = (Z[idx.x[T]] - Z[idx.x[T-1]])/Z[idx.h[T-2]]
+	v1 = legendre(prob.model,Z[idx.x[2]],Z[idx.x[3],Z[idx.u[1]],Z[idx.h[1]])
+	vT = legendre(prob.model,Z[idx.x[T-1]],Z[idx.x[T],Z[idx.u[T-2]],Z[idx.h[T-2]])
 
 	c[nx-1 .+ (1:nx)] = v1 - vT
 end
@@ -18,7 +18,7 @@ function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 
 	r_idx = 1:nx-1
 
-	c_idx = idx.x[2][2:end]
+	c_idx = idx.x[3][2:end]
 	len = length(r_idx)*length(c_idx)
 	∇c[shift .+ (1:len)] = vec(Diagonal(ones(nx-1)))
 	shift += len
@@ -28,10 +28,17 @@ function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 	∇c[shift .+ (1:len)] = vec(Diagonal(-1.0*ones(nx-1)))
 	shift += len
 
-	# v1 = (Z[idx.x[2]] - Z[idx.x[1]])/Z[idx.h[1]]
-	# vT = (Z[idx.x[10]] - Z[idx.x[9]])/Z[idx.h[9]]
-	#
-	# c[nx-1 .+ (1:nx)] = v1 - vT
+	x2 =
+	x3 =
+	u1 =
+	h1 =
+	xT1 =
+	xT =
+	uT2 =
+	hT2 =
+
+	v1(y) = legendre(prob.model,Z[idx.x[2]],Z[idx.x[3],Z[idx.u[1]],Z[idx.h[1]])
+	vT(y) = legendre(prob.model,Z[idx.x[T-1]],Z[idx.x[T],Z[idx.u[T-2]],Z[idx.h[T-2]])
 	r_idx = nx-1 .+ (1:nx)
 
 	c_idx = idx.x[1]
