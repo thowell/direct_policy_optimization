@@ -10,7 +10,7 @@ Tm = convert(Int,(T-3)/2 + 3)
 tf = 1.0
 model.Δt = tf/(T-1)
 
-zh = 0.1
+zh = 0.25
 # Initial and final states
 x1 = [0., model.r+zh, 0.75*model.r, 0., 0.]
 xM = [0., 0.5*model.r, 0.5*model.r, 0., 0.]
