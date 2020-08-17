@@ -79,11 +79,12 @@ function TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr;
         u_policy=(1:length(U_nominal[1])))
     A = []
     B = []
-    for t = 1:T-1
-        x = X_nominal[t]
+    for t = 1:T-2
+        x1 = X_nominal[t]
+        x2 = X_nominal[t+1]
+        x3 = X_nominal[t+2]
         u = U_nominal[t][u_policy]
         h = H_nominal[t]
-        x⁺ = X_nominal[t+1]
 
         fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
         fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
@@ -97,24 +98,32 @@ function TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr;
     K = TVLQR(A,B,Q_lqr,[R_lqr[t][u_policy,u_policy] for t=1:T-1])
 end
 
-function resample(X; β=1.0,w=1.0)
-    N = length(X)
-    nx = length(X[1])
+function resample(X; β=1.0,w=1.0,rs=true)
+    if rs
+        N = length(X)
+        nx = length(X[1])
 
-    xμ = sum(X)./N
-    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + Diagonal(w)
-    cols = fastsqrt(Σμ)
-    Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:nx]
+        xμ = sum(X)./N
+        Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + Diagonal(w)
+        cols = fastsqrt(Σμ)
+        Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:nx]
 
-    return Xs
+        return Xs
+    else
+        return X
+    end
 end
 
-function resample_vec(X,n,N,k; β=1.0,w=1.0)
-    xμ = sum([X[(i-1)*n .+ (1:n)] for i = 1:N])./N
-    Σμ = (0.5/(β^2))*sum([(X[(i-1)*n .+ (1:n)] - xμ)*(X[(i-1)*n .+ (1:n)] - xμ)' for i = 1:N]) + Diagonal(w)
-    cols = fastsqrt(Σμ)
-    Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
-    return Xs[k]
+function resample_vec(X,n,N,k; β=1.0,w=1.0,rs=true)
+    if rs
+        xμ = sum([X[(i-1)*n .+ (1:n)] for i = 1:N])./N
+        Σμ = (0.5/(β^2))*sum([(X[(i-1)*n .+ (1:n)] - xμ)*(X[(i-1)*n .+ (1:n)] - xμ)' for i = 1:N]) + Diagonal(w)
+        cols = fastsqrt(Σμ)
+        Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
+        return Xs[k]
+    else
+        return X[(k-1)*n .+ (1:n)]
+    end
 end
 
 function sample_dynamics_linear(X,U,A,B; β=1.0,w=1.0)

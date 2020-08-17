@@ -21,7 +21,7 @@ function sample_dynamics_constraints!(c,z,prob::SampleProblem)
     # dynamics + resampling (x1 and x2 are taken care of w/ primal bounds)
     for t = 1:T-2
         x3_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
-        x3s = resample(x3_tmp,β=β,w=w) # resample
+        x3s = resample(x3_tmp,β=β,w=w,rs=prob.resample) # resample
 
         for i = 1:N
             x1i = view(z,idx_sample[i].x[t])
@@ -79,7 +79,7 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::SampleProblem)
         x3_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
         x3_tmp_vec = vcat(x3_tmp...)
         idx_x_tmp_vec = vcat([idx_x_tmp[i].x[t] for i = 1:N]...)
-        x3s = resample(x3_tmp,β=β,w=w) # resample
+        x3s = resample(x3_tmp,β=β,w=w,rs=prob.resample) # resample
 
         for i = 1:N
             x1i = view(z,idx_sample[i].x[t])
@@ -93,7 +93,7 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::SampleProblem)
             dyn_x3(a) = discrete_dynamics(models[i],x1i,x2i,a,ui,hi,t)
             dyn_u(a) = discrete_dynamics(models[i],x1i,x2i,x3_tmp[i],a,hi,t)
             dyn_h(a) = discrete_dynamics(models[i],x1i,x2i,x3_tmp[i],ui,a,t)
-            resample_x3_tmp(a) = resample_vec(a,nx,N,i,β=β,w=w) # resample
+            resample_x3_tmp(a) = resample_vec(a,nx,N,i,β=β,w=w,rs=prob.resample) # resample
 
             # c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)
             r_idx = shift .+ (1:nx)

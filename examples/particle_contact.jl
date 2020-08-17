@@ -4,10 +4,10 @@ include("../src/loop.jl")
 using Plots
 
 # Horizon
-T = 51
+T = 15
 Tm = convert(Int,(T-3)/2 + 3)
 
-tf = 1.0
+tf = 0.3
 model.Δt = tf/(T-1)
 
 zh = 0.5
@@ -38,9 +38,9 @@ xl_traj[2] = x1
 
 # ul <= u <= uu
 uu = Inf*ones(model.nu)
-uu[model.idx_u] .= 100.0
+uu[model.idx_u] .= 10.0
 ul = zeros(model.nu)
-ul[model.idx_u] .= -100.0
+ul[model.idx_u] .= -10.0
 
 # h = h0 (fixed timestep)
 hu = model.Δt
@@ -86,7 +86,8 @@ U0 = [0.001*rand(model.nu) for t = 1:T-2] # random controls
 Z0 = pack(X0,U0,model.Δt,prob)
 @time Z_nominal = solve(prob_moi,copy(Z0))
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
-
+sum(H_nom)
+H_nom[1]
 x_nom = [X_nom[t][1] for t = 1:T]
 y_nom = [X_nom[t][2] for t = 1:T]
 z_nom = [X_nom[t][3] for t = 1:T]
@@ -119,13 +120,13 @@ plot(λ_nom,linetype=:steppost)
 
 # samples
 Q_lqr = [t < T ? Diagonal([1.0;1.0;1.0]) : Diagonal([1.0; 1.0; 1.0]) for t = 1:T]
-R_lqr = [Diagonal(1.0e-1*ones(model.nu_ctrl)) for t = 1:T-2]
-H_lqr = [0.0 for t = 1:T-1]
+R_lqr = [Diagonal(1.0e-2*ones(model.nu_ctrl)) for t = 1:T-2]
+H_lqr = [1.0 for t = 1:T-1]
 
 # Samples
 N = 2*model.nx
 models = [model for i =1:N]
-K0 = [1.0rand(model.nu_ctrl*(model.nx + 2*model.nc)) for t = 1:T-2]
+K0 = [1.0*rand(model.nu_ctrl*(model.nx + 2*model.nc)) for t = 1:T-2]
 β = 1.0
 w = 1.0e-8*ones(model.nx)
 γ = 1.0
@@ -137,9 +138,6 @@ xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 for i = 1:N
 	xl_traj_sample[i][2] = x1_sample[i]
 	xu_traj_sample[i][2] = x1_sample[i]
-
-	# xl_traj_sample[i][T][1] = x1_sample[i][1] + 1.0
-	# xu_traj_sample[i][T][1] = x1_sample[i][1] + 1.0
 end
 
 ul_traj_sample = [[ul for t = 1:T-2] for i = 1:N]
@@ -161,7 +159,7 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
 	nK=model.nu_ctrl*(model.nx + 2*model.nc),
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=1.0e-5,
+    α=1.0,
 	ul=ul_traj_sample,
 	uu=uu_traj_sample,
 	xl=xl_traj_sample,
@@ -173,21 +171,22 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
     sample_general_ineq=(1:0),
 	general_objective=true,
 	sample_contact_sequence=true,
-	T_sample_contact_sequence=[[Tm-3],[Tm-2],[Tm-1],[Tm+1],[Tm+2],[Tm+3]])
+	T_sample_contact_sequence=[[Tm],[Tm],[Tm],[Tm],[Tm],[Tm]])
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-_U_nom = [0.01*rand(model.nu) for t = 1:T-2]
-for t = 1:T-2
-	_U_nom[t][model.idx_u] = U_nom[t][model.idx_u]
-end
+# _U_nom = [0.01*rand(model.nu) for t = 1:T-2]
+# for t = 1:T-2
+# 	_U_nom[t][model.idx_u] = U_nom[t][model.idx_u]
+# end
 
-Z0_sample = pack(X_nom,_U_nom,H_nom[1],K0,prob_sample)
+Z0_sample = pack(X_nom,U_nom,H_nom[1],K0,prob_sample)
 
 # Solve
 # #NOTE: run multiple times to get good solution
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
-# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=1000)
+Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=1000)
+Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=1000)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 # X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z0_sample,prob_sample)
@@ -309,7 +308,7 @@ Z0_vel = pack([X_nom[1],X_nom[2],X_nom[3]],[U_nom[1]],dt_sim,prob_vel)
 @time Z_vel_sol = solve(prob_vel_moi,copy(Z0_vel),tol=1.0e-6,c_tol=1.0e-6)
 X_vel_sol, U_vel_sol, H_vel_sol = unpack(Z_vel_sol,prob_vel)
 
-norm(X_vel_sol[2] - X_nom[2])
+norm(X_vel_sol[2] - X_nom_sample[2])
 v_vel = (X_vel_sol[2] - X_vel_sol[1])/dt_sim
 norm(v1_sample - v_vel)
 
@@ -353,3 +352,5 @@ plt_track = plot!([-dt_sim_nom,t_sim...],hcat(X_sim_nom[2:T_sim]...)',color=:pur
 plt_track = plot!([-dt_sim_policy,t_sim...],hcat(X_sim_policy[2:T_sim]...)',color=:orange,label=["policy" "" ""])
 
 # savefig(plt_track,joinpath(@__DIR__,"results/particle_tracking_$(T_scale)T.png"))
+
+plot(hcat(K_nom_sample...)',linetype=:steppost)

@@ -69,7 +69,7 @@ U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,model.Δt,prob)
-@time Z_nominal = solve(prob_moi,copy(Z0))
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 x_nom = [X_nom[t][1] for t = 1:T]

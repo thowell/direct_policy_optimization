@@ -1,6 +1,6 @@
 mutable struct SampleProblem <: Problem
     prob::TrajectoryOptimizationProblem
-
+    resample
     u_policy
     nK
 
@@ -60,6 +60,7 @@ mutable struct SampleProblem <: Problem
 end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
+        resample::Bool=true,
         u_policy=(1:prob.nu),
         nK=length(u_policy)*prob.nx,
         ul=[[-Inf*ones(nu) for t = 1:T-2] for i = 1:N],
@@ -123,6 +124,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
 
     return SampleProblem(
         prob,
+        resample,
         u_policy,nK,
         N_nlp,Nx,Nu,Nh,Nxs,NK,Nuw,
         M_nlp,M_dynamics,M_contact_dynamics,M_policy,M_stage,M_general,M_uw,

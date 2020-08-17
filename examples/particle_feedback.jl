@@ -5,7 +5,7 @@ using Plots
 
 # Horizon
 tf = 1.0
-T = 101
+T = 11
 model.Δt = tf/(T-1)
 
 # Initial and final states
@@ -88,9 +88,6 @@ X_nom[3]
 X_nom[2]
 X_nom[1]
 
-t = 5
-left_legendre(model,X_nom[t],X_nom[t+1],U_nom[t-2],H_nom[t-2]) - right_legendre(model,X_nom[t+1],X_nom[t+2],U_nom[t-2],H_nom[t-2])
-
 # using Colors
 # using CoordinateTransformations
 # using FileIO
@@ -106,7 +103,7 @@ left_legendre(model,X_nom[t],X_nom[t+1],U_nom[t-2],H_nom[t-2]) - right_legendre(
 
 # samples
 Q_lqr = [t < T ? Diagonal([1.0;1.0;1.0]) : Diagonal([1.0; 1.0; 1.0]) for t = 1:T]
-R_lqr = [Diagonal(1.0e-1*ones(model.nu_ctrl)) for t = 1:T-1]
+R_lqr = [Diagonal(1.0e-6*ones(model.nu_ctrl)) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 
 # Samples
@@ -114,9 +111,9 @@ N = 2*model.nx
 models = [model for i =1:N]
 K0 = [0.01*rand(model.nu_ctrl*(2*model.nx)) for t = 1:T-2]
 β = 1.0
-w = 1.0e-8*ones(model.nx)
+w = 1.0e-3*ones(model.nx)
 γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+x1_sample = [x1 for i = 1:N]#resample([x1 for i = 1:N],β=β,w=w)
 
 xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
@@ -126,6 +123,7 @@ for i = 1:N
 	xu_traj_sample[i][2] = x1_sample[i]
 end
 
+
 ul_traj_sample = [[ul for t = 1:T-2] for i = 1:N]
 uu_traj_sample = [[uu for t = 1:T-2] for i = 1:N]
 
@@ -134,17 +132,19 @@ hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 
 # policy
 function policy(model::Particle,K,x1,x2,x3,u,h,x1_nom,x2_nom,x3_nom,u_nom,h_nom)
-	v = left_legendre(model,x2,x3,u,h)
-	v_nom = left_legendre(model,x2_nom,x3_nom,u_nom,h_nom)
-	u_nom[model.idx_u] - reshape(K,model.nu_ctrl,(2*model.nx))*[x3 - x3_nom; v - v_nom]
+	# v = left_legendre(model,x2,x3,u,h)
+	# v_nom = left_legendre(model,x2_nom,x3_nom,u_nom,h_nom)
+	# u_nom[model.idx_u] - reshape(K,model.nu_ctrl,(2*model.nx))*[x3 - x3_nom; v - v_nom]
+	u[model.idx_u]
 end
 
 prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
+	resample=true,
 	u_policy=model.idx_u,
 	nK=model.nu_ctrl*(2*model.nx),
     β=β,w=w,γ=γ,
-    disturbance_ctrl=true,
+    disturbance_ctrl=false,
     α=1.0,
 	ul=ul_traj_sample,
 	uu=uu_traj_sample,
@@ -160,9 +160,14 @@ prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Z0_sample = pack(X_nom,U_nom,H_nom[1],K0,prob_sample)
 
+for t = 1:T-2
+	prob_sample_moi.primal_bounds[1][prob_sample.idx_K[t]] .= 0.0
+	prob_sample_moi.primal_bounds[2][prob_sample.idx_K[t]] .= 0.0
+end
+
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
@@ -205,6 +210,8 @@ pltu = plot!(t_span[1:end-2],hcat(U_nom_sample...)[1:3,:]',color=:orange,label="
 display(pltu)
 
 K_nom_sample = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-2]
+
+plot(hcat(K_nom_sample...)')
 
 # get x1,x2 that match velocity and x3
 X_nom = X_nom_sample
