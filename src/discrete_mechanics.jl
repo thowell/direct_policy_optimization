@@ -21,7 +21,7 @@ function discrete_dynamics(model,x1,x2,x3,u,h,t)
 	0.5*h[1]*D1L1 + D2L1 + 0.5*h[1]*D1L2 - D2L2 + h[1]*B_func(model,x3)'*u_ctrl + h[1]*N_func(model,x3)'*λ + h[1]*P_func(model,x3)'*b
 end
 
-function legendre(model,x1,x2,u,h)
+function left_legendre(model,x1,x2,u,h)
 	qm1 = (x1 + x2)/h[1]
 	v1 = (x2 - x1)/h[1]
 
@@ -31,7 +31,22 @@ function legendre(model,x1,x2,u,h)
 
 	D1L1,D2L1 = LagrangianDerivatives(model,qm1,v1)
 
-	pl_del = -0.5*h[1]*D1L1 + D2L1 - 0.5*h[1]*B_func(model,x2)'u_ctrl - 0.5*h[1]*B_func(model,x2)'*u_ctrl - h[1]*N_func(model,x2)'*λ - h[1]*P_func(model,x2)'*b
+	pl_del = -0.5*h[1]*D1L1 + D2L1 - 0.5*h[1]*B_func(model,x2)'*u_ctrl - h[1]*N_func(model,x2)'*λ - h[1]*P_func(model,x2)'*b
 
-	M_func(model,x2)\pl_del
+	pl_del
+end
+
+function right_legendre(model,x1,x2,u,h)
+	qm1 = (x1 + x2)/h[1]
+	v1 = (x2 - x1)/h[1]
+
+	u_ctrl = u[model.idx_u]
+	λ = u[model.idx_λ]
+	b = u[model.idx_b]
+
+	D1L1,D2L1 = LagrangianDerivatives(model,qm1,v1)
+
+	pr_del = 0.5*h[1]*D1L1 + D2L1 + 0.5*h[1]*B_func(model,x2)'u_ctrl
+
+	pr_del
 end

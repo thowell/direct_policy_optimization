@@ -6,7 +6,7 @@ function general_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
 	u1 = view(Z,idx.u[1])
 	h1 = view(Z,idx.h[1])
 
-	c[1:nx] = legendre(model,x2,x3,u1,h1) - prob.v1
+	c[1:nx] = left_legendre(model,x2,x3,u1,h1) - prob.v1
 end
 
 function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
@@ -18,10 +18,10 @@ function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 	u1 = view(Z,idx.u[1])
 	h1 = view(Z,idx.h[1])
 
-	lx2(y) = legendre(model,y,x3,u1,h1)
-	lx3(y) = legendre(model,x2,y,u1,h1)
-	lu1(y) = legendre(model,x2,x3,y,h1)
-	lh1(y) = legendre(model,x2,x3,u1,y)
+	lx2(y) = left_legendre(model,y,x3,u1,h1)
+	lx3(y) = left_legendre(model,x2,y,u1,h1)
+	lu1(y) = left_legendre(model,x2,x3,y,h1)
+	lh1(y) = left_legendre(model,x2,x3,u1,y)
 
 	shift = 0
 
@@ -87,7 +87,7 @@ function general_constraints!(c,Z,prob::SampleProblem)
 		u1 = view(Z,idx_sample[i].u[1])
 		h1 = view(Z,idx_sample[i].h[1])
 
-		c[(i-1)*nx .+ (1:nx)] = legendre(model,x2,x3,u1,h1) - prob.prob.v1
+		c[(i-1)*nx .+ (1:nx)] = left_legendre(model,x2,x3,u1,h1) - prob.prob.v1
 	end
 end
 
@@ -103,10 +103,10 @@ function ∇general_constraints!(∇c,Z,prob::SampleProblem)
 		u1 = view(Z,idx_sample[i].u[1])
 		h1 = view(Z,idx_sample[i].h[1])
 
-		lx2(y) = legendre(model,y,x3,u1,h1)
-		lx3(y) = legendre(model,x2,y,u1,h1)
-		lu1(y) = legendre(model,x2,x3,y,h1)
-		lh1(y) = legendre(model,x2,x3,u1,y)
+		lx2(y) = left_legendre(model,y,x3,u1,h1)
+		lx3(y) = left_legendre(model,x2,y,u1,h1)
+		lu1(y) = left_legendre(model,x2,x3,y,h1)
+		lh1(y) = left_legendre(model,x2,x3,u1,y)
 
 		r_idx = (i-1)*nx .+ (1:nx)
 

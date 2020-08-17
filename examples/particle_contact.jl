@@ -4,7 +4,7 @@ include("../src/loop.jl")
 using Plots
 
 # Horizon
-T = 51
+T = 11
 Tm = convert(Int,(T-3)/2 + 3)
 
 tf = 1.0
@@ -23,10 +23,12 @@ xl = -Inf*ones(model.nx)
 xu_traj = [xu for t=1:T]
 xl_traj = [xl for t=1:T]
 
+# xu_traj[1] = x1
 xu_traj[2] = x1
 # xu_traj[Tm] = xM
 # xu_traj[T] = xT
 
+# xl_traj[1] = x1
 xl_traj[2] = x1
 # xl_traj[Tm] = xM
 # xl_traj[T] = xT
@@ -64,7 +66,7 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     hl=[hl for t = 1:T-2],
                     hu=[hu for t = 1:T-2],
 					general_constraints=true,
-					m_general=model.nx-1+model.nx,
+					m_general=(model.nx-1+model.nx),
 					general_ineq=(1:0),
                     contact_sequence=true,
 					T_contact_sequence=[Tm])
@@ -96,7 +98,7 @@ plot(z_nom)
 plot(hcat(U_nom...)[model.idx_u,:]',linetype=:steppost)
 @assert norm(s_nom,Inf) < 1.0e-5
 @assert norm(ϕ_func(model,X_nom[Tm])) < 1.0e-5
-@assert norm(X_nom[2][2:end] - X_nom[T][2:end]) < 1.0e-5
+@assert norm(X_nom[2][2:end] - X_nom[T-1][2:end]) < 1.0e-5
 plot(λ_nom,linetype=:steppost)
 
 # using Colors
@@ -120,9 +122,9 @@ H_lqr = [0.0 for t = 1:T-1]
 # Samples
 N = 2*model.nx
 models = [model for i =1:N]
-K0 = [rand(model.nu_ctrl*(model.nx + 2*model.nc)) for t = 1:T-2]
+K0 = [1.0e-3*rand(model.nu_ctrl*(model.nx + 2*model.nc)) for t = 1:T-2]
 β = 1.0
-w = 1.0e-4*ones(model.nx)
+w = 1.0e-8*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -160,8 +162,8 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
 	xu=xu_traj_sample,
 	hl=hl_traj_sample,
 	hu=hu_traj_sample,
-    sample_general_constraints=true,
-    m_sample_general=N*(model.nx-1 + model.nx),
+    sample_general_constraints=false,
+    m_sample_general=0*N*(model.nx-1 + model.nx),
     sample_general_ineq=(1:0),
 	general_objective=true,
 	sample_contact_sequence=true,
