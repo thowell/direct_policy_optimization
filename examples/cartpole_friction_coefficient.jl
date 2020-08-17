@@ -135,10 +135,22 @@ Z0_sample = pack(X_friction_nominal,Ū_friction_nominal,H_friction_nominal[1],K
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample))
-# Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol))
+Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol))
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+
+v_traj = [X_nom_sample[t][3] for t = 1:T-1]
+β_traj = [-(U_nom_sample[t][2]-U_nom_sample[t][3]) for t = 1:T-1]
+b_traj = [model_friction.μ*sign(X_nom_sample[t][3])*model_friction.g*(model_friction.mp+model_friction.mc) for t = 1:T-1]
+
+plot(v_traj,linetype=:steppost)
+plot!(β_traj,linetype=:steppost)
+plot!(b_traj,linetype=:steppost)
+plot!(hcat(U_nom_sample...)[1:1,:]',linetype=:steppost)
+
+
+K_robust = [reshape(Z_sample_sol[prob_sample.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
 
 # Plot
 t_sample = zeros(T)
@@ -171,5 +183,4 @@ display(plt_state)
 savefig(plt_state,joinpath(@__DIR__,"results/cartpole_friction_coefficient_state.png"))
 
 S_nominal = [U_nom_sample[t][7] for t=1:T-1]
-@assert sum(S_nominal) < 1.0e-4
-sum(S_nominal)
+@assert norm(S_nominal,Inf) < 1.0e-3

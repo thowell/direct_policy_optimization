@@ -38,7 +38,7 @@ function dynamics(model::CartpoleFriction, x, u)
     G = @SVector [0.0, model.mp*model.g*model.l*sin(x[2])]
     B = @SVector [1.0, 0.0]
 
-    qdd = SVector{2}(-H\(C*view(x,3:4) + G - B*(u[1] - (u[2] - u[3]))))
+    qdd = SVector{2}(-H\(C*view(x,3:4) + G - B*(u[1] + (u[2] - u[3]))))
 
     return @SVector [x[3],x[4],qdd[1],qdd[2]]
 end
