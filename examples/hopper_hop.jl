@@ -1,20 +1,19 @@
 include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/hopper.jl")
-include("../src/loop.jl")
+include("../src/loop_up.jl")
 using Plots
 
 # Horizon
 T = 51
 Tm = convert(Int,(T-3)/2 + 3)
 
-tf = 1.0
-model.Δt = tf/(T-1)
+tf = 0.35
+model.Δt = tf/(T-2)
 
 zh = 0.1
 # Initial and final states
-x1 = [0., model.r+zh, model.r, 0., 0.]
-xM = [1.0, 0.5*model.r, 0.5*model.r, 0., 0.]
-xT = [2.0, model.r+zh, model.r, 0., 0.]
+x1 = [0., model.r+zh, 0.75*model.r, 0., 0.]
+xM = [0., 0.75*model.r, 0.75*model.r, 0., 0.]
 
 # Bounds
 # xl <= x <= xu
@@ -35,19 +34,18 @@ ul = zeros(model.nu)
 ul[model.idx_u] .= -100.0
 
 # h = h0 (fixed timestep)
-hu = 2.0*model.Δt
-hl = 0.0*model.Δt
+hu = model.Δt
+hl = model.Δt
 
 # Objective
-Q = [t < T ? Diagonal([1.0,1.0,1.0,0.1,0.1]) : Diagonal(5.0*ones(model.nx)) for t = 1:T]
+Q = [t < Tm ? Diagonal([1.0,1.0,1.0,0.1,0.1]) : Diagonal(5.0*ones(model.nx)) for t = 1:T]
 R = [Diagonal([1.0e-1,1.0e-3]) for t = 1:T-2]
-c = 10.0
+c = 0.0
 
-X_ref = linear_interp(x1,xT,T)
-X_ref[Tm] = xM
+
 
 obj = QuadraticTrackingObjective(Q,R,c,
-    [X_ref[t] for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
+    [x1 for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
 model.α = 100.0
 penalty_obj = PenaltyObjective(model.α)
 multi_obj = MultiObjective([obj,penalty_obj])
@@ -61,7 +59,7 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     hl=[hl for t = 1:T-2],
                     hu=[hu for t = 1:T-2],
 					general_constraints=true,
-					m_general=model.nx-1+model.nx,
+					m_general=model.nx+model.nx,
 					general_ineq=(1:0),
 					contact_sequence=true,
 					T_contact_sequence=[Tm]
@@ -96,7 +94,7 @@ end
 λ = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
 plot(t_nom,λ,linetype=:steppost)
 plot(t_nom,[ϕ_func(model,X_nom[t])[1] for t = 3:T],linetype=:steppost)
-
+sum(H_nom)
 using Colors
 using CoordinateTransformations
 using FileIO
@@ -113,12 +111,12 @@ visualize!(vis,model,X_nom)
 # samples
 Q_lqr = [t < T ? Diagonal([10.0;10.0;10.0;1.0;1.0]) : Diagonal([10.0; 10.0; 10.0;1.0;1.0]) for t = 1:T]
 R_lqr = [Diagonal([1.0; 1.0e-1]) for t = 1:T-2]
-H_lqr = [10.0 for t = 1:T-1]
+H_lqr = [0.0 for t = 1:T-1]
 
 # Samples
 N = 2*model.nx
 models = [model for i =1:N]
-K0 = [rand(model.nu_ctrl*(2*model.nx-1 + 2*model.nc)) for t = 1:T-2]
+K0 = [rand(model.nu_ctrl*(model.nx + 2*model.nc)) for t = 1:T-2]
 β = 1.0
 w = 1.0e-8*ones(model.nx)
 γ = 1.0
@@ -139,12 +137,9 @@ hl_traj_sample = [[hl for t = 1:T-2] for i = 1:N]
 hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 
 function policy(model::Hopper,K,x1,x2,x3,ū,h,x1_nom,x2_nom,x3_nom,u_nom,ū_nom,h_nom)
-	v = (x3 - x2)/h[1]
-	v_nom = (x3_nom - x2_nom)/h_nom[1]
 	λ = ū[(1:model.nc)]
 	λ_nom = ū_nom[(1:model.nc)]
-	u_nom - reshape(K,model.nu_ctrl,2*model.nx-1 + 2*model.nc)*[(x3 - x3_nom)[2:5];
-																   v - v_nom;
+	u_nom - reshape(K,model.nu_ctrl,model.nx + 2*model.nc)*[(x3 - x3_nom);
 																   ϕ_func(model,x3) - ϕ_func(model,x3_nom);
 																   λ - λ_nom]
 end
@@ -152,10 +147,10 @@ end
 prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
 	u_policy=model.idx_u,
-	nK = model.nu_ctrl*(2*model.nx-1 + 2*model.nc),
+	nK = model.nu_ctrl*(model.nx + 2*model.nc),
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=1.0,
+    α=1.0e-3,
 	ul=ul_traj_sample,
 	uu=uu_traj_sample,
 	xl=xl_traj_sample,
@@ -163,7 +158,7 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
 	hl=hl_traj_sample,
 	hu=hu_traj_sample,
     sample_general_constraints=true,
-    m_sample_general=N*(model.nx-1 + model.nx),
+    m_sample_general=N*(model.nx + model.nx),
     sample_general_ineq=(1:0),
 	general_objective=true,
 	sample_contact_sequence=true,
