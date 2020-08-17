@@ -73,22 +73,22 @@ function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 
 	c_idx = idx.x[T-1]
 	len = length(r_idx)*length(c_idx)
-	∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(vTxT1,xT1))
+	∇c[shift .+ (1:len)] = vec(-1.0*ForwardDiff.jacobian(vTxT1,xT1))
 	shift += len
 
 	c_idx = idx.x[T]
 	len = length(r_idx)*length(c_idx)
-	∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(vTxT,xT))
+	∇c[shift .+ (1:len)] = vec(-1.0*ForwardDiff.jacobian(vTxT,xT))
 	shift += len
 
 	c_idx = idx.u[T-2]
 	len = length(r_idx)*length(c_idx)
-	∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(vTuT2,uT2))
+	∇c[shift .+ (1:len)] = vec(-1.0*ForwardDiff.jacobian(vTuT2,uT2))
 	shift += len
 
 	c_idx = idx.h[T-2]
 	len = length(r_idx)*length(c_idx)
-	∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(vThT2,view(Z,idx.h[T-2])))
+	∇c[shift .+ (1:len)] = vec(-1.0*ForwardDiff.jacobian(vThT2,view(Z,idx.h[T-2])))
 	shift += len
 
 	nothing
@@ -155,8 +155,8 @@ function general_constraints!(c,Z,prob::SampleProblem)
 	for i = 1:prob.N
 		c[(i-1)*(m+nx) .+ (1:m)] = (Z[idx_sample[i].x[2]] - Z[idx_sample[i].x[T]])[2:end]
 
-		v1 = left_legendre(prob.model,Z[idx_sample[i].x[2]],Z[idx_sample[i].x[3]],Z[idx_sample[i].u[1]],Z[idx_sample[i].h[1]])
-		vT = right_legendre(prob.model,Z[idx_sample[i].x[T-1]],Z[idx_sample[i].x[T]],Z[idx_sample[i].u[T-2]],Z[idx_sample[i].h[T-2]])
+		v1 = left_legendre(prob.prob.model,Z[idx_sample[i].x[2]],Z[idx_sample[i].x[3]],Z[idx_sample[i].u[1]],Z[idx_sample[i].h[1]])
+		vT = right_legendre(prob.prob.model,Z[idx_sample[i].x[T-1]],Z[idx_sample[i].x[T]],Z[idx_sample[i].u[T-2]],Z[idx_sample[i].h[T-2]])
 
 		c[(i-1)*(m+nx) + m .+ (1:nx)] = v1 - vT
 	end
@@ -199,16 +199,16 @@ function ∇general_constraints!(∇c,Z,prob::SampleProblem)
 		hT2 = Z[idx_sample[i].h[T-2]]
 
 		# v1(y) = legendre(prob.model,x2,x3,u1,h1)
-		v1x2(y) = left_legendre(prob.model,y,x3,u1,h1)
-		v1x3(y) = left_legendre(prob.model,x2,y,u1,h1)
-		v1u1(y) = left_legendre(prob.model,x2,x3,y,h1)
-		v1h1(y) = left_legendre(prob.model,x2,x3,u1,y)
+		v1x2(y) = left_legendre(prob.prob.model,y,x3,u1,h1)
+		v1x3(y) = left_legendre(prob.prob.model,x2,y,u1,h1)
+		v1u1(y) = left_legendre(prob.prob.model,x2,x3,y,h1)
+		v1h1(y) = left_legendre(prob.prob.model,x2,x3,u1,y)
 
 		# vT(y) = legendre(prob.model,xT1,xT,uT2,hT2)
-		vTxT1(y) = right_legendre(prob.model,y,xT,uT2,hT2)
-		vTxT(y) = right_legendre(prob.model,xT1,y,uT2,hT2)
-		vTuT2(y) = right_legendre(prob.model,xT1,xT,y,hT2)
-		vThT2(y) = right_legendre(prob.model,xT1,xT,uT2,y)
+		vTxT1(y) = right_legendre(prob.prob.model,y,xT,uT2,hT2)
+		vTxT(y) = right_legendre(prob.prob.model,xT1,y,uT2,hT2)
+		vTuT2(y) = right_legendre(prob.prob.model,xT1,xT,y,hT2)
+		vThT2(y) = right_legendre(prob.prob.model,xT1,xT,uT2,y)
 
 		c_idx = idx_sample[i].x[2]
 		len = length(r_idx)*length(c_idx)
@@ -232,22 +232,22 @@ function ∇general_constraints!(∇c,Z,prob::SampleProblem)
 
 		c_idx = idx_sample[i].x[T-1]
 		len = length(r_idx)*length(c_idx)
-		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(vTxT1,xT1))
+		∇c[shift .+ (1:len)] = vec(-1.0*ForwardDiff.jacobian(vTxT1,xT1))
 		shift += len
 
 		c_idx = idx_sample[i].x[T]
 		len = length(r_idx)*length(c_idx)
-		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(vTxT,xT))
+		∇c[shift .+ (1:len)] = vec(-1.0*ForwardDiff.jacobian(vTxT,xT))
 		shift += len
 
 		c_idx = idx_sample[i].u[T-2]
 		len = length(r_idx)*length(c_idx)
-		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(vTuT2,uT2))
+		∇c[shift .+ (1:len)] = vec(-1.0*ForwardDiff.jacobian(vTuT2,uT2))
 		shift += len
 
 		c_idx = idx_sample[i].h[T-2]
 		len = length(r_idx)*length(c_idx)
-		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(vThT2,view(Z,idx_sample[i].h[T-2])))
+		∇c[shift .+ (1:len)] = vec(-1.0*ForwardDiff.jacobian(vThT2,view(Z,idx_sample[i].h[T-2])))
 		shift += len
 
 	end

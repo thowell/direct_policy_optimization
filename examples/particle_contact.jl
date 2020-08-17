@@ -4,7 +4,7 @@ include("../src/loop.jl")
 using Plots
 
 # Horizon
-T = 11
+T = 51
 Tm = convert(Int,(T-3)/2 + 3)
 
 tf = 1.0
@@ -23,6 +23,9 @@ xl = -Inf*ones(model.nx)
 xu_traj = [xu for t=1:T]
 xl_traj = [xl for t=1:T]
 
+# xu_traj[T][1] = xT[1]
+# xl_traj[T][1] = xT[1]
+
 # xu_traj[1] = x1
 xu_traj[2] = x1
 # xu_traj[Tm] = xM
@@ -31,7 +34,7 @@ xu_traj[2] = x1
 # xl_traj[1] = x1
 xl_traj[2] = x1
 # xl_traj[Tm] = xM
-# xl_traj[T] = xT
+# xl_traj[T][1] = 0.75
 
 # ul <= u <= uu
 uu = Inf*ones(model.nu)
@@ -46,7 +49,7 @@ hl = model.Δt
 # Objective
 Q = [t < T ? Diagonal([1.0,1.0,1.0]) : Diagonal([1.0,1.0,1.0]) for t = 1:T]
 R = [Diagonal([1.0e-1,1.0e-1,1.0e-1]) for t = 1:T-2]
-c = 0.0
+c = 1.0
 
 X_ref = linear_interp(x1,xT,T)
 X_ref[Tm] = xM
@@ -98,7 +101,7 @@ plot(z_nom)
 plot(hcat(U_nom...)[model.idx_u,:]',linetype=:steppost)
 @assert norm(s_nom,Inf) < 1.0e-5
 @assert norm(ϕ_func(model,X_nom[Tm])) < 1.0e-5
-@assert norm(X_nom[2][2:end] - X_nom[T-1][2:end]) < 1.0e-5
+@assert norm(X_nom[2][2:end] - X_nom[T][2:end]) < 1.0e-5
 plot(λ_nom,linetype=:steppost)
 
 # using Colors
@@ -122,7 +125,7 @@ H_lqr = [0.0 for t = 1:T-1]
 # Samples
 N = 2*model.nx
 models = [model for i =1:N]
-K0 = [1.0e-3*rand(model.nu_ctrl*(model.nx + 2*model.nc)) for t = 1:T-2]
+K0 = [1.0rand(model.nu_ctrl*(model.nx + 2*model.nc)) for t = 1:T-2]
 β = 1.0
 w = 1.0e-8*ones(model.nx)
 γ = 1.0
@@ -134,6 +137,9 @@ xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 for i = 1:N
 	xl_traj_sample[i][2] = x1_sample[i]
 	xu_traj_sample[i][2] = x1_sample[i]
+
+	# xl_traj_sample[i][T][1] = x1_sample[i][1] + 1.0
+	# xu_traj_sample[i][T][1] = x1_sample[i][1] + 1.0
 end
 
 ul_traj_sample = [[ul for t = 1:T-2] for i = 1:N]
@@ -152,18 +158,18 @@ end
 prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
 	u_policy=model.idx_u,
-	nK=length(model.idx_u)*(model.nx + 2*model.nc),
+	nK=model.nu_ctrl*(model.nx + 2*model.nc),
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=1.0,
+    α=1.0e-5,
 	ul=ul_traj_sample,
 	uu=uu_traj_sample,
 	xl=xl_traj_sample,
 	xu=xu_traj_sample,
 	hl=hl_traj_sample,
 	hu=hu_traj_sample,
-    sample_general_constraints=false,
-    m_sample_general=0*N*(model.nx-1 + model.nx),
+    sample_general_constraints=true,
+    m_sample_general=N*(model.nx-1 + model.nx),
     sample_general_ineq=(1:0),
 	general_objective=true,
 	sample_contact_sequence=true,
@@ -171,7 +177,7 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-_U_nom = [rand(model.nu) for t = 1:T-2]
+_U_nom = [0.01*rand(model.nu) for t = 1:T-2]
 for t = 1:T-2
 	_U_nom[t][model.idx_u] = U_nom[t][model.idx_u]
 end
@@ -179,11 +185,34 @@ end
 Z0_sample = pack(X_nom,_U_nom,H_nom[1],K0,prob_sample)
 
 # Solve
-#NOTE: run multiple times to get good solution
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=1000)
+# #NOTE: run multiple times to get good solution
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=1000)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+# X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z0_sample,prob_sample)
+#
+# # Z0 = zeros(prob_sample.N_nlp)
+# #
+# # for t = 1:T
+# # 	Z0[prob_sample.idx_nom.x[t]] = X_nom[t]
+# # 	for i = 1:N
+# # 		Z0[prob_sample.idx_sample[i].x[t]] = X_nom[t]
+# # 	end
+# # end
+# # X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z0,prob_sample)
+# norm(X_nom[5] - X_sample[1][5])
+# norm(X_nom[5] - X_nom_sample[5])
+# norm(U_nom[5] - U_sample[1][5])
+# norm(U_nom[5] - U_nom_sample[5])
+#
+# plot(hcat(U_nom...)')
+# plot(hcat(U_nom_sample...)')
+# plot(hcat(U_sample[1]...)')
+# plot(hcat(X_nom...)')
+# plot(hcat(X_nom_sample...)')
+# plot(hcat(X_sample[3]...)')
+#
 
 t_nominal = zeros(T-2)
 t_sample = zeros(T-2)
@@ -191,7 +220,9 @@ for t = 2:T-2
 	t_nominal[t] = t_nominal[t-1] + H_nom[t-1]
     t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
 end
-
+t_sample
+sum(H_nom)
+sum(H_nom_sample)
 s = [U_nom_sample[t][model.idx_s] for t = 1:T-2]
 @assert norm(s,Inf) < 1.0e-5
 

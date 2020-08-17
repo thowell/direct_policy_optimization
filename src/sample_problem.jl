@@ -150,7 +150,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
 end
 
 function pack(X0,U0,h0,K0,prob::SampleProblem;
-        uw=0.0,s=1.0)
+        uw=1.0,s=1.0)
 
     Z0 = zeros(prob.N_nlp)
     Z0[prob.idx_nom_z] = pack(X0,U0,h0,prob.prob)

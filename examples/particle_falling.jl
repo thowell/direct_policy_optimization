@@ -85,5 +85,5 @@ X_nom[3]
 X_nom[2]
 X_nom[1]
 
-t = 5
+t = 20
 norm(left_legendre(model,X_nom[t],X_nom[t+1],U_nom[t-1],H_nom[t-2]) - right_legendre(model,X_nom[t-1],X_nom[t],U_nom[t-1],H_nom[t-2]))

@@ -33,7 +33,7 @@ function left_legendre(model,x1,x2,u,h)
 
 	pl_del = -0.5*h[1]*D1L1 + D2L1 - 0.5*h[1]*B_func(model,x2)'*u_ctrl - h[1]*N_func(model,x2)'*λ - h[1]*P_func(model,x2)'*b
 
-	pl_del
+	M_func(model,x2)\pl_del #TODO check which M(q...)
 end
 
 function right_legendre(model,x1,x2,u,h)
@@ -48,5 +48,5 @@ function right_legendre(model,x1,x2,u,h)
 
 	pr_del = 0.5*h[1]*D1L1 + D2L1 + 0.5*h[1]*B_func(model,x2)'u_ctrl
 
-	pr_del
+	M_func(model,x1)\pr_del #TODO check which M(q...)
 end

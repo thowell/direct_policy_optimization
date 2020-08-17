@@ -4,7 +4,6 @@ tmp_o(z) = eval_objective(prob,z)
 ∇obj = zeros(prob.N)
 eval_objective_gradient!(∇obj,Z0_test,prob)
 @assert norm(ForwardDiff.gradient(tmp_o,Z0_test) - ∇obj) < 1.0e-10
-∇obj
 c0 = zeros(prob.M)
 eval_constraint!(c0,Z0_test,prob)
 tmp_c(c,z) = eval_constraint!(c,z,prob)
@@ -84,7 +83,7 @@ end
 @assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmp_c,c0,Z0_sample))) < 1.0e-10
 @assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_sample)) < 1.0e-10
 
-include("../src/general_constraints.jl")
+# include("../src/general_constraints.jl")
 c0 = zeros(prob_sample.M_nlp)
 eval_constraint!(c0,Z0_sample,prob_sample)
 tmp_c(c,z) = eval_constraint!(c,z,prob_sample)

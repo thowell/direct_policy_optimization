@@ -4,13 +4,13 @@ include("../src/loop_up.jl")
 using Plots
 
 # Horizon
-T = 101
+T = 51
 Tm = convert(Int,(T-3)/2 + 3)
 
-tf = 0.225
+tf = 1.0
 model.Δt = tf/(T-1)
 
-zh = 0.05
+zh = 0.1
 # Initial and final states
 x1 = [0., model.r+zh, 0.75*model.r, 0., 0.]
 xM = [0., 0.5*model.r, 0.5*model.r, 0., 0.]
@@ -21,11 +21,11 @@ xM = [0., 0.5*model.r, 0.5*model.r, 0., 0.]
 xu_traj = [model.qU for t=1:T]
 xl_traj = [model.qL for t=1:T]
 
-xu_traj[2] = [x1[1:2]; Inf*ones(3)]
+xu_traj[2] = x1;#[x1[1:2]; Inf*ones(3)]
 # xu_traj[Tm] = xM
 # xu_traj[T] = xT
 
-xl_traj[2] = [x1[1:2]; -Inf*ones(3)]
+xl_traj[2] = x1;#[x1[1:2]; -Inf*ones(3)]
 # xl_traj[Tm] = xM
 # xl_traj[T] = xT
 # ul <= u <= uu
@@ -36,12 +36,12 @@ ul[model.idx_u] .= -100.0
 
 # h = h0 (fixed timestep)
 hu = model.Δt
-hl = model.Δt
+hl = 0.0*model.Δt
 
 # Objective
-Q = [t < T ? Diagonal([1.0,1.0,1.0,0.1,0.1]) : Diagonal([1.0,1.0,1.0,0.1,0.1]) for t = 1:T]
-R = [Diagonal([1.0e-1,1.0e-1]) for t = 1:T-2]
-c = 0.0
+Q = [t < T ? 0.0*Diagonal([1.0,1.0,1.0,0.1,0.1]) : 0.0*Diagonal([1.0,1.0,1.0,0.1,0.1]) for t = 1:T]
+R = [0.0*Diagonal([1.0e-1,1.0e-1]) for t = 1:T-2]
+c = 1.0
 
 X_ref = [linear_interp(x1,xM,Tm-1)[1:end-1]...,linear_interp(xM,x1,Tm-1)...]
 # X_ref[Tm] = xM
