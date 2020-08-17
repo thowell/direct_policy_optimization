@@ -27,7 +27,7 @@ function simulate_linear_controller_friction(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,
         u = min.(u,uu)
 
         if friction
-            _u = u[1] - μ*sign(z_rollout[end][3])*model.g*(model.mp+model.mc)
+            _u = u[1] + μ*sign(z_rollout[end][3])*model.g*(model.mp+model.mc)
         else
             _u = u[1]
         end
@@ -116,14 +116,11 @@ plot(plt4,plt5,plt6,layout=(3,1))
 # objective value
 J_tvlqr_bnds
 J_robust
-J_pfl_robust
 
 # state tracking
 Jx_tvlqr_bnds
 Jx_robust
-Jx_pfl_robust
 
 # control tracking
 Ju_tvlqr_bnds
 Ju_robust
-Ju_pfl_robust
