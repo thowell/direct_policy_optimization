@@ -99,18 +99,18 @@ plot(hcat(U_nom...)[model.idx_u,:]',linetype=:steppost)
 @assert norm(X_nom[3][2:end] - X_nom[T][2:end]) < 1.0e-5
 plot(λ_nom,linetype=:steppost)
 
-# using Colors
-# using CoordinateTransformations
-# using FileIO
-# using GeometryTypes
-# using LinearAlgebra
-# using MeshCat
-# using MeshIO
-# using Rotations
-#
-# vis = Visualizer()
-# open(vis)
-# visualize!(vis,model,[X_nom])
+using Colors
+using CoordinateTransformations
+using FileIO
+using GeometryTypes
+using LinearAlgebra
+using MeshCat
+using MeshIO
+using Rotations
+
+vis = Visualizer()
+open(vis)
+visualize!(vis,model,[X_nom])
 
 # samples
 Q_lqr = [t < T ? Diagonal([10.0;10.0;10.0]) : Diagonal([10.0; 10.0; 10.0]) for t = 1:T]
@@ -141,8 +141,8 @@ hl_traj_sample = [[hl for t = 1:T-2] for i = 1:N]
 hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 
 function policy(model::Particle,K,x1,x2,x3,u,h,x1_nom,x2_nom,x3_nom,u_nom,h_nom)
-	v = (x3 - x2)/h[1]
-	v_nom = (x3_nom - x2_nom)/h_nom[1]
+	# v = (x3 - x2)/h[1]
+	# v_nom = (x3_nom - x2_nom)/h_nom[1]
 	u_nom[model.idx_u] - reshape(K,model.nu_ctrl,model.nx + 2*model.nc)*[x3 - x3_nom;
 											   ϕ_func(model,x3) - ϕ_func(model,x3_nom);
 											   u[model.idx_λ] - u_nom[model.idx_λ]]
@@ -218,33 +218,98 @@ display(pltx)
 
 K_nom_sample = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-2]
 
-# simulate policy
-include("../src/simulate.jl")
-T_scale =
+
+# velocity matching
+
+include("../src/velocity.jl")
+T_scale = 5
 T_sim = T_scale*T
 
+tf = sum(H_nom)
+times = [(t-1)*H_nom[t] for t = 1:T-2]
+t_sim = range(0,stop=tf,length=T_sim)
+dt_sim = tf/(T_sim-1)
+
+
+# xl <= x <= xu
+xu_vel = [Inf*ones(model.nx) for t = 1:3]
+xl_vel = [-Inf*ones(model.nx) for t = 1:3]
+xu_vel[2] = X_nom[2]
+xl_vel[2] = X_nom[2]
+
+# ul <= u <= uu
+uu_vel = Inf*ones(model.nu)
+ul_vel = zeros(model.nu)
+
+uu_vel[model.idx_u] .= Inf
+ul_vel[model.idx_u] .= -Inf
+
+general_constraint=true
+m_general=model.nx
+
+v1 = (X_nom_sample[3] - X_nom_sample[2])/H_nom_sample[1]
+# Problem
+prob_vel = init_problem(model.nx,model.nu,3,model,penalty_obj,
+	                    xl=xl_vel,
+	                    xu=xu_vel,
+	                    ul=[ul_vel],
+	                    uu=[uu_vel],
+	                    hl=[dt_sim],
+	                    hu=[dt_sim],
+						general_constraints=general_constraint,
+						m_general=m_general,
+						general_ineq=(1:0),
+	                   	v1=v1)
+
+# MathOptInterface problem
+prob_vel_moi = init_MOI_Problem(prob_vel)
+
+# Pack trajectories into vector
+Z0_vel = pack([X_nom[1],X_nom[2],X_nom[3]],[U_nom[1]],dt_sim,prob_vel)
+
+@time Z_vel_sol = solve(prob_vel_moi,copy(Z0_vel),tol=1.0e-6,c_tol=1.0e-6)
+X_vel_sol, U_vel_sol, H_vel_sol = unpack(Z_vel_sol,prob_vel)
+
+norm(X_vel_sol[2] - X_nom[2])
+v_vel = (X_vel_sol[3] - X_vel_sol[2])/H_vel_sol[1]
+norm(v1 - v_vel)
+
+# simulate policy
+include("../src/simulate.jl")
+
 X_sim_policy, U_sim_policy, dt_sim_policy = simulate_policy(model,
-	X_nom_sample,U_nom_sample,H_nom_sample,K_nom_sample,T_sim,
+	X_nom_sample,U_nom_sample,H_nom_sample,K_nom_sample,T_sim,X_vel_sol[1],X_vel_sol[2],
 	α=100.0,slack_tol=1.0e-5,tol=1.0e-5,c_tol=1.0e-5)
 model.Δt = dt_sim_policy
 
 X_sim_nom, U_sim_nom, dt_sim_nom = simulate_nominal(model,
-	X_nom_sample,U_nom_sample,H_nom_sample,K_nom_sample,T_sim,
+	X_nom_sample,U_nom_sample,H_nom_sample,K_nom_sample,T_sim,X_vel_sol[1],X_vel_sol[2],
 	α=100.0,slack_tol=1.0e-6,tol=1.0e-6,c_tol=1.0e-6)
 
-t_sim = zeros(T_sim-2)
-for t = 2:T_sim-2
+t_sim = zeros(T_sim)
+for t = 2:T_sim
     t_sim[t] = t_sim[t-1] + dt_sim_policy
 end
 sum(H_nom_sample)
-# visualize!(vis,model,[X_sim_policy, X_sim_nom],color=[RGBA(0, 1, 0, 1.0),RGBA(1, 0, 0, 1.0)])
+
+model.Δt = 0.1
+visualize!(vis,model,[X_nom])#[X_sim_policy, X_sim_nom],color=[RGBA(0, 1, 0, 1.0),RGBA(1, 0, 0, 1.0)])
 
 plt_track = plot(t_sample,hcat(X_nom_sample[3:T]...)',color=:red,label=["nominal" "" ""],
 	title="Particle tracking performance ($(T_scale)T)",
 	xlabel="time (s)",
 	ylabel="state",
 	legend=:topleft)
-plt_track = plot!(t_sim,hcat(X_sim_nom[3:T_sim]...)',color=:purple,label=["open loop" "" ""])
-plt_track = plot!(t_sim,hcat(X_sim_policy[3:T_sim]...)',color=:orange,label=["policy" "" ""])
+plt_track = plot!(t_sim,hcat(X_sim_nom...)',color=:purple,label=["open loop" "" ""])
+plt_track = plot!(t_sim,hcat(X_sim_policy...)',color=:orange,label=["policy" "" ""])
 
 # savefig(plt_track,joinpath(@__DIR__,"results/particle_tracking_$(T_scale)T.png"))
+
+U_sim_nom
+t_sim
+plt_u_track = plot(t_sim,hcat(U_sim_nom...)[1:3,:]',title="Control",linetype=:steppost,color=:purple,label=["open loop" "" ""])
+plt_u_track = plot!(t_sim,hcat(U_sim_policy...)[1:3,:]',linetype=:steppost,color=:orange,label=["policy" "" ""])
+
+plot(hcat(K_nom_sample...)',linetype=:steppost,label="",xlabel="time step",title="Feedback gains")
+
+K_nom_sample
