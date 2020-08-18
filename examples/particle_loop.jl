@@ -1,11 +1,11 @@
 include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/particle.jl")
-include("../src/loop_up.jl")
+include("../src/loop.jl")
 using Plots
 
 # Horizon
 tf = 1.0
-T = 11
+T = 13
 model.Δt = tf/(T-1)
 Tm = convert(Int,(T-3)/2 + 3)
 
@@ -30,20 +30,30 @@ xl_traj[Tm] = xM
 # ul <= u <= uu
 uu = Inf*ones(model.nu)
 uu[model.idx_u] .= 100.0
+uu[model.idx_λ] .= 0.0
+uu[model.idx_b] .= 0.0
+# uu[model.idx_ψ] .= 0.0
+# uu[model.idx_η] .= 0.0
+
 ul = zeros(model.nu)
 ul[model.idx_u] .= -100.0
+ul[model.idx_λ] .= 0.0
+ul[model.idx_b] .= 0.0
+# ul[model.idx_ψ] .= 0.0
+# ul[model.idx_η] .= 0.0
 
 # h = h0 (fixed timestep)
 hu = model.Δt
 hl = model.Δt
 
 # Objective
-Q = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-1*ones(model.nu_ctrl)) for t = 1:T-2]
+Q = [Diagonal(1000.0*ones(model.nx)) for t = 1:T]
+R = [Diagonal(1.0e-3*ones(model.nu_ctrl)) for t = 1:T-2]
 c = 0.0
 
+x_ref = [linear_interp(xM,x1,Tm-2)[end-1:end]...,linear_interp(x1,xM,Tm-1)[2:end-1]...,linear_interp(xM,x1,Tm-2)...]
 obj = QuadraticTrackingObjective(Q,R,c,
-    [x1 for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
+    [x_ref[t] for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
 
 model.α = 100.0
 penalty_obj = PenaltyObjective(model.α)
@@ -66,8 +76,8 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
 prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
-X0 = linear_interp(x1,xT,T) # linear interpolation on state #TODO clip z
-U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
+X0 = deepcopy(x_ref) # linear interpolation on state #TODO clip z
+U0 = [0.1*rand(model.nu) for t = 1:T-2] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,model.Δt,prob)
@@ -75,24 +85,24 @@ Z0 = pack(X0,U0,model.Δt,prob)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 x_nom = [X_nom[t][1] for t = 1:T]
+y_nom = [X_nom[t][2] for t = 1:T]
 z_nom = [X_nom[t][3] for t = 1:T]
 λ_nom = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
+b_nom = [U_nom[t][model.idx_b] for t = 1:T-2]
+ψ_nom = [U_nom[t][model.idx_ψ[1]] for t = 1:T-2]
+η_nom = [U_nom[t][model.idx_η] for t = 1:T-2]
 s_nom = [U_nom[t][model.idx_s] for t = 1:T-2]
 @show sum(s_nom)
-plot(x_nom)
+
+plot(hcat(x_ref...)[1:1,:]')
+plot!(x_nom)
+plot(y_nom)
 plot(z_nom)
-
-plot(x_nom,z_nom)
-
-X_nom[2] - X_nom[T]
-model.Δt
-X_nom[3]
-X_nom[2]
-X_nom[1]
-
-t = 5
-left_legendre(model,X_nom[t],X_nom[t+1],U_nom[t-2],H_nom[t-2]) - right_legendre(model,X_nom[t+1],X_nom[t+2],U_nom[t-2],H_nom[t-2])
-
+plot(λ_nom)
+plot(hcat(b_nom...)')
+plot(ψ_nom)
+plot(η_nom)
+plot(hcat(U_nom...)')
 # using Colors
 # using CoordinateTransformations
 # using FileIO

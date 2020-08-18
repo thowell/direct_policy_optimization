@@ -1,3 +1,4 @@
+include("/home/taylor/.julia/dev/SNOPT7/src/SNOPT7.jl")
 
 struct MOIProblem <: MOI.AbstractNLPEvaluator
     n
@@ -58,7 +59,9 @@ MOI.hessian_lagrangian_structure(prob::MOI.AbstractNLPEvaluator) = []
 MOI.eval_hessian_lagrangian(prob::MOI.AbstractNLPEvaluator, H, x, σ, μ) = nothing
 
 function solve(prob::MOI.AbstractNLPEvaluator,x0;
-        tol=1.0e-3,c_tol=1.0e-2,max_iter=1000,nlp=:ipopt)
+        tol=1.0e-3,c_tol=1.0e-2,max_iter=1000,
+        nlp=:ipopt,time_limit=120)
+
     x_l, x_u = primal_bounds(prob)
     c_l, c_u = constraint_bounds(prob)
 
@@ -71,11 +74,12 @@ function solve(prob::MOI.AbstractNLPEvaluator,x0;
         solver.options["max_iter"] = max_iter
         solver.options["tol"] = tol
         solver.options["constr_viol_tol"] = c_tol
+        # solver.options["max_cpu_time"] = time_limit
     else
-        solver = SNOPT7.Optimizer()
-        # solver.options["Major feasibility tolerance"] = c_tol
-        # solver.options["Minor_feasibility_tolerance"] = tol
-        # solver.options["Major_optimality_tolerance"] = tol
+        solver = SNOPT7.Optimizer(Major_feasibility_tolerance=c_tol,
+                                  Minor_feasibility_tolerance=tol,
+                                  Major_optimality_tolerance=tol,
+                                  Time_limit=time_limit)
     end
 
     x = MOI.add_variables(solver,prob.n)

@@ -60,7 +60,7 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim,x1,x2;
 	tf = sum(H_nom)
 	times = [(t-1)*H_nom[t] for t = 1:T-2]
     t_sim = range(0,stop=tf,length=T_sim)
-	dt_sim = tf/(T_sim-1)
+	dt_sim = tf/(T_sim-2)
 
 	# Bounds
 
@@ -129,12 +129,13 @@ function simulate_policy(model,X_nom,U_nom,H_nom,K_nom,T_sim,x1,x2;
 	return X_traj, U_traj, dt_sim
 end
 
-function simulate_nominal(model,X_nom,U_nom,H_nom,K_nom,T_sim,dt_sim,x1,x2;
+function simulate_nominal(model,X_nom,U_nom,H_nom,K_nom,T_sim,x1,x2;
 		tol=1.0e-6,c_tol=1.0e-6,α=100.0,slack_tol=1.0e-5)
 
 	tf = sum(H_nom)
 	times = [(t-1)*H_nom[t] for t = 1:T-2]
     t_sim = range(0,stop=tf,length=T_sim)
+	dt_sim = tf/(T_sim-2)
 
 	# Bounds
 

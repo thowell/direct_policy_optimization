@@ -1,7 +1,6 @@
-include("/home/taylor/.julia/dev/SNOPT7/src/SNOPT7.jl")
 include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/hopper.jl")
-include("../src/loop_up.jl")
+include("../src/loop.jl")
 using Plots
 
 # Horizon
@@ -24,8 +23,6 @@ xl_traj = [model.qL for t=1:T]
 
 xu_traj[2] = x1
 # xu_traj[T] = x1
-
-
 xl_traj[2] = x1
 # xl_traj[T] = x1
 
@@ -38,17 +35,38 @@ ul[model.idx_u] .= -100.0
 ul_traj = [ul for t = 1:T-2]
 uu_traj = [uu for t = 1:T-2]
 
+for t = T-2
+	if t < Tm-3 || t > Tm + 3
+		uu_traj[t][model.idx_λ] .= 0.0
+		uu_traj[t][model.idx_b] .= 0.0
+		# uu[model.idx_ψ] .= 0.0
+		# uu[model.idx_η] .= 0.0
+
+		ul_traj[t][model.idx_λ] .= 0.0
+		ul_traj[t][model.idx_b] .= 0.0
+		# ul[model.idx_ψ] .= 0.0
+		# ul[model.idx_η] .= 0.0
+	else
+	# 	# uu[model.idx_ψ] .= 0.0
+	# 	uu_traj[t][model.idx_η] .= 0.0
+	# 	# ul[model.idx_ψ] .= 0.0
+	# 	ul_traj[t][model.idx_η] .= 0.0
+	end
+end
+
+
 # h = h0 (fixed timestep)
 hu = model.Δt
 hl = 0.0*model.Δt
 
 # Objective
-Q = [t != Tm ? Diagonal([1.0,1.0,1.0,0.1,0.1]) : 10.0*Diagonal([1.0,1.0,1.0,0.1,0.1]) for t = 1:T]
+Q = [Diagonal([100.0,100.0,100.0,100.0,100.0]) for t = 1:T]
 R = [Diagonal([1.0e-1,1.0e-1]) for t = 1:T-2]
 c = 1.0
+x_ref = [linear_interp(xM,x1,Tm-2)[end-1:end]...,linear_interp(x1,xM,Tm-1)[2:end-1]...,linear_interp(xM,x1,Tm-2)...]
 
 obj = QuadraticTrackingObjective(Q,R,c,
-    [t == -1 ? xM : x1 for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
+    [x_ref[t] for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
 model.α = 100.0
 penalty_obj = PenaltyObjective(model.α)
 multi_obj = MultiObjective([obj,penalty_obj])
@@ -72,9 +90,8 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
 prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
-X0 = [linear_interp(x1,xM,Tm-1)[1:end-1]...,linear_interp(xM,x1,Tm-1)...]
-X0[Tm] = xM
-U0 = [0.001*rand(model.nu) for t = 1:T-2] # random controls
+X0 = deepcopy(x_ref)
+U0 = [0.1*rand(model.nu) for t = 1:T-2] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,model.Δt,prob)
@@ -82,87 +99,72 @@ Z0 = pack(X0,U0,model.Δt,prob)
 @time Z_nominal = solve(prob_moi,copy(Z_nominal),nlp=:SNOPT)
 
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
-plot(hcat(U_nom...)[model.idx_u,:]',linetype=:steppost)
-s_nom = [U_nom[t][model.idx_s] for t = 1:T-2]
 
 x_nom = [X_nom[t][1] for t = 1:T]
-y_nom = [X_nom[t][2] for t = 1:T]
-z_nom = [X_nom[t][3] for t = 1:T]
-norm(s_nom,Inf)
-t_nom = zeros(T-2)
-for t = 2:T-2
-    t_nom[t] = t_nom[t-1] + H_nom[t-1]
-end
-ϕ_func(model,X_nom[Tm])
-@assert norm(s_nom,Inf) < 1.0e-5
-@assert norm(ϕ_func(model,X_nom[Tm])) < 1.0e-5
-@assert norm(X_nom[2] - X_nom[T]) < 1.0e-5
-λ = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
-b = [U_nom[t][model.idx_b] for t = 1:T-2]
-ψ = [U_nom[t][model.idx_ψ[1]] for t = 1:T-2]
-η = [U_nom[t][model.idx_η] for t = 1:T-2]
+z_nom = [X_nom[t][2] for t = 1:T]
+λ_nom = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
+b_nom = [U_nom[t][model.idx_b] for t = 1:T-2]
+ψ_nom = [U_nom[t][model.idx_ψ[1]] for t = 1:T-2]
+η_nom = [U_nom[t][model.idx_η] for t = 1:T-2]
+s_nom = [U_nom[t][model.idx_s] for t = 1:T-2]
+@show sum(s_nom)
 
-plot(λ,linetype=:steppost)
-plot!(hcat(b...)',linetype=:steppost)
-plot!(ψ,linetype=:steppost)
-plot!(hcat(η...)',linetype=:steppost)
+plot(hcat(x_ref...)[1:1,:]')
+plot!(x_nom)
+plot(hcat(x_ref...)[2:2,:]')
+plot!(z_nom)
 
-plot([ϕ_func(model,X_nom[t])[1] for t = 3:T],linetype=:steppost)
+plot(λ_nom,linetype=:steppost)
+plot(hcat(b_nom...)',linetype=:steppost)
+plot(ψ_nom,linetype=:steppost)
+plot(hcat(η_nom...)',linetype=:steppost)
+plot(hcat(U_nom...)',linetype=:steppost)
 
-sum(H_nom)
+using Colors
+using CoordinateTransformations
+using FileIO
+using GeometryTypes
+using LinearAlgebra
+using MeshCat
+using MeshIO
+using Rotations
 
-# using Colors
-# using CoordinateTransformations
-# using FileIO
-# using GeometryTypes
-# using LinearAlgebra
-# using MeshCat
-# using MeshIO
-# using Rotations
-#
-# vis = Visualizer()
-# open(vis)
-# model.Δt = H_nom[1]
-# visualize!(vis,model,X_nom)
-
-
-plot(hcat(X_nom...)')
-plot(hcat(U_nom...)[1:2,:]',linetype=:steppost)
-
+vis = Visualizer()
+open(vis)
+model.Δt = H_nom[1]
+visualize!(vis,model,X_nom)
 
 # samples
-Q_lqr = [t != -1 ? Diagonal([1.0;1.0;1.0;1.0;1.0]) : Diagonal([1.0;1.0;1.0;1.0;1.0]) for t = 1:T]
-R_lqr = [Diagonal([1.0e-1; 1.0e-1]) for t = 1:T-2]
-H_lqr = [1.0 for t = 1:T-1]
+Q_lqr = [100.0*Diagonal([1.0;1.0;1.0;1.0;1.0]) for t = 1:T]
+R_lqr = [Diagonal([1.0e-2; 1.0e-2]) for t = 1:T-2]
+H_lqr = [10.0 for t = 1:T-2]
 
 # Samples
 N = 2*model.nx
 models = [model for i =1:N]
-K0 = [rand(model.nu_ctrl*(model.nx + 2*model.nc)) for t = 1:T-2]
+n_features = model.nx + 2*model.nc
+K0 = [rand(model.nu_ctrl*n_features) for t = 1:T-2]
 β = 1.0
 w = 1.0e-8*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=1.0e-8*ones(model.nx))
 
-xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
-xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+xl_traj_sample = [[model.qL for t = 1:T] for i = 1:N]
+xu_traj_sample = [[model.qU for t = 1:T] for i = 1:N]
 
 for i = 1:N
 	xl_traj_sample[i][2] = x1_sample[i]
 	xu_traj_sample[i][2] = x1_sample[i]
 end
 
-ul_traj_sample = [[ul for t = 1:T-2] for i = 1:N]
-uu_traj_sample = [[uu for t = 1:T-2] for i = 1:N]
+ul_traj_sample = [ul_traj for i = 1:N]
+uu_traj_sample = [uu_traj for i = 1:N]
 
 hl_traj_sample = [[hl for t = 1:T-2] for i = 1:N]
 hu_traj_sample = [[hu for t = 1:T-2] for i = 1:N]
 
 function policy(model::Hopper,K,x1,x2,x3,u,h,x1_nom,x2_nom,x3_nom,u_nom,h_nom)
-	# v = legendre(model,x1,x2,x3,u,h)
-	# v_nom = legendre(model,x1_nom,x2_nom,x3_nom,u_nom,h_nom)
-
-	u_nom[model.idx_u] - reshape(K,model.nu_ctrl,model.nx + 2*model.nc)*[(x3 - x3_nom);
+	u_nom[model.idx_u] - reshape(K,model.nu_ctrl,n_features)*[(x3 - x3_nom);
 											    ϕ_func(model,x3) - ϕ_func(model,x3_nom);
 											    u[model.idx_λ] - u_nom[model.idx_λ]]
 	# u[model.idx_u]
@@ -172,10 +174,10 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
     Q_lqr,R_lqr,H_lqr,
 	resample=true,
 	u_policy=model.idx_u,
-	nK = model.nu_ctrl*(model.nx + 2*model.nc),
+	nK = model.nu_ctrl*(n_features),
     β=β,w=w,γ=γ,
-    disturbance_ctrl=false,
-    α=1.0e-3,
+    disturbance_ctrl=true,
+    α=1.0,
 	ul=ul_traj_sample,
 	uu=uu_traj_sample,
 	xl=xl_traj_sample,
@@ -186,7 +188,7 @@ prob_sample = init_sample_problem(prob,models,x1_sample,
     m_sample_general=N*(2*model.nx),
     sample_general_ineq=(1:0),
 	general_objective=true,
-	sample_contact_sequence=true,
+	sample_contact_sequence=false,
 	T_sample_contact_sequence=[[Tm],[Tm],[Tm],[Tm],[Tm],[Tm],[Tm],[Tm],[Tm],[Tm]])
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
@@ -201,7 +203,7 @@ Z0_sample = pack(X_nom,U_nom,H_nom[1],K0,prob_sample)
 # Solve
 #NOTE: run multiple times to get good solution
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=500)
+Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=500,nlp=:SNOPT)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
