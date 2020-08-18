@@ -31,10 +31,9 @@ obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal(ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
-R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
+Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
+R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
-
 
 # Models
 model1 = Acrobot(1.0,1.0,1.0,0.5,1.35,1.0,1.0,0.5,9.81,nx,nu)
@@ -171,32 +170,76 @@ open(vis)
 visualize!(vis,model,[X_nominal,X_nominal1,X_nominal2,X_nominal3,X_nominal4,X_nominal5,X_nominal6,X_nominal7,X_nominal8],
     color=[RGBA(1,0,0,0.5),RGBA(0,0,0,1.0),RGBA(1,0,0,1.0),RGBA(0,1,0,1.0),RGBA(0,0,1,1.0),RGBA(1,1,0,1.0),RGBA(1,0,1,1.0),RGBA(0,1,1,1.0),RGBA(1,1,1,1.0)],Δt=h0)
 
+Xs_nominal = [
+              X_nominal1,
+              X_nominal2,
+              X_nominal3,
+              X_nominal4,
+              X_nominal5,
+              X_nominal6,
+              X_nominal7,
+              X_nominal8
+              ]
+Us_nominal = [
+            U_nominal1,
+            U_nominal2,
+            U_nominal3,
+            U_nominal4,
+            U_nominal5,
+            U_nominal6,
+            U_nominal7,
+            U_nominal8
+            ]
 
-
-
-
+Hs_nominal = [
+            H_nominal1,
+            H_nominal2,
+            H_nominal3,
+            H_nominal4,
+            H_nominal5,
+            H_nominal6,
+            H_nominal7,
+            H_nominal8
+            ]
 # Samples
 N = 2*model.nx
-models = [model for i = 1:N]
+models = [model1,model2,model3,model4,model5,model6,model7,model8]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-8*ones(model.nx)
 γ = 1.0
-
-α = 1.0e-3
-x11 = α*[1.0; 0.0]
-x12 = α*[-1.0; 0.0]
-x13 = α*[0.0; 1.0]
-x14 = α*[0.0; -1.0]
-x1_sample = resample([x11,x12,x13,x14],β=β,w=w)
+x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
 prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ)
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
+Z0_sample = zeros(prob_sample.N_nlp)
+
+for t = 1:T
+    Z0_sample[prob_sample.idx_nom.x[t]] = X_nominal[t]
+
+    t>T-1 && continue
+    Z0_sample[prob_sample.idx_nom.u[t]] = U_nominal[t]
+    Z0_sample[prob_sample.idx_nom.h[t]] = H_nominal[t]
+end
+
+for t = 1:T
+    for i = 1:N
+        Z0_sample[prob_sample.idx_sample[i].x[t]] = Xs_nominal[i][t]
+
+        t>T-1 && continue
+        Z0_sample[prob_sample.idx_sample[i].u[t]] = Us_nominal[i][t]
+        Z0_sample[prob_sample.idx_sample[i].h[t]] = Hs_nominal[i][t]
+    end
+end
+
+for t = 1:T-1
+    Z0_sample[prob_sample.idx_K[t]] = vec(K[t])
+end
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT7)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:ipopt)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,nlp=:ipopt,time_limit=600)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -216,21 +259,21 @@ display("time (sample nominal): $(sum(H_nom_sample))s")
 
 # Control
 plt = plot(t_nominal[1:T-1],Array(hcat(U_nominal...))',
-    color=:purple,width=2.0,title="Pendulum",xlabel="time (s)",
+    color=:purple,width=2.0,title="Acrobot",xlabel="time (s)",
     ylabel="control",label="nominal",linelegend=:topleft,
     linetype=:steppost)
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',
     color=:orange,width=2.0,label="sample",linetype=:steppost)
-savefig(plt,joinpath(@__DIR__,"results/pendulum_stagetrol_noise.png"))
+savefig(plt,joinpath(@__DIR__,"results/acrobot_control_mass.png"))
 
 # States
 plt = plot(t_nominal,hcat(X_nominal...)[1,:],
     color=:purple,width=2.0,xlabel="time (s)",ylabel="state",
-    label="θ (nominal)",title="Pendulum",legend=:topleft)
-plt = plot!(t_nominal,hcat(X_nominal...)[2,:],color=:purple,width=2.0,label="x (nominal)")
-plt = plot!(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="θ (sample)")
-plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="x (sample)")
-savefig(plt,joinpath(@__DIR__,"results/pendulum_state_noise.png"))
+    label="θ1 (nominal)",title="Acrobot",legend=:topleft)
+plt = plot!(t_nominal,hcat(X_nominal...)[2,:],color=:purple,width=2.0,label="θ2 (nominal)")
+plt = plot!(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="θ1 (sample)")
+plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="θ2 (sample)")
+savefig(plt,joinpath(@__DIR__,"results/acrobot_state_mass.png"))
 
 # State samples
 plt1 = plot(t_sample,hcat(X_nom_sample...)[1,:],color=:red,width=2.0,title="",
@@ -251,8 +294,8 @@ for i = 1:N
     end
     plt2 = plot!(t_sample,hcat(X_sample[i]...)[2,:],label="");
 end
-plt12 = plot(plt1,plt2,layout=(2,1),title=["θ" "x"],xlabel="time (s)")
-savefig(plt,joinpath(@__DIR__,"results/pendulum_sample_state.png"))
+plt12 = plot(plt1,plt2,layout=(2,1),title=["θ1" "θ2"],xlabel="time (s)")
+savefig(plt,joinpath(@__DIR__,"results/acrobot_sample_state.png"))
 
 # Control samples
 plt3 = plot(t_sample[1:end-1],hcat(U_nom_sample...)[1,:],color=:red,width=2.0,
@@ -265,4 +308,4 @@ for i = 1:N
     plt3 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)[1,:],label="");
 end
 display(plt3)
-savefig(plt,joinpath(@__DIR__,"results/pendulum_sample_control.png"))
+savefig(plt,joinpath(@__DIR__,"results/acrobot_sample_control.png"))

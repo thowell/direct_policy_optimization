@@ -69,7 +69,7 @@ function solve(prob::MOI.AbstractNLPEvaluator,x0;
     if nlp==:ipopt
         solver = Ipopt.Optimizer()
         # solver.options["nlp_scaling_method"] = "none"
-        solver.options["max_cpu_time"] = time_limit
+        # solver.options["max_cpu_time"] = time_limit
         solver.options["max_iter"] = max_iter
         solver.options["tol"] = tol
         solver.options["constr_viol_tol"] = c_tol
