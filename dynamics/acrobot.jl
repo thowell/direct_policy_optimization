@@ -62,31 +62,40 @@ nx = 4
 nu = 1
 model = Acrobot(1.0,1.0,1.0,0.5,1.0,1.0,1.0,0.5,9.81,nx,nu)
 
-function visualize!(vis,model::Acrobot,q; r=0.1,Δt=0.1)
+function visualize!(vis,model::Acrobot,q;
+        color=[RGBA(0,0,0,1.0) for i = 1:length(q)],r=0.1,Δt=0.1)
 
-    l1 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,model.l1),convert(Float32,0.025))
-    setobject!(vis["l1"],l1,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
-    l2 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,model.l2),convert(Float32,0.025))
-    setobject!(vis["l2"],l2,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
+    N = length(q)
 
-    setobject!(vis["elbow"], HyperSphere(Point3f0(0),
-        convert(Float32,0.05)),
-        MeshPhongMaterial(color=RGBA(1, 0, 0, 1.0)))
-    setobject!(vis["ee"], HyperSphere(Point3f0(0),
-        convert(Float32,0.05)),
-        MeshPhongMaterial(color=RGBA(1, 0, 0, 1.0)))
+    for i = 1:N
+        l1 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,model.l1),convert(Float32,0.025))
+        setobject!(vis["l1$i"],l1,MeshPhongMaterial(color=color[i]))
+        l2 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,model.l2),convert(Float32,0.025))
+        setobject!(vis["l2$i"],l2,MeshPhongMaterial(color=color[i]))
+
+        setobject!(vis["elbow$i"], HyperSphere(Point3f0(0),
+            convert(Float32,0.05)),
+            MeshPhongMaterial(color=color[i]))
+        setobject!(vis["ee$i"], HyperSphere(Point3f0(0),
+            convert(Float32,0.05)),
+            MeshPhongMaterial(color=color[i]))
+    end
 
     anim = MeshCat.Animation(convert(Int,floor(1/Δt)))
 
-    for t = 1:length(q)
-        p_mid = [kinematics_mid(model,q[t])[1], 0.0, kinematics_mid(model,q[t])[2]]
-        p_ee = [kinematics_ee(model,q[t])[1], 0.0, kinematics_ee(model,q[t])[2]]
-        MeshCat.atframe(anim,t) do
-            settransform!(vis["l1"], cable_transform(zeros(3),p_mid))
-            settransform!(vis["l2"], cable_transform(p_mid,p_ee))
+    for t = 1:length(q[1])
 
-            settransform!(vis["elbow"], Translation(p_mid))
-            settransform!(vis["ee"], Translation(p_ee))
+        MeshCat.atframe(anim,t) do
+            for i = 1:N
+                p_mid = [kinematics_mid(model,q[i][t])[1], 0.0, kinematics_mid(model,q[i][t])[2]]
+                p_ee = [kinematics_ee(model,q[i][t])[1], 0.0, kinematics_ee(model,q[i][t])[2]]
+
+                settransform!(vis["l1$i"], cable_transform(zeros(3),p_mid))
+                settransform!(vis["l2$i"], cable_transform(p_mid,p_ee))
+
+                settransform!(vis["elbow$i"], Translation(p_mid))
+                settransform!(vis["ee$i"], Translation(p_ee))
+            end
         end
     end
     # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))

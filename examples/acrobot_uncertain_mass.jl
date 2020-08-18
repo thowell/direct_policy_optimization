@@ -2,14 +2,15 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/acrobot.jl")
 using Plots
 
+
 # Horizon
 T = 51
 
 # Bounds
 
 # ul <= u <= uu
-uu = 10.0
-ul = -10.0
+uu = 5.0
+ul = -5.0
 
 # hl <= h <= hu
 tf0 = 5.0
@@ -23,8 +24,8 @@ x1 = [0.0; 0.0; 0.0; 0.0]
 xT = [π; 0.0; 0.0; 0.0]
 
 # Objective
-Q = [t<T ? Diagonal(ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
+Q = [t<T ? Diagonal(ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
+R = [Diagonal(1.0e-2*ones(model.nu)) for t = 1:T-1]
 c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
@@ -34,8 +35,68 @@ Q_lqr = [t < T ? Diagonal(ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t
 R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 
+
+# Models
+model1 = Acrobot(1.0,1.0,1.0,0.5,1.35,1.0,1.0,0.5,9.81,nx,nu)
+model2 = Acrobot(1.0,1.0,1.0,0.5,1.3,1.0,1.0,0.5,9.81,nx,nu)
+model3 = Acrobot(1.0,1.0,1.0,0.5,1.2,1.0,1.0,0.5,9.81,nx,nu)
+model4 = Acrobot(1.0,1.0,1.0,0.5,1.1,1.0,1.0,0.5,9.81,nx,nu)
+model5 = Acrobot(1.0,1.0,1.0,0.5,0.9,1.0,1.0,0.5,9.81,nx,nu)
+model6 = Acrobot(1.0,1.0,1.0,0.5,0.8,1.0,1.0,0.5,9.81,nx,nu)
+model7 = Acrobot(1.0,1.0,1.0,0.5,0.7,1.0,1.0,0.5,9.81,nx,nu)
+model8 = Acrobot(1.0,1.0,1.0,0.5,0.65,1.0,1.0,0.5,9.81,nx,nu)
+
 # Problem
-prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+prob_nom = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+                    ul=[ul*ones(model.nu) for t=1:T-1],
+                    uu=[uu*ones(model.nu) for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    goal_constraint=true)
+
+prob1 = init_problem(model.nx,model.nu,T,x1,xT,model1,obj,
+                    ul=[ul*ones(model.nu) for t=1:T-1],
+                    uu=[uu*ones(model.nu) for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    goal_constraint=true)
+prob2 = init_problem(model.nx,model.nu,T,x1,xT,model2,obj,
+                    ul=[ul*ones(model.nu) for t=1:T-1],
+                    uu=[uu*ones(model.nu) for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    goal_constraint=true)
+prob3 = init_problem(model.nx,model.nu,T,x1,xT,model3,obj,
+                    ul=[ul*ones(model.nu) for t=1:T-1],
+                    uu=[uu*ones(model.nu) for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    goal_constraint=true)
+prob4 = init_problem(model.nx,model.nu,T,x1,xT,model4,obj,
+                    ul=[ul*ones(model.nu) for t=1:T-1],
+                    uu=[uu*ones(model.nu) for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    goal_constraint=true)
+prob5 = init_problem(model.nx,model.nu,T,x1,xT,model5,obj,
+                    ul=[ul*ones(model.nu) for t=1:T-1],
+                    uu=[uu*ones(model.nu) for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    goal_constraint=true)
+prob6 = init_problem(model.nx,model.nu,T,x1,xT,model6,obj,
+                    ul=[ul*ones(model.nu) for t=1:T-1],
+                    uu=[uu*ones(model.nu) for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    goal_constraint=true)
+prob7 = init_problem(model.nx,model.nu,T,x1,xT,model7,obj,
+                    ul=[ul*ones(model.nu) for t=1:T-1],
+                    uu=[uu*ones(model.nu) for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    goal_constraint=true)
+prob8 = init_problem(model.nx,model.nu,T,x1,xT,model8,obj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
@@ -43,7 +104,16 @@ prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
                     goal_constraint=true)
 
 # MathOptInterface problem
-prob_moi = init_MOI_Problem(prob)
+prob_nom_moi = init_MOI_Problem(prob_nom)
+
+prob1_moi = init_MOI_Problem(prob1)
+prob2_moi = init_MOI_Problem(prob2)
+prob3_moi = init_MOI_Problem(prob3)
+prob4_moi = init_MOI_Problem(prob4)
+prob5_moi = init_MOI_Problem(prob5)
+prob6_moi = init_MOI_Problem(prob6)
+prob7_moi = init_MOI_Problem(prob7)
+prob8_moi = init_MOI_Problem(prob8)
 
 # Initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation for states
@@ -53,45 +123,57 @@ U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal = solve(prob_nom_moi,copy(Z0),nlp=:SNOPT7)
+
+@time Z_nominal1 = solve(prob1_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal2 = solve(prob2_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal3 = solve(prob3_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal4 = solve(prob4_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal5 = solve(prob5_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal6 = solve(prob6_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal7 = solve(prob7_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal8 = solve(prob8_moi,copy(Z0),nlp=:SNOPT7)
 
 # Unpack solutions
-X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
+X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob1)
 
-plot(hcat(X_nominal...)',xlabel="time step")
-plot(hcat(U_nominal...)',xlabel="time step")
+X_nominal1, U_nominal1, H_nominal1 = unpack(Z_nominal1,prob1)
+X_nominal2, U_nominal2, H_nominal2 = unpack(Z_nominal2,prob2)
+X_nominal3, U_nominal3, H_nominal3 = unpack(Z_nominal3,prob3)
+X_nominal4, U_nominal4, H_nominal4 = unpack(Z_nominal4,prob4)
+X_nominal5, U_nominal5, H_nominal5 = unpack(Z_nominal5,prob5)
+X_nominal6, U_nominal6, H_nominal6 = unpack(Z_nominal6,prob6)
+X_nominal7, U_nominal7, H_nominal7 = unpack(Z_nominal7,prob7)
+X_nominal8, U_nominal8, H_nominal8 = unpack(Z_nominal8,prob8)
+
+plot(hcat(X_nominal1...)',xlabel="time step",label="")
+plot!(hcat(X_nominal2...)',xlabel="time step",label="")
+plot!(hcat(X_nominal3...)',xlabel="time step",label="")
+plot!(hcat(X_nominal4...)',xlabel="time step",label="")
+plot!(hcat(X_nominal5...)',xlabel="time step",label="")
+plot!(hcat(X_nominal6...)',xlabel="time step",label="")
+plot!(hcat(X_nominal7...)',xlabel="time step",label="")
+plot!(hcat(X_nominal8...)',xlabel="time step",label="")
+plot!(hcat(X_nominal...)',xlabel="time step",width=2.0,color=:red,label="")
+
+plot(hcat(U_nominal1...)',xlabel="time step",linetype=:steppost,label="")
+plot!(hcat(U_nominal2...)',xlabel="time step",linetype=:steppost,label="")
+plot!(hcat(U_nominal3...)',xlabel="time step",linetype=:steppost,label="")
+plot!(hcat(U_nominal4...)',xlabel="time step",linetype=:steppost,label="")
+plot!(hcat(U_nominal5...)',xlabel="time step",linetype=:steppost,label="")
+plot!(hcat(U_nominal6...)',xlabel="time step",linetype=:steppost,label="")
+plot!(hcat(U_nominal7...)',xlabel="time step",linetype=:steppost,label="")
+plot!(hcat(U_nominal8...)',xlabel="time step",linetype=:steppost,label="")
+plot!(hcat(U_nominal...)',xlabel="time step",linetype=:steppost,width=2.0,color=:red,label="")
+
+vis = Visualizer()
+open(vis)
+visualize!(vis,model,[X_nominal,X_nominal1,X_nominal2,X_nominal3,X_nominal4,X_nominal5,X_nominal6,X_nominal7,X_nominal8],
+    color=[RGBA(1,0,0,0.5),RGBA(0,0,0,1.0),RGBA(1,0,0,1.0),RGBA(0,1,0,1.0),RGBA(0,0,1,1.0),RGBA(1,1,0,1.0),RGBA(1,0,1,1.0),RGBA(0,1,1,1.0),RGBA(1,1,1,1.0)],Δt=h0)
 
 
-# using Colors
-# using CoordinateTransformations
-# using FileIO
-# using GeometryTypes:Vec,HyperRectangle,HyperSphere,Point3f0,Cylinder
-# using LinearAlgebra
-# using MeshCat, MeshCatMechanisms
-# using MeshIO
-# using Rotations
-# using RigidBodyDynamics
-#
-# function cable_transform(y,z)
-#     v1 = [0,0,1]
-#     v2 = y[1:3,1] - z[1:3,1]
-#     normalize!(v2)
-#     ax = cross(v1,v2)
-#     ang = acos(v1'v2)
-#     R = AngleAxis(ang,ax...)
-#
-#     if any(isnan.(R))
-#         R = I
-#     else
-#         nothing
-#     end
-#
-#     compose(Translation(z),LinearMap(R))
-# end
-#
-# vis = Visualizer()
-# open(vis)
-visualize!(vis,model,X_nominal,Δt=h0)
+
+
 
 # Samples
 N = 2*model.nx
