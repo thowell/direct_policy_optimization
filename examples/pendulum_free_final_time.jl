@@ -48,8 +48,6 @@ prob_moi = init_MOI_Problem(prob)
 # Initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation for states
 U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
-tf0 = 2.0
-h0 = tf0/(T-1) # timestep
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob)
