@@ -78,7 +78,7 @@ Z0 = pack(X0,U0,h0,prob)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0))
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 # Sample
@@ -97,7 +97,7 @@ prob_sample_moi = init_MOI_Problem(prob_sample)
 Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample))
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)

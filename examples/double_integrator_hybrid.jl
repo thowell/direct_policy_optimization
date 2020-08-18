@@ -146,7 +146,7 @@ end
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000,nlp=:SNOPT7)
 # Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
 
 # Unpack solution

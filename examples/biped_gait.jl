@@ -34,7 +34,7 @@ hl = 0.0*h0
 
 function discrete_dynamics(model::Biped,x⁺,x,u,h,t)
     if t == model.Tm
-        rk3_implicit(model,x⁺,Δ(x),u,h)
+        return rk3_implicit(model,x⁺,Δ(x),u,h)
     else
         return rk3_implicit(model,x⁺,x,u,h)
     end
@@ -72,7 +72,7 @@ U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0))
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
@@ -86,7 +86,6 @@ foot_y = [foot_traj[t][2] for t=1:T]
 
 plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="",color=:red)
-
 
 # start in mid trajectory
 T = 15
@@ -113,7 +112,7 @@ xu_traj[T][1:5] = x1[1:5]
 
 Q = [t < T ? Diagonal(qq) : Diagonal(qq) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 0.0
+c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
 penalty_obj = PenaltyObjective(1.0e-1,0.1,[t for t = 1:T-1 if (t != Tm)])
@@ -150,7 +149,7 @@ U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0))
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
@@ -221,8 +220,10 @@ prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,
     sample_general_constraints=true,
     m_sample_general=N*model.nx,
     sample_general_ineq=(1:0))
+prob_sample_moi = init_MOI_Problem(prob_sample)
 
 for i = 1:N
+    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[1]] = [x1_sample[i][1:5];-Inf*ones(5)]
     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[1]] = [x1_sample[i][1:5];Inf*ones(5)]
 
     prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[Tm]] = [xT[1:5];-Inf*ones(5)]
@@ -231,6 +232,11 @@ for i = 1:N
     prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T]] = [x1_sample[i][1:5];-Inf*ones(5)]
     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] = [x1_sample[i][1:5];Inf*ones(5)]
 end
+
+count(prob_sample_moi.constraint_bounds[2] - prob_sample_moi.constraint_bounds[1] .< 0.0)
+count(prob_sample_moi.primal_bounds[2] - prob_sample_moi.primal_bounds[1] .< 0.0)
+count(prob_moi.primal_bounds[2] - prob_moi.primal_bounds[1] .< 0.0)
+
 
 # # add "contact" constraint
 # for i = 1:N
@@ -244,12 +250,11 @@ end
 #     prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= [x1_sample[i][1]; Inf]
 # end
 
-prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT7)
 # Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100)
 
 # Unpack solution
