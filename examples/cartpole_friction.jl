@@ -2,7 +2,7 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/cartpole.jl")
 using Plots
 
-α_cartpole_friction = 5.0
+α_cartpole_friction = 100.0
 μ0 = 0.1
 
 model_nominal = CartpoleFriction(1.0,0.2,0.5,9.81,0.0,
@@ -58,9 +58,9 @@ prob_nominal = init_problem(model_nominal.nx,model_nominal.nu,T,
                     uu=[uu_friction for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    stage_constraints=true,
-                    m_stage=[m_stage_friction for t=1:T-1],
-                    stage_ineq=[stage_friction_ineq for t=1:T-1])
+                    general_constraints=true,
+                    m_general=m_stage_friction*(T-1),
+                    general_ineq=vcat([(t-1)*m_stage_friction .+ stage_friction_ineq for t=1:T-1]...))
 
 prob_friction = init_problem(model_friction.nx,model_friction.nu,T,
                     model_friction,multi_obj,
@@ -70,9 +70,9 @@ prob_friction = init_problem(model_friction.nx,model_friction.nu,T,
                     uu=[uu_friction for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    stage_constraints=true,
-                    m_stage=[m_stage_friction for t=1:T-1],
-                    stage_ineq=[stage_friction_ineq for t=1:T-1])
+                    general_constraints=true,
+                    m_general=m_stage_friction*(T-1),
+                    general_ineq=vcat([(t-1)*m_stage_friction .+ stage_friction_ineq for t=1:T-1]...))
 
 # MathOptInterface problem
 prob_nominal_moi = init_MOI_Problem(prob_nominal)
@@ -121,6 +121,12 @@ plt = plot!(t_nominal,hcat(X_friction_nominal...)[1:4,:]',
     label=["x (nominal friction)" "θ (nominal friction)" "dx (nominal friction)" "dθ (nominal friction)"],
     )
 
+b_nom = [U_nominal[t][2:3] for t = 1:T-1]
+b_friction_nominal = [U_friction_nominal[t][2:3] for t = 1:T-1]
+
+plot(hcat(b_nom...)',linetype=:steppost)
+plot(hcat(b_friction_nominal...)',linetype=:steppost)
+
 # Sample
 N = 2*model.nx
 models = [model_friction for i = 1:N]
@@ -128,11 +134,25 @@ models = [model_friction for i = 1:N]
 w = 1.0e-3*ones(model_friction.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+
+xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+
+for i = 1:N
+    xl_traj_sample[i][1] = x1_sample[1]
+    xu_traj_sample[i][1] = x1_sample[1]
+end
+
 K = TVLQR_gains(model,X_friction_nominal,U_friction_nominal,H_friction_nominal,Q_lqr,R_lqr,u_policy=(1:1))
 
-prob_sample = init_sample_problem(prob_friction,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+prob_sample = init_sample_problem(prob_friction,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample,
     u_policy=(1:1),
-    general_objective=true)
+    general_objective=true,
+    sample_general_constraints=true,
+    m_sample_general=prob_friction.m_general*N,
+    sample_general_ineq=vcat([(i-1)*prob_friction.m_general .+ (1:prob_friction.m_general) for i = 1:N]...))
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
@@ -143,7 +163,9 @@ Ū_friction_nominal = deepcopy(U_friction_nominal)
 Z0_sample = pack(X_friction_nominal,Ū_friction_nominal,H_friction_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample))
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7)
+Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),nlp=:SNOPT7)
+
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)

@@ -48,8 +48,9 @@ nu_policy_friction = nu
 model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,0.1,
 	nx_friction,nu_friction,nu_policy_friction)
 
-function c_stage!(c,x,u,t,model::CartpoleFriction)
-    v = x[3]
+function maximum_energy_dissipation(x⁺,u,model)
+
+    v = x⁺[3]
     β = u[2:3]
     ψ = u[4]
     η = u[5:6]
@@ -57,13 +58,162 @@ function c_stage!(c,x,u,t,model::CartpoleFriction)
 
     n = (model.mc + model.mp)*model.g
 
-    c[1] = v + ψ - η[1]
-    c[2] = -v + ψ - η[2]
-    c[3] = model.μ*n - sum(β)
-    c[4] = s - ψ*(model.μ*n - sum(β))
-    c[5] = s - β'*η
+    c1 = v + ψ - η[1]
+    c2 = -v + ψ - η[2]
+    c3 = model.μ*n - sum(β)
+    c4 = s - ψ*(model.μ*n - sum(β))
+    c5 = s - β'*η
 
-    nothing
+    return @SVector [c1, c2, c3, c4, c5]
+end
+
+m_med = 5
+
+function general_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
+	idx = prob.idx
+	model = prob.model
+	T = prob.T
+	for t = 1:T-1
+		x⁺ = view(Z,idx.x[t+1])
+		u = view(Z,idx.u[t])
+		c[(t-1)*m_med .+ (1:m_med)] = maximum_energy_dissipation(x⁺,u,model)
+	end
+	nothing
+end
+
+function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
+	shift = 0
+	idx = prob.idx
+	model = prob.model
+	T = prob.T
+	for t = 1:T-1
+		x⁺ = view(Z,idx.x[t+1])
+		u = view(Z,idx.u[t])
+
+		med_x⁺(y) = maximum_energy_dissipation(y,u,model)
+		med_u(y) = maximum_energy_dissipation(x⁺,y,model)
+
+		r_idx = (t-1)*m_med .+ (1:m_med)
+
+		c_idx = idx.x[t+1]
+		len = length(r_idx)*length(c_idx)
+		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(med_x⁺,x⁺))
+		shift += len
+
+		c_idx = idx.u[t]
+		len = length(r_idx)*length(c_idx)
+		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(med_u,u))
+		shift += len
+	end
+	nothing
+end
+
+function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
+		r_shift=0,)
+	row = []
+	col = []
+
+	idx = prob.idx
+	T = prob.T
+
+	for t = 1:T-1
+
+		r_idx = r_shift + (t-1)*m_med .+ (1:m_med)
+
+		c_idx = idx.x[t+1]
+		row_col!(row,col,r_idx,c_idx)
+
+		c_idx = idx.u[t]
+		row_col!(row,col,r_idx,c_idx)
+	end
+
+	return collect(zip(row,col))
+end
+
+function general_constraints!(c,Z,prob::SampleProblem)
+	idx_sample = prob.idx_sample
+	model = prob.prob.model
+	T = prob.prob.T
+
+	shift = 0
+	for t = 1:T-1
+		for i = 1:N
+			x⁺ = view(Z,idx_sample[i].x[t+1])
+			u = view(Z,idx_sample[i].u[t])
+			c[shift .+ (1:m_med)] = maximum_energy_dissipation(x⁺,u,model)
+			shift += m_med
+		end
+	end
+	nothing
+end
+
+function ∇general_constraints!(∇c,Z,prob::SampleProblem)
+	shift = 0
+	s = 0
+
+	idx_sample = prob.idx_sample
+	model = prob.prob.model
+	T = prob.prob.T
+
+	for t = 1:T-1
+		for i = 1:N
+			x⁺ = view(Z,idx_sample[i].x[t+1])
+			u = view(Z,idx_sample[i].u[t])
+
+			med_x⁺(y) = maximum_energy_dissipation(y,u,model)
+			med_u(y) = maximum_energy_dissipation(x⁺,y,model)
+
+			r_idx = s .+ (1:m_med)
+
+			c_idx = idx_sample[i].x[t+1]
+			len = length(r_idx)*length(c_idx)
+			∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(med_x⁺,x⁺))
+			shift += len
+
+			c_idx = idx_sample[i].u[t]
+			len = length(r_idx)*length(c_idx)
+			∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(med_u,u))
+			shift += len
+
+			s += m_med
+		end
+	end
+	nothing
+end
+
+function general_constraint_sparsity(prob::SampleProblem;
+		r_shift=0,)
+	row = []
+	col = []
+
+	shift = 0
+	s = 0
+
+	idx_sample = prob.idx_sample
+	model = prob.prob.model
+	T = prob.prob.T
+
+	for t = 1:T-1
+		for i = 1:N
+			# x⁺ = view(Z,idx_sample[i].x[t+1])
+			# u = view(Z,idx_sample[i].u[t])
+			#
+			# med_x⁺(y) = maximum_energy_dissipation(y,u,model)
+			# med_u(y) = maximum_energy_dissipation(x⁺,y,model)
+
+			r_idx = r_shift + s .+ (1:m_med)
+
+			c_idx = idx_sample[i].x[t+1]
+			row_col!(row,col,r_idx,c_idx)
+
+			c_idx = idx_sample[i].u[t]
+			row_col!(row,col,r_idx,c_idx)
+
+			s += m_med
+		end
+	end
+
+	return collect(zip(row,col))
 end
 
 m_stage_friction = 5
@@ -130,5 +280,5 @@ function ∇sample_general_objective!(∇obj,z,prob::SampleProblem)
 end
 
 function policy(model::CartpoleFriction,K,x,u,x_nom,u_nom)
-	u_nom - reshape(K,model.nu_policy,model.nx)*(x - x_nom)
+	u_nom[1:model.nu_policy] - reshape(K,model.nu_policy,model.nx)*(x - x_nom)
 end
