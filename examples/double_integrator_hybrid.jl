@@ -9,10 +9,6 @@ T = 17
 tf0 = 1.0
 h0 = tf0/(T-1) # timestep
 
-# Initial and final states
-x1 = [0.5; 0.0]
-xT = [0.0; 0.0]
-
 # Hybrid model
 Tm = 9
 model = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
@@ -22,6 +18,10 @@ model3 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm+1)
 model4 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm+2)
 
 # Bounds
+# Initial and final states
+x1 = [0.5; 0.0]
+xT = [0.0; 0.0]
+
 # xl <= x <= xu
 xl_traj = [[0.0; -Inf] for t = 1:T]
 xu_traj = [Inf*ones(model.nx) for t = 1:T]
@@ -57,15 +57,13 @@ R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+prob = init_problem(model.nx,model.nu,T,model,obj,
                     xl=xl_traj,
                     xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    initial_constraint=false,
-                    goal_constraint=false,
                     general_constraints=true,
                     m_general=model.nx,
                     general_ineq=(1:0))
@@ -81,7 +79,7 @@ U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0))
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
@@ -106,42 +104,33 @@ w = 1.0e-2*ones(model.nx)
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 # x1_sample = [x1 for i = 1:N]
 
-prob_sample = init_sample_problem(prob,models,x1_sample,
+xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+
+# add "contact" constraint
+for i = 1:N
+    xl_traj_sample[i][1] = [x1_sample[i][1]; -Inf]
+    xu_traj_sample[i][1] = [x1_sample[i][1]; Inf]
+
+    xl_traj_sample[i][models[i].Tm] .= [0.0; 0.0]
+    xu_traj_sample[i][models[i].Tm] .= [0.0; 0.0]
+
+    xl_traj_sample[i][T] .= [x1_sample[i][1]; -Inf]
+    xu_traj_sample[i][T] .= [x1_sample[i][1]; Inf]
+end
+
+prob_sample = init_sample_problem(prob,models,
     Q_lqr,R_lqr,H_lqr,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample,
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
     α=1.0,
-    sample_goal_constraint=false,
-    sample_initial_constraint=false,
     sample_general_constraints=true,
     m_sample_general=N*model.nx,
     sample_general_ineq=(1:0))
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
-
-# remove mid-time goal constraint from sample trajectories
-for i = 1:N
-    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[1]] = [0.0; -Inf]
-    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[1]] .= Inf
-
-    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[Tm]] = [0.0;-Inf]
-    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[Tm]] .= Inf
-
-    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T]] = [0.0;-Inf]
-    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= Inf
-end
-
-# add "contact" constraint
-for i = 1:N
-    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[1]] = [x1_sample[i][1]; -Inf]
-    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[1]] = [x1_sample[i][1]; Inf]
-
-    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0; 0.0]
-    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[models[i].Tm]] .= [0.0; 0.0]
-
-    prob_sample_moi.primal_bounds[1][prob_sample.idx_sample[i].x[T]] .= [x1_sample[i][1]; -Inf]
-    prob_sample_moi.primal_bounds[2][prob_sample.idx_sample[i].x[T]] .= [x1_sample[i][1]; Inf]
-end
 
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 

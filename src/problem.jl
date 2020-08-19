@@ -6,27 +6,28 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     nx::Int # states
     nu::Int # controls
     T::Int # horizon
+
     N::Int # number of decision variables
-    Nx::Int
-    Nu::Int
-    Nh::Int
+    Nx::Int # number of states
+    Nu::Int # number of controls
+    Nh::Int # number of time step controls
+
     M::Int # number of constraints
-    M_dynamics::Int
-    M_stage::Int
-    M_general::Int
-    x1     # initial state
-    xT     # goal state
+    M_dynamics::Int # number of dynamics constraints
+    M_stage::Int # number of stage constraints
+    M_general::Int # number of general constraints
+
     ul     # control lower bound
     uu     # control upper bound
     xl     # state lower bound
     xu     # state upper bound
     hl     # time step lower bound
     hu     # time step upper bound
+
     idx    # indices
     model  # model
     obj    # objective
-    initial_constraint
-    goal_constraint
+
     stage_constraints
     m_stage
     stage_ineq
@@ -35,15 +36,13 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     general_ineq
 end
 
-function init_problem(nx,nu,T,x1,xT,model,obj;
+function init_problem(nx,nu,T,model,obj;
         ul=[-Inf*ones(nu) for t = 1:T-1],
         uu=[Inf*ones(nu) for t = 1:T-1],
         xl=[-Inf*ones(nx) for t = 1:T],
         xu=[Inf*ones(nx) for t = 1:T],
         hl=[-Inf for t = 1:T-1],
         hu=[Inf for t = 1:T-1],
-        initial_constraint::Bool=true,
-        goal_constraint::Bool=true,
         stage_constraints::Bool=false,
         m_stage=[0 for t=1:T-1],
         stage_ineq=[(1:m_stage[t]) for t=1:T-1],
@@ -66,15 +65,12 @@ function init_problem(nx,nu,T,x1,xT,model,obj;
     return TrajectoryOptimizationProblem(nx,nu,T,
         N,Nx,Nu,Nh,
         M,M_dynamics,M_stage,M_general,
-        x1,xT,
         ul,uu,
         xl,xu,
         hl,hu,
         idx,
         model,
         obj,
-        initial_constraint,
-        goal_constraint,
         stage_constraints,
         m_stage,
         stage_ineq,
@@ -131,17 +127,17 @@ function primal_bounds(prob::TrajectoryOptimizationProblem)
     Zu = Inf*ones(N)
 
     for t = 1:T-1
-        Zl[idx.x[t]] = (t==1 && prob.initial_constraint) ? prob.x1 : prob.xl[t]
+        Zl[idx.x[t]] = prob.xl[t]
         Zl[idx.u[t]] = prob.ul[t]
         Zl[idx.h[t]] = prob.hl[t]
 
-        Zu[idx.x[t]] = (t==1 && prob.initial_constraint) ? prob.x1 : prob.xu[t]
+        Zu[idx.x[t]] = prob.xu[t]
         Zu[idx.u[t]] = prob.uu[t]
         Zu[idx.h[t]] = prob.hu[t]
     end
 
-    Zl[idx.x[T]] = prob.goal_constraint ? prob.xT : prob.xl[T]
-    Zu[idx.x[T]] = prob.goal_constraint ? prob.xT : prob.xu[T]
+    Zl[idx.x[T]] = prob.xl[T]
+    Zu[idx.x[T]] = prob.xu[T]
 
     return Zl, Zu
 end

@@ -22,6 +22,15 @@ hl = 0.0
 x1 = [0.0; 0.0]
 xT = [π; 0.0]
 
+xl_traj = [-Inf*ones(model.nx) for t = 1:T]
+xu_traj = [Inf*ones(model.nx) for t = 1:T]
+
+xl_traj[1] = x1
+xu_traj[1] = x1
+
+xl_traj[T] = xT
+xu_traj[T] = xT
+
 # Objective (minimum time)
 Q = [Diagonal(zeros(model.nx)) for t = 1:T]
 R = [Diagonal(zeros(model.nu)) for t = 1:T-1]
@@ -35,12 +44,14 @@ R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
 H_lqr = [100.0 for t = 1:T-1]
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+prob = init_problem(model.nx,model.nu,T,model,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    goal_constraint=true)
+                    )
 
 # MathOptInterface problem
 prob_moi = init_MOI_Problem(prob)
@@ -71,15 +82,30 @@ x12 = α*[-1.0; 0.0]
 x13 = α*[0.0; 1.0]
 x14 = α*[0.0; -1.0]
 x1_sample = resample([x11,x12,x13,x14],β=β,w=w)
+
+xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+
+for i = 1:N
+    xl_traj_sample[i][1] = x1_sample[1]
+    xu_traj_sample[i][1] = x1_sample[1]
+end
+
 K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
-prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ)
+prob_sample = init_sample_problem(prob,models,
+    Q_lqr,R_lqr,H_lqr,
+    β=β,w=w,γ=γ,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample)
+
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT7)
+#NOTE: Ipopt finds different solution compared to SNOPT
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:ipopt)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)

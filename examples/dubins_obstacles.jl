@@ -22,6 +22,16 @@ hl = h0
 x1 = [0.0; 0.0; 0.0]
 xT = [1.0; 1.0; 0.0]
 
+xl_traj = [-Inf*ones(model.nx) for t = 1:T]
+xu_traj = [Inf*ones(model.nx) for t = 1:T]
+
+xl_traj[1] = x1
+xu_traj[1] = x1
+
+xl_traj[T] = xT
+xu_traj[T] = xT
+
+
 # Circle obstacle
 r = 0.1
 xc1 = 0.85
@@ -56,12 +66,13 @@ R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+prob = init_problem(model.nx,model.nu,T,model,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    goal_constraint=true,
                     stage_constraints=true,
                     m_stage=[m_stage for t=1:T-1]
                     )
@@ -89,15 +100,28 @@ models = [model for i = 1:N]
 w = 1.0e-4*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+
+xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+
+for i = 1:N
+    xl_traj_sample[i][1] = x1_sample[1]
+    xu_traj_sample[i][1] = x1_sample[1]
+end
+
 K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 
-prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ)
+prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample,
+    β=β,w=w,γ=γ,policy_constraint=false)
+
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)

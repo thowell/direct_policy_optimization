@@ -28,9 +28,15 @@ mutable struct SampleProblem <: Problem
     R
     H
 
+    ul
+    uu
+    xl
+    xu
+    hl
+    hu
+
     N::Int # number of samples
     models
-    x1
     β
     w
     γ
@@ -42,20 +48,24 @@ mutable struct SampleProblem <: Problem
 
     general_objective
 
-    sample_initial_constraint
-    sample_goal_constraint
+    policy_constraint
     sample_general_constraints
     m_sample_general
     sample_general_ineq
 end
 
-function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H;
+function init_sample_problem(prob::TrajectoryOptimizationProblem,models,Q,R,H;
         u_policy=(1:prob.nu),
+        ul=[prob.ul for i = 1:length(models)],
+        uu=[prob.uu for i = 1:length(models)],
+        xl=[prob.xl for i = 1:length(models)],
+        xu=[prob.xu for i = 1:length(models)],
+        hl=[prob.hl for i = 1:length(models)],
+        hu=[prob.hu for i = 1:length(models)],
         β=1.0,w=ones(prob.nx),γ=1.0,
         disturbance_ctrl=false,α=1.0,
         general_objective=false,
-        sample_initial_constraint=true,
-        sample_goal_constraint=false,
+        policy_constraint=true,
         sample_general_constraints=false,
         m_sample_general=0,
         sample_general_ineq=(1:m_sample_general))
@@ -111,14 +121,16 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,x1,Q,R,H
         idx_nom,idx_nom_z,
         idx_sample,idx_x_tmp,idx_K,
         Q,R,H,
-        N,models,x1,β,w,γ,
+        ul,uu,
+        xl,xu,
+        hl,hu,
+        N,models,β,w,γ,
         disturbance_ctrl,
         α,
         idx_uw,
         idx_slack,
         general_objective,
-        sample_initial_constraint,
-        sample_goal_constraint,
+        policy_constraint,
         sample_general_constraints,
         m_sample_general,
         sample_general_ineq
@@ -169,19 +181,6 @@ function unpack(Z0,prob::SampleProblem)
     return X_nom, U_nom, H_nom, X_sample, U_sample, H_sample
 end
 
-function controller(Z0,prob::SampleProblem)
-    T = prob.prob.T
-    N = prob.N
-
-    X_nom = [Z0[prob.idx_nom.x[t]] for t = 1:T]
-    U_nom = [Z0[prob.idx_nom.u[t]] for t = 1:T-1]
-    H_nom = [Z0[prob.idx_nom.h[t]] for t = 1:T-1]
-
-    K_sample = [reshape(Z0[prob.idx_K[t]],length(prob.u_policy),prob.prob.nx) for t = 1:T-1]
-
-    return K_sample, X_nom, U_nom, H_nom
-end
-
 function init_MOI_Problem(prob::SampleProblem)
     return MOIProblem(prob.N_nlp,prob.M_nlp,prob,
         primal_bounds(prob),constraint_bounds(prob),false)
@@ -197,31 +196,28 @@ function primal_bounds(prob::SampleProblem)
     Zl[prob.idx_nom_z] = Zl_nom
     Zu[prob.idx_nom_z] = Zu_nom
 
-    # sample initial conditions
-    for i = 1:prob.N
-        Zl[prob.idx_sample[i].x[1]] = prob.x1[i]
-        Zu[prob.idx_sample[i].x[1]] = prob.x1[i]
-    end
-
     # sample state and control bounds
-    for t = 1:prob.prob.T-1
+    for t = 1:prob.prob.T
         for i = 1:prob.N
-            Zl[prob.idx_sample[i].x[t]] = (t==1 && prob.sample_initial_constraint) ? prob.x1[1] : prob.prob.xl[t]
-            Zu[prob.idx_sample[i].x[t]] = (t==1 && prob.sample_initial_constraint) ? prob.x1[1] : prob.prob.xu[t]
+            Zl[prob.idx_sample[i].x[t]] = prob.xl[i][t]
+            Zu[prob.idx_sample[i].x[t]] = prob.xu[i][t]
 
-            Zl[prob.idx_sample[i].u[t]] = prob.prob.ul[t]
-            Zu[prob.idx_sample[i].u[t]] = prob.prob.uu[t]
+            t > T-1 && continue
+            Zl[prob.idx_sample[i].u[t]] = prob.ul[i][t]
+            Zu[prob.idx_sample[i].u[t]] = prob.uu[i][t]
 
-            Zl[prob.idx_sample[i].h[t]] = prob.prob.hl[t]
-            Zu[prob.idx_sample[i].h[t]] = prob.prob.hu[t]
+            Zl[prob.idx_sample[i].h[t]] = prob.hl[i][t]
+            Zu[prob.idx_sample[i].h[t]] = prob.hu[i][t]
         end
     end
 
-    for i = 1:prob.N
-        Zl[prob.idx_sample[i].x[T]] = prob.sample_goal_constraint ? prob.prob.xT : prob.prob.xl[T]
-        Zu[prob.idx_sample[i].x[T]] = prob.sample_goal_constraint ? prob.prob.xT : prob.prob.xu[T]
-    end
 
+    if !prob.policy_constraint
+        for t = 1:T-1
+            Zl[prob.idx_K[t]] .= 0.0
+            Zu[prob.idx_K[t]] .= 0.0
+        end
+    end
     #TODO sample goal constraints
 
     return Zl,Zu
@@ -289,7 +285,7 @@ function eval_constraint!(c,Z,prob::SampleProblem)
    eval_constraint!(view(c,1:M),view(Z,prob.idx_nom_z),prob.prob)
 
    sample_dynamics_constraints!(view(c,M .+ (1:prob.M_dynamics)),Z,prob)
-   sample_policy_constraints!(view(c,M+prob.M_dynamics .+ (1:prob.M_policy)),Z,prob)
+   prob.policy_constraint && sample_policy_constraints!(view(c,M+prob.M_dynamics .+ (1:prob.M_policy)),Z,prob)
    prob.prob.stage_constraints && sample_stage_constraints!(view(c,M+prob.M_dynamics+prob.M_policy .+ (1:prob.M_stage)),Z,prob)
    prob.sample_general_constraints && general_constraints!(view(c,M+prob.M_dynamics+prob.M_policy+prob.M_stage .+ (1:prob.M_general)),Z,prob)
 
@@ -308,7 +304,7 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
     ∇sample_dynamics_constraints!(view(∇c,len .+ (1:len_dyn)),Z,prob)
 
     len_policy = length(sparsity_jacobian_sample_policy(prob))
-    ∇sample_policy_constraints!(view(∇c,len+len_dyn .+ (1:len_policy)),Z,prob)
+    prob.policy_constraint && ∇sample_policy_constraints!(view(∇c,len+len_dyn .+ (1:len_policy)),Z,prob)
 
     len_stage = length(sparsity_jacobian_sample_stage(prob))
     prob.prob.stage_constraints && ∇sample_stage_constraints!(view(∇c,len+len_dyn+len_policy .+ (1:len_stage)),Z,prob)
