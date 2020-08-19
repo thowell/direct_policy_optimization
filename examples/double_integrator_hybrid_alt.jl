@@ -4,13 +4,13 @@ include("../src/loop.jl")
 using Plots
 
 # Horizon
-T = 17
+T = 51
 
 tf0 = 1.0
 h0 = tf0/(T-1) # timestep
 
 # Hybrid model
-Tm = 9
+Tm = convert(Int,(T-1)/2 + 1)
 model = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm)
 model1 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm-2)
 model2 = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,Tm-1)
@@ -44,17 +44,17 @@ hu = 5.0*h0
 hl = 0.0*h0
 
 # Objective
-Q = [Diagonal(ones(model.nx)) for t = 1:T]
+Q = [Diagonal([1.0;1.0]) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal([10.0;10.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
+Q_lqr = [t < T ? Diagonal([10.0;10.0]) : Diagonal([10.0; 10.0]) for t = 1:T]
 # Q_lqr[Tm] = Diagonal([100.0;100.0])
 R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-H_lqr = [0.0 for t = 1:T-1]
+H_lqr = [1.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,model,obj,
@@ -83,13 +83,12 @@ Z0 = pack(X0,U0,h0,prob)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
-H_nominal[1]
 x_nom = [X_nominal[t][1] for t = 1:T]
 v_nom = [X_nominal[t][2] for t = 1:T]
 
 plot(x_nom,v_nom,aspect_ratio=:equal)
 plot(hcat(X_nominal...)',label=["x" "v"],xlabel="time step t")
-plot(hcat(U_nominal...)')
+plot(hcat(U_nominal...)',linetype=:steppost)
 
 K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
@@ -98,13 +97,13 @@ N = 2*model.nx
 models = [model1,model2,model3,model4]
 K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
-w = 1.0e-2*ones(model.nx)
+w = 1.0e-1*ones(model.nx)
 γ = 1.0
 
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 # x1_sample = [x1 for i = 1:N]
 
-xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+xl_traj_sample = [[[0.0;-Inf] for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 
 # add "contact" constraint
@@ -125,7 +124,7 @@ prob_sample = init_sample_problem(prob,models,
     xu=xu_traj_sample,
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=1.0,
+    α=10.0,
     sample_general_constraints=true,
     m_sample_general=N*model.nx,
     sample_general_ineq=(1:0))
@@ -136,10 +135,11 @@ Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000,nlp=:SNOPT7)
-# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,nlp=:SNOPT7)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+K_sample = [reshape(Z_sample_sol[prob_sample.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
 Uw_sample = unpack_disturbance(Z_sample_sol,prob_sample)
 
 # Plot results
@@ -167,10 +167,10 @@ plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',
 # States
 plt = plot(t_nominal,hcat(X_nominal...)[1,:],
     color=:purple,width=2.0,xlabel="time (s)",ylabel="state",
-    label="θ (nominal)",title="Double Integrator",legend=:topleft)
-plt = plot!(t_nominal,hcat(X_nominal...)[2,:],color=:purple,width=2.0,label="x (nominal)")
-plt = plot!(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="θ (sample)")
-plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="x (sample)")
+    label="x (nominal)",title="Double Integrator",legend=:topleft)
+plt = plot!(t_nominal,hcat(X_nominal...)[2,:],color=:purple,width=2.0,label="ẋ (nominal)")
+plt = plot!(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="x (sample)")
+plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="ẋ (sample)")
 # savefig(plt,joinpath(@__DIR__,"results/double_integrator_state.png"))
 
 # State samples
@@ -213,3 +213,57 @@ plot(hcat(Uw_sample[1]...)',linetype=:steppost,labels="",title="Disturbance cont
 plot!(hcat(Uw_sample[2]...)',linetype=:steppost,labels="")
 plot!(hcat(Uw_sample[3]...)',linetype=:steppost,labels="")
 plot!(hcat(Uw_sample[4]...)',linetype=:steppost,labels="")
+
+# Simulate controllers
+using Distributions
+model_sim = model
+switch=30
+T_sim = 10*T+1
+
+model_sim.Tm = convert(Int,(T_sim-1)/2 + 1) + switch
+
+μ = zeros(nx)
+Σ = Diagonal(1.0e-32*ones(nx))
+W = Distributions.MvNormal(μ,Σ)
+w = rand(W,T_sim)
+
+μ0 = zeros(nx)
+Σ0 = Diagonal(1.0e-32*ones(nx))
+W0 = Distributions.MvNormal(μ0,Σ0)
+w0 = rand(W0,1)
+
+z0_sim = vec(copy(X_nominal[1]) + w0)
+X_nominal
+X_nom_sample
+sum(H_nominal)
+t_sim_nominal = range(0,stop=H_nominal[1]*(T-1),length=T_sim)
+t_sim_sample = range(0,stop=H_nom_sample[1]*(T-1),length=T_sim)
+
+plt = plot(t_nominal,hcat(X_nominal...)[1:2,:]',legend=:bottom,color=:red,label="",
+    width=2.0,xlabel="time (s)",title="Double Integrator (switch=$switch)",ylabel="state")
+
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
+    X_nominal,U_nominal,model_sim,Q_lqr,R_lqr,T_sim,H_nominal[1],X_nominal[1],w,_norm=2,
+    ul=ul,uu=uu,xl=[0.0;-Inf])
+plt = plot!(t_sim_nominal,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
+plt = plot!(t_sim_nominal,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
+
+plt = plot(t_sample,hcat(X_nom_sample...)[1:2,:]',legend=:bottom,color=:red,label="",
+    width=2.0,xlabel="time (s)",title="Double Integrator (switch=$switch)",ylabel="state")
+z_sample, u_sample, J_sample,Jx_sample, Ju_sample = simulate_linear_controller(K_sample,
+    X_nom_sample,U_nom_sample,model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample[1],X_nom_sample[1],w,_norm=2,
+    ul=ul,uu=uu,xl=[0.0;-Inf])
+plt = plot!(t_sim_sample,hcat(z_sample...)[1,:],linetype=:steppost,color=:orange,label="sample",width=2.0)
+plt = plot!(t_sim_sample,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label="",width=2.0)
+
+# objective value
+J_tvlqr
+J_sample
+
+# state tracking
+Jx_tvlqr
+Jx_sample
+
+# control tracking
+Ju_tvlqr
+Ju_sample

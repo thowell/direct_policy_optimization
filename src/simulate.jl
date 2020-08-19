@@ -1,11 +1,17 @@
+using Interpolations
+
 function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
         _norm=2,
+        xl=-Inf*ones(length(x_nom[1])),
+        xu=Inf*ones(length(x_nom[1])),
         ul=-Inf*ones(length(u_nom[1])),
         uu=Inf*ones(length(u_nom[1])))
-    T = length(Kc)+1
+
+    T = length(z_nom)
     times = [(t-1)*Δt for t = 1:T-1]
-    tf = Δt*T
+    tf = Δt*(T-1)
     t_sim = range(0,stop=tf,length=T_sim)
+    t_ctrl = range(0,stop=tf,length=T)
     dt_sim = tf/(T_sim-1)
 
     z_rollout = [z0]
@@ -13,27 +19,39 @@ function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
     J = 0.0
     Jx = 0.0
     Ju = 0.0
+
+    A_state = hcat(z_nom...)
+    A_ctrl = hcat(u_nom...)
+
     for tt = 1:T_sim-1
         t = t_sim[tt]
         k = searchsortedlast(times,t)
         z = z_rollout[end] + dt_sim*w[:,tt]
-        u = u_nom[k] - Kc[k]*(z - z_nom[k])
+
+        z_cubic = zeros(model.nx)
+        for i = 1:model.nx
+            interp_cubic = CubicSplineInterpolation(t_ctrl, A_state[i,:])
+            z_cubic[i] = interp_cubic(t)
+        end
+
+        u = u_nom[k] - Kc[k]*(z - z_cubic)
 
         # clip controls
         u = max.(u,ul)
         u = min.(u,uu)
 
-        push!(z_rollout,rk3(model,z,u,dt_sim))
+        push!(z_rollout,min.(max.(discrete_dynamics(model,z,u,dt_sim,tt),xl),xu))
         push!(u_rollout,u)
+
         if _norm == 2
-            J += (z_rollout[end]-z_nom[k+1])'*Q[k+1]*(z_rollout[end]-z_nom[k+1])
+            J += (z_rollout[end]-z_cubic)'*Q[k+1]*(z_rollout[end]-z_cubic)
             J += (u_rollout[end]-u_nom[k])'*R[k]*(u_rollout[end]-u_nom[k])
-            Jx += (z_rollout[end]-z_nom[k+1])'*Q[k+1]*(z_rollout[end]-z_nom[k+1])
+            Jx += (z_rollout[end]-z_cubic)'*Q[k+1]*(z_rollout[end]-z_cubic)
             Ju += (u_rollout[end]-u_nom[k])'*R[k]*(u_rollout[end]-u_nom[k])
         else
-            J += norm(sqrt(Q[k+1])*(z_rollout[end]-z_nom[k+1]),_norm)
+            J += norm(sqrt(Q[k+1])*(z_rollout[end]-z_cubic),_norm)
             J += norm(sqrt(R[k])*(u-u_nom[k]),_norm)
-            Jx += norm(sqrt(Q[k+1])*(z_rollout[end]-z_nom[k+1]),_norm)
+            Jx += norm(sqrt(Q[k+1])*(z_rollout[end]-z_cubic),_norm)
             Ju += norm(sqrt(R[k])*(u-u_nom[k]),_norm)
         end
     end

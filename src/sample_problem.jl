@@ -52,6 +52,8 @@ mutable struct SampleProblem <: Problem
     sample_general_constraints
     m_sample_general
     sample_general_ineq
+
+    resample_idx
 end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,Q,R,H;
@@ -68,7 +70,8 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,Q,R,H;
         policy_constraint=true,
         sample_general_constraints=false,
         m_sample_general=0,
-        sample_general_ineq=(1:m_sample_general))
+        sample_general_ineq=(1:m_sample_general),
+        resample_idx=[t for t = 1:T-1])
 
     nx = prob.nx
     nu = prob.nu
@@ -133,7 +136,8 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,Q,R,H;
         policy_constraint,
         sample_general_constraints,
         m_sample_general,
-        sample_general_ineq
+        sample_general_ineq,
+        resample_idx
         )
 end
 
