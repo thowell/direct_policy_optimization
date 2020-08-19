@@ -25,6 +25,15 @@ hl = h0
 x1 = [0.0; 0.0; 0.0; 0.0]
 xT = [0.0; π; 0.0; 0.0]
 
+xl_traj = [-Inf*ones(model.nx) for t = 1:T]
+xu_traj = [Inf*ones(model.nx) for t = 1:T]
+
+xl_traj[1] = x1
+xu_traj[1] = x1
+
+xl_traj[T] = xT
+xu_traj[T] = xT
+
 # Objective
 Q = [t < T ? Diagonal(ones(model_nominal.nx)) : Diagonal(zeros(model_nominal.nx)) for t = 1:T]
 R = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
@@ -41,24 +50,26 @@ R_lqr = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 
 # Problem
-prob_nominal = init_problem(model_nominal.nx,model_nominal.nu,T,x1,xT,
+prob_nominal = init_problem(model_nominal.nx,model_nominal.nu,T,
                     model_nominal,multi_obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul_friction for t=1:T-1],
                     uu=[uu_friction for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    goal_constraint=true,
                     stage_constraints=true,
                     m_stage=[m_stage_friction for t=1:T-1],
                     stage_ineq=[stage_friction_ineq for t=1:T-1])
 
-prob_friction = init_problem(model_friction.nx,model_friction.nu,T,x1,xT,
+prob_friction = init_problem(model_friction.nx,model_friction.nu,T,
                     model_friction,multi_obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul_friction for t=1:T-1],
                     uu=[uu_friction for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    goal_constraint=true,
                     stage_constraints=true,
                     m_stage=[m_stage_friction for t=1:T-1],
                     stage_ineq=[stage_friction_ineq for t=1:T-1])

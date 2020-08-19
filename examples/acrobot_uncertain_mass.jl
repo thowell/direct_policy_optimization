@@ -22,6 +22,15 @@ hl = 0.0*h0
 x1 = [0.0; 0.0; 0.0; 0.0]
 xT = [π; 0.0; 0.0; 0.0]
 
+xl_traj = [-Inf*ones(model.nx) for t = 1:T]
+xu_traj = [Inf*ones(model.nx) for t = 1:T]
+
+xl_traj[1] = x1
+xu_traj[1] = x1
+
+xl_traj[T] = xT
+xu_traj[T] = xT
+
 # Objective
 Q = [t<T ? Diagonal(ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
 R = [Diagonal(1.0e-2*ones(model.nu)) for t = 1:T-1]
@@ -47,62 +56,80 @@ model7 = Acrobot(1.0,1.0,1.0,0.5,0.925,1.0,1.0,0.5,9.81,nx,nu)
 model8 = Acrobot(1.0,1.0,1.0,0.5,0.9,1.0,1.0,0.5,9.81,nx,nu)
 
 # Problem
-prob_nom = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+prob_nom = init_problem(model.nx,model.nu,T,model,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
-                    goal_constraint=true)
+                    hu=[hu for t=1:T-1]
+                    )
 
-prob1 = init_problem(model.nx,model.nu,T,x1,xT,model1,obj,
+prob1 = init_problem(model.nx,model.nu,T,model1,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
-                    goal_constraint=true)
+                    hu=[hu for t=1:T-1]
+                    )
 
-prob2 = init_problem(model.nx,model.nu,T,x1,xT,model2,obj,
+prob2 = init_problem(model.nx,model.nu,T,model2,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
-                    goal_constraint=true)
-prob3 = init_problem(model.nx,model.nu,T,x1,xT,model3,obj,
+                    hu=[hu for t=1:T-1]
+                    )
+prob3 = init_problem(model.nx,model.nu,T,model3,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
-                    goal_constraint=true)
-prob4 = init_problem(model.nx,model.nu,T,x1,xT,model4,obj,
+                    hu=[hu for t=1:T-1]
+                    )
+prob4 = init_problem(model.nx,model.nu,T,model4,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
-                    goal_constraint=true)
-prob5 = init_problem(model.nx,model.nu,T,x1,xT,model5,obj,
+                    hu=[hu for t=1:T-1]
+                    )
+prob5 = init_problem(model.nx,model.nu,T,model5,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
-                    goal_constraint=true)
-prob6 = init_problem(model.nx,model.nu,T,x1,xT,model6,obj,
+                    hu=[hu for t=1:T-1]
+                    )
+prob6 = init_problem(model.nx,model.nu,T,model6,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
-                    goal_constraint=true)
-prob7 = init_problem(model.nx,model.nu,T,x1,xT,model7,obj,
+                    hu=[hu for t=1:T-1]
+                    )
+prob7 = init_problem(model.nx,model.nu,T,model7,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
-                    goal_constraint=true)
-prob8 = init_problem(model.nx,model.nu,T,x1,xT,model8,obj,
+                    hu=[hu for t=1:T-1]
+                    )
+prob8 = init_problem(model.nx,model.nu,T,model8,obj,
+                    xl=xl_traj,
+                    xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
-                    goal_constraint=true)
+                    hu=[hu for t=1:T-1]
+                    )
 
 # MathOptInterface problem
 prob_nom_moi = init_MOI_Problem(prob_nom)
@@ -183,7 +210,6 @@ Xs_nominal = [
               X_nominal8
               ]
 
-
 Us_nominal = [
             U_nominal1,
             U_nominal2,
@@ -212,12 +238,27 @@ models = [model1,model2,model3,model4,model5,model6,model7,model8]
 w = 1.0e-8*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+
+xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+
+for i = 1:N
+    xl_traj_sample[i][1] = x1_sample[1]
+    xu_traj_sample[i][1] = x1_sample[1]
+
+    # xl_traj_sample[i][T] = xT
+    # xu_traj_sample[i][T] = xT
+end
+
 K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
-prob_sample = init_sample_problem(prob_nom,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
-    disturbance_ctrl=true,
+prob_sample = init_sample_problem(prob_nom,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample,
+    disturbance_ctrl=false,
     α=1.0,
-    sample_goal_constraint=true)
+    policy_constraint=false,
+   )
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Z0_sample = zeros(prob_sample.N_nlp)
@@ -246,7 +287,7 @@ end
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,nlp=:SNOPT,time_limit=600)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,nlp=:SNOPT,time_limit=600)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
