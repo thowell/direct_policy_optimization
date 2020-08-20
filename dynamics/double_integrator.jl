@@ -25,7 +25,7 @@ end
 nx_hybrid,nu_hybrid = 2,1
 model_hybrid = DoubleIntegratorHybrid(nx_hybrid,nu_hybrid,0)
 
-function Δ(model::DoubleIntegratorHybrid,x)ones(model.nx))
+function Δ(model::DoubleIntegratorHybrid,x)
     x + @SVector [1.0, 0.0]
 end
 

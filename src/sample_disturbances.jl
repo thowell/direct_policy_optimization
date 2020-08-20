@@ -168,27 +168,3 @@ function unpack_disturbance(Z0,prob::SampleProblem)
 
     return Uw_sample
 end
-#
-# ∇obj_ = zero(Z0_sample)
-# ∇obj_l1!(∇obj_,Z0_sample,prob_sample.idx_slack,prob_sample.α)
-# tmp_ol1(z) = obj_l1(z,prob_sample.idx_slack,prob_sample.α)
-# @assert norm(∇obj_ - ForwardDiff.gradient(tmp_ol1,Z0_sample)) < 1.0e-12
-#
-#
-# c0 = zeros(prob_sample.M_dist)
-# c_l1!(c0,Z0_sample,prob_sample.idx_uw,prob_sample.idx_slack,T)
-#
-# spar = constraint_l1_sparsity!(prob_sample.idx_uw,prob_sample.idx_slack,T)
-# ∇c_vec = zeros(length(spar))
-# ∇c = zeros(prob_sample.M_dist,prob_sample.N_nlp)
-# ∇c_l1_vec!(∇c_vec,Z0_sample,prob_sample.idx_uw,prob_sample.idx_slack,T)
-#
-# for (i,k) in enumerate(spar)
-#     ∇c[k[1],k[2]] = ∇c_vec[i]
-# end
-#
-# tmpcl1(c,z) = c_l1!(c,z,prob_sample.idx_uw,prob_sample.idx_slack,T)
-# ForwardDiff.jacobian(tmpcl1,c0,Z0_sample)
-#
-# @assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmpcl1,c0,Z0_sample))) < 1.0e-12
-# @assert sum(∇c) - sum(ForwardDiff.jacobian(tmpcl1,c0,Z0_sample)) < 1.0e-12

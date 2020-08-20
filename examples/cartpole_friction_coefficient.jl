@@ -46,7 +46,7 @@ multi_obj = MultiObjective([obj,penalty_obj])
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0;1.0]) : Diagonal(100.0*ones(model_nominal.nx)) for t = 1:T]
-R_lqr = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
+R_lqr = [Diagonal([1.0,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 
 # Problem
@@ -131,7 +131,7 @@ plot(hcat(b_friction_nominal...)',linetype=:steppost)
 # Sample
 N = 2*model.nx
 
-μ_sample = range(0.1,stop=0.3,length=N)
+μ_sample = range(0.1,stop=0.1,length=N)
 models = [CartpoleFriction(1.0,0.2,0.5,9.81,μ_sample[i],
     nx_friction,nu_friction,nu_policy_friction) for i = 1:N]
 
@@ -168,27 +168,29 @@ Ū_friction_nominal = deepcopy(U_friction_nominal)
 Z0_sample = pack(X_friction_nominal,Ū_friction_nominal,H_friction_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7)
-Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),nlp=:SNOPT7)
+Z_sample_sol_coefficients = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=300)
+Z_sample_sol_coefficients = solve(prob_sample_moi,copy(Z_sample_sol_coefficients),nlp=:SNOPT7)
+# Z_sample_sol_coefficients = solve(prob_sample_moi,copy(Z_sample_sol_coefficients),nlp=:SNOPT7,c_tol=1.0e-3)
 
 
 # Unpack solutions
-X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+X_nom_sample_coefficients, U_nom_sample_coefficients, H_nom_sample_coefficients, X_sample_coefficients, U_sample_coefficients, H_sample_coefficients = unpack(Z_sample_sol_coefficients,prob_sample)
+K_sample_coefficients = [reshape(Z_sample_sol_coefficients[prob_sample.idx_K[t]],model_friction.nu_policy,model_friction.nx) for t = 1:T-1]
 
 # Plot
 t_sample = zeros(T)
 for t = 2:T
-    t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
+    t_sample[t] = t_sample[t-1] + H_nom_sample_coefficients[t-1]
 end
 
 plt_ctrl = plot(title="Cartpole w/ friction control",xlabel="time (s)",
     color=:red,width=2.0)
 for i = 1:N
-    plt_ctrl = plot!(t_sample[1:end-1],hcat(U_sample[i]...)[1:1,:]',label="")
+    plt_ctrl = plot!(t_sample[1:end-1],hcat(U_sample_coefficients[i]...)[1:1,:]',label="")
 end
 plt_ctrl = plot!(t_nominal[1:end-1],hcat(U_nominal...)[1:1,:]',color=:purple,
     width=2.0,label="nominal")
-plt_ctrl = plot!(t_sample[1:end-1],hcat(U_nom_sample...)[1:1,:]',color=:orange,
+plt_ctrl = plot!(t_sample[1:end-1],hcat(U_nom_sample_coefficients...)[1:1,:]',color=:orange,
     width=2.0,label="nominal (friction)")
 display(plt_ctrl)
 savefig(plt_ctrl,joinpath(@__DIR__,"results/cartpole_friction_control.png"))
@@ -196,14 +198,14 @@ savefig(plt_ctrl,joinpath(@__DIR__,"results/cartpole_friction_control.png"))
 plt_state = plot(title="Cartpole w/ friction state",xlabel="time (s)",
     color=:red,width=2.0)
 for i = 1:N
-    plt_state = plot!(t_sample,hcat(X_sample[i]...)[1:4,:]',label="")
+    plt_state = plot!(t_sample,hcat(X_sample_coefficients[i]...)[1:4,:]',label="")
 end
 plt_state = plot!(t_sample,hcat(X_nominal...)[1:4,:]',color=:purple,
     width=2.0,label=["nominal" "" "" ""])
-plt_state = plot!(t_sample,hcat(X_nom_sample...)[1:4,:]',color=:orange,
+plt_state = plot!(t_sample,hcat(X_nom_sample_coefficients...)[1:4,:]',color=:orange,
     width=2.0,label=["nominal (friction)" "" "" ""])
 display(plt_state)
 savefig(plt_state,joinpath(@__DIR__,"results/cartpole_friction_state.png"))
 
-S_nominal = [U_nom_sample[t][7] for t=1:T-1]
+S_nominal = [U_nom_sample_coefficients[t][7] for t=1:T-1]
 @assert sum(S_nominal) < 1.0e-4

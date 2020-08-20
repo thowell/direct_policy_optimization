@@ -46,7 +46,7 @@ multi_obj = MultiObjective([obj,penalty_obj])
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0;1.0]) : Diagonal(100.0*ones(model_nominal.nx)) for t = 1:T]
-R_lqr = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
+R_lqr = [Diagonal([1.0,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
 
 # Problem
@@ -130,6 +130,11 @@ plot(hcat(b_friction_nominal...)',linetype=:steppost)
 # Sample
 N = 2*model.nx
 models = [model_friction for i = 1:N]
+
+μ_sample = range(0.075,stop=0.125,length=N)
+models_coefficients = [CartpoleFriction(1.0,0.2,0.5,9.81,μ_sample[i],
+    nx_friction,nu_friction,nu_policy_friction) for i = 1:N]
+
 β = 1.0
 w = 1.0e-3*ones(model_friction.nx)
 γ = 1.0
@@ -156,19 +161,35 @@ prob_sample = init_sample_problem(prob_friction,models,Q_lqr,R_lqr,H_lqr,β=β,w
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
+prob_sample_coefficients = init_sample_problem(prob_friction,models_coefficients,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample,
+    u_policy=(1:1),
+    general_objective=true,
+    sample_general_constraints=true,
+    m_sample_general=prob_friction.m_general*N,
+    sample_general_ineq=vcat([(i-1)*prob_friction.m_general .+ (1:prob_friction.m_general) for i = 1:N]...))
+
+prob_sample_moi_coefficients = init_MOI_Problem(prob_sample_coefficients)
+
 Ū_friction_nominal = deepcopy(U_friction_nominal)
-# for t=1:T-1
-#     Ū_nominal[t][2:7] = 0.1*rand(model.nu-1)
-# end
+
 Z0_sample = pack(X_friction_nominal,Ū_friction_nominal,H_friction_nominal[1],K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7)
 Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),nlp=:SNOPT7)
 
+Z_sample_sol_coefficients = solve(prob_sample_moi_coefficients,copy(Z0_sample),nlp=:SNOPT7)
+Z_sample_sol_coefficients = solve(prob_sample_moi_coefficients,copy(Z_sample_sol),nlp=:SNOPT7)
+
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+K_sample = [reshape(Z_sample_sol[prob_sample.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
+
+X_nom_sample_coefficients, U_nom_sample_coefficients, H_nom_sample_coefficients, X_sample_coefficients, U_sample_coefficients, H_sample_coefficients = unpack(Z_sample_sol_coefficients,prob_sample_coefficients)
+K_sample_coefficients = [reshape(Z_sample_sol_coefficients[prob_sample_coefficients.idx_K[t]],model_friction.nu_policy,model_friction.nx) for t = 1:T-1]
 
 # Plot
 t_sample = zeros(T)
@@ -202,3 +223,12 @@ savefig(plt_state,joinpath(@__DIR__,"results/cartpole_friction_state.png"))
 
 S_nominal = [U_nom_sample[t][7] for t=1:T-1]
 @assert sum(S_nominal) < 1.0e-4
+
+β = [U_nom_sample[t][2:3] for t = 1:T-1]
+b = [U_nom_sample[t][2] - U_nom_sample[t][3] for t = 1:T-1]
+ψ = [U_nom_sample[t][4] for t = 1:T-1]
+
+(model_friction.mp + model_friction.mc)*model_friction.g*model_friction.μ
+plot(hcat(b...)',linetype=:steppost)
+plot(b,linetype=:steppost)
+plot(ψ,linetype=:steppost)

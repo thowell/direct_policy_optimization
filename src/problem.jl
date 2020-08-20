@@ -151,9 +151,9 @@ function constraint_bounds(prob::TrajectoryOptimizationProblem)
 
     if prob.stage_constraints
         m_shift = 0
-        for t = 1:T-1
-            cu[(prob.M_dynamics + m_shift .+ (1:prob.m_stage[t]))[prob.stage_ineq[t]]] .= Inf
-            m_shift += prob.m_stage[t]
+        for (t,m_stage) in enumerate(prob.m_stage)
+            cu[(prob.M_dynamics + m_shift .+ (1:m_stage))[prob.stage_ineq[t]]] .= Inf
+            m_shift += m_stage
         end
     end
 

@@ -89,7 +89,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,Q,R,H;
     N_nlp = prob.N + Nx + Nu + Nh + Nxs + NK + Nuw
 
     M_dynamics = N*(2*nx*(T-1) + (T-2))
-    M_policy = N*nu_policy*(T-1)
+    M_policy = policy_constraint*N*nu_policy*(T-1)
     M_stage = prob.stage_constraints*N*sum(prob.m_stage)
     M_general = sample_general_constraints*m_sample_general
     M_uw = disturbance_ctrl*2*N*nx*(T-1)
@@ -241,10 +241,10 @@ function constraint_bounds(prob::SampleProblem)
     # sample stage constraints
     if prob.prob.stage_constraints
         m_shift = 0
-        for t = 1:T-1
+        for (t,m_stage) in enumerate(prob.prob.m_stage)
             for i = 1:prob.N
-                cu[(M_nom + prob.M_dynamics + prob.M_policy + m_shift .+ (1:prob.prob.m_stage[t]))[prob.prob.stage_ineq[t]]] .= Inf
-                m_shift += prob.prob.m_stage[t]
+                cu[(M_nom + prob.M_dynamics + prob.M_policy + m_shift .+ (1:m_stage))[prob.prob.stage_ineq[t]]] .= Inf
+                m_shift += m_stage
             end
         end
     end

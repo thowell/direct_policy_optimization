@@ -50,9 +50,9 @@ function primal_bounds(n)
 end
 
 function constraint_bounds(prob::MOI.AbstractNLPEvaluator)
-    c_l = zeros(prob.nu_nlp)
+    c_l = zeros(prob.m_nlp)
     c_l[prob.idx_ineq] .= -Inf
-    c_u = zeros(prob.nu_nlp)
+    c_u = zeros(prob.m_nlp)
     return c_l, c_u
 end
 
@@ -115,8 +115,8 @@ function sparsity_hessian(prob::MOI.AbstractNLPEvaluator)
     row = []
     col = []
 
-    r = 1:prob.nx_nlp
-    c = 1:prob.nx_nlp
+    r = 1:prob.n_nlp
+    c = 1:prob.n_nlp
 
     row_col!(row,col,r,c)
 
@@ -150,9 +150,9 @@ function solve(x0,prob::MOI.AbstractNLPEvaluator;
         solver = SNOPT7.Optimizer()
     end
 
-    x = MOI.add_variables(solver,prob.nx_nlp)
+    x = MOI.add_variables(solver,prob.n_nlp)
 
-    for i = 1:prob.nx_nlp
+    for i = 1:prob.n_nlp
         xi = MOI.SingleVariable(x[i])
         MOI.add_constraint(solver, xi, MOI.LessThan(x_u[i]))
         MOI.add_constraint(solver, xi, MOI.GreaterThan(x_l[i]))

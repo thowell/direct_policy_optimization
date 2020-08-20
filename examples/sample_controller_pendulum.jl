@@ -65,7 +65,7 @@ end
 # con_nom!(c0_nom,z0_nom)
 
 # NLP problem
-prob_nom = ProblemIpopt(n_nom_nlp,m_nom_nlp,obj_nom,con_nom!,true)
+prob_nom = ProblemIpopt(n_nom_nlp,m_nom_nlp,obj_nom,con_nom!,false)
 
 # Solve
 z_nom_sol = solve(z0_nom,prob_nom)

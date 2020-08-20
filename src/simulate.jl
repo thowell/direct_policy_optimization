@@ -2,8 +2,8 @@ using Interpolations
 
 function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
         _norm=2,
-        xl=-Inf*ones(length(x_nom[1])),
-        xu=Inf*ones(length(x_nom[1])),
+        xl=-Inf*ones(length(z_nom[1])),
+        xu=Inf*ones(length(z_nom[1])),
         ul=-Inf*ones(length(u_nom[1])),
         uu=Inf*ones(length(u_nom[1])))
 

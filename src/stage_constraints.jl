@@ -2,6 +2,10 @@ function c_stage!(c,x,u,t,model)
 	nothing
 end
 
+function c_stage!(c,x,t,model)
+	nothing
+end
+
 function stage_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
 	idx = prob.idx
 	T = prob.T
@@ -17,6 +21,13 @@ function stage_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
 			m_shift += m_stage[t]
 		end
 	end
+
+	if length(m_stage) == T
+		x = Z[idx.x[T]]
+		c_stage!(view(c,m_shift .+ (1:m_stage[T])),x,T,model)
+		m_shift += m_stage[T]
+	end
+
 	nothing
 end
 
@@ -53,6 +64,18 @@ function ∇stage_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 			m_shift += m_stage[t]
 		end
 	end
+	if length(m_stage) == T
+		cx(c,z) = c_stage!(c,z,T,model)
+		c_tmp = zeros(m_stage[T])
+
+		x = Z[idx.x[T]]
+		r_idx = m_shift .+ (1:m_stage[T])
+
+		c_idx = idx.x[T]
+		len = length(r_idx)*length(c_idx)
+		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(cx,c_tmp,x))
+		m_shift += m_stage[T]
+	end
 	nothing
 end
 
@@ -79,6 +102,11 @@ function stage_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 
 			m_shift += m_stage[t]
 		end
+	end
+	if length(m_stage) == T
+		r_idx = m_shift .+ (1:m_stage[T])
+		c_idx = idx.x[T]
+		row_col!(row,col,r_idx,c_idx)
 	end
 	return collect(zip(row,col))
 end
