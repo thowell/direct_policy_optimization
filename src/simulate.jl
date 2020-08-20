@@ -40,7 +40,7 @@ function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
         u = max.(u,ul)
         u = min.(u,uu)
 
-        push!(z_rollout,min.(max.(discrete_dynamics(model,z,u,dt_sim,tt),xl),xu))
+        push!(z_rollout,min.(max.(rk3(model,z,u,dt_sim),xl),xu))
         push!(u_rollout,u)
 
         if _norm == 2

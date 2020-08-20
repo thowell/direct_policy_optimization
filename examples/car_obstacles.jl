@@ -1,5 +1,5 @@
 include("../src/sample_trajectory_optimization.jl")
-include("../dynamics/dubins.jl")
+include("../dynamics/car.jl")
 include("../dynamics/obstacles.jl")
 using Plots
 
@@ -172,15 +172,15 @@ x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
 plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=4.0,label="sample  (tf=$(round(sum(H_nom_sample),digits=3))s)",color=:orange,legend=:bottomright)
 
-savefig(plt,joinpath(@__DIR__,"results/dubins_trajectory.png"))
+savefig(plt,joinpath(@__DIR__,"results/car_trajectory.png"))
 
 # Control
 plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',color=:purple,width=2.0,
-    title="Dubins",xlabel="time (s)",ylabel="control",label=["v (nominal)" "ω (nominal)"],
+    title="car",xlabel="time (s)",ylabel="control",label=["v (nominal)" "ω (nominal)"],
     legend=:bottom,linetype=:steppost)
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',color=:orange,
     width=2.0,label=["v (sample)" "ω (sample)"],linetype=:steppost)
-savefig(plt,joinpath(@__DIR__,"results/dubins_control.png"))
+savefig(plt,joinpath(@__DIR__,"results/car_control.png"))
 
 # Samples
 
@@ -196,7 +196,7 @@ end
 plt1 = plot!(t_sample,hcat(X_nom_sample...)',color=:red,width=2.0,
     label=["nominal" "" ""])
 display(plt1)
-savefig(plt1,joinpath(@__DIR__,"results/dubins_sample_states.png"))
+savefig(plt1,joinpath(@__DIR__,"results/car_sample_states.png"))
 
 # Control samples
 plt2 = plot(title="Sample controls",xlabel="time (s)",legend=:bottom);
@@ -211,4 +211,4 @@ end
 plt2 = plot!(t_sample[1:end-1],hcat(U_nom_sample...)',color=:red,width=2.0,
     label=["nominal" ""],linetype=:steppost)
 display(plt2)
-savefig(plt2,joinpath(@__DIR__,"results/dubins_sample_controls.png"))
+savefig(plt2,joinpath(@__DIR__,"results/car_sample_controls.png"))
