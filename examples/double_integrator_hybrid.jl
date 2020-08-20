@@ -36,8 +36,8 @@ xl_traj[T] = xl_traj[1]
 xu_traj[T] = xu_traj[1]
 
 # ul <= u <= uu
-uu = 5.0
-ul = -5.0
+uu = 10.0
+ul = -10.0
 
 # hl <= h <= hu
 hu = 5.0*h0
@@ -54,7 +54,7 @@ obj = QuadraticTrackingObjective(Q,R,c,
 Q_lqr = [t < T ? Diagonal([10.0;10.0]) : Diagonal([10.0; 10.0]) for t = 1:T]
 # Q_lqr[Tm] = Diagonal([100.0;100.0])
 R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-H_lqr = [1.0 for t = 1:T-1]
+H_lqr = [10.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,model,obj,
@@ -124,7 +124,7 @@ prob_sample = init_sample_problem(prob,models,
     xu=xu_traj_sample,
     β=β,w=w,γ=γ,
     disturbance_ctrl=true,
-    α=10.0,
+    α=1.0,
     sample_general_constraints=true,
     m_sample_general=N*model.nx,
     sample_general_ineq=(1:0))
@@ -141,6 +141,17 @@ Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000,nlp=:SNOPT7)
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 K_sample = [reshape(Z_sample_sol[prob_sample.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
 Uw_sample = unpack_disturbance(Z_sample_sol,prob_sample)
+
+sum(H_nom_sample)
+sum(H_sample[1])
+sum(H_sample[2])
+sum(H_sample[3])
+sum(H_sample[4])
+
+
+prob_sample.H
+
+
 
 # Plot results
 
@@ -172,6 +183,7 @@ plt = plot!(t_nominal,hcat(X_nominal...)[2,:],color=:purple,width=2.0,label="ẋ
 plt = plot!(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="x (sample)")
 plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="ẋ (sample)")
 # savefig(plt,joinpath(@__DIR__,"results/double_integrator_state.png"))
+
 
 # State samples
 plt1 = plot(t_sample,hcat(X_nom_sample...)[1,:],color=:red,width=2.0,title="",
@@ -217,7 +229,7 @@ plot!(hcat(Uw_sample[4]...)',linetype=:steppost,labels="")
 # Simulate controllers
 using Distributions
 model_sim = model
-switch=30
+switch= -10
 T_sim = 10*T+1
 
 model_sim.Tm = convert(Int,(T_sim-1)/2 + 1) + switch
