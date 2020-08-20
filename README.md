@@ -1,1 +1,1 @@
-# Robust Trajectory Optimization via Deterministic Sampling
+# Sample Motion Planning
