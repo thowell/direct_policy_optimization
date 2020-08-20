@@ -8,8 +8,8 @@ T = 51
 # Bounds
 
 # ul <= u <= uu
-uu = 10.0
-ul = -10.0
+uu = 20.0
+ul = -20.0
 
 # hl <= h <= hu
 tf0 = 10.0
@@ -40,9 +40,9 @@ xl_traj[T] = xT
 xu_traj[T] = xT
 
 # Objective
-Q = [t<T ? Diagonal(0.0*ones(model.nx)) : Diagonal(0.0*ones(model.nx)) for t = 1:T]
-R = [Diagonal(0.0*ones(model.nu)) for t = 1:T-1]
-c = 10.0
+Q = [t<T ? 0.0*Diagonal(ones(model.nx)) : 0.0*Diagonal(10.0*ones(model.nx)) for t = 1:T]
+R = [0.0*Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+c = 1.0
 
 x_ref = linear_interp(x1,xT,T)
 obj = QuadraticTrackingObjective(Q,R,c,
@@ -51,7 +51,7 @@ obj = QuadraticTrackingObjective(Q,R,c,
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-H_lqr = [10.0 for t = 1:T-1]
+H_lqr = [1.0 for t = 1:T-1]
 
 # Problem
 prob_nom = init_problem(model.nx,model.nu,T,model,obj,
@@ -62,12 +62,13 @@ prob_nom = init_problem(model.nx,model.nu,T,model,obj,
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1]
                     )
+
 # MathOptInterface problem
 prob_nom_moi = init_MOI_Problem(prob_nom)
 
 # Initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation for states
-U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob_nom)
@@ -102,7 +103,8 @@ models = [model1,model2,model3,model4,model5,model6,model7,model8]
 β = 1.0
 w = 0.0*ones(model.nx)
 γ = 1.0
-x1_sample = [x1 for i = 1:N]#resample([x1 for i = 1:N],β=β,w=w)
+x1_sample = [x1 for i = 1:N]#
+# x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
 xl_traj_sample = [[xl for t = 1:T] for i = 1:N]
 xu_traj_sample = [[xu for t = 1:T] for i = 1:N]
@@ -165,27 +167,16 @@ plt = plot!(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="�
 plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="θ2 (sample)")
 savefig(plt,joinpath(@__DIR__,"results/acrobot_state_mass.png"))
 
-# State samples
-plt1 = plot(t_sample,hcat(X_nom_sample...)[1,:],color=:red,width=2.0,title="",
-    label="");
-for i = 1:N
-    t_sample = zeros(T)
-    for t = 2:T
-        t_sample[t] = t_sample[t-1] + H_sample[i][t-1]
-    end
-    plt1 = plot!(t_sample,hcat(X_sample[i]...)[1,:],label="");
-end
 
-plt2 = plot(t_sample,hcat(X_nom_sample...)[2,:],color=:red,width=2.0,label="");
+# State samples
 for i = 1:N
     t_sample = zeros(T)
     for t = 2:T
         t_sample[t] = t_sample[t-1] + H_sample[i][t-1]
     end
-    plt2 = plot!(t_sample,hcat(X_sample[i]...)[2,:],label="");
+    plt = plot!(t_sample,hcat(X_sample[i]...)[1:2,:]',label="");
 end
-plt12 = plot(plt1,plt2,layout=(2,1),title=["θ1" "θ2"],xlabel="time (s)")
-savefig(plt,joinpath(@__DIR__,"results/acrobot_sample_state.png"))
+display(plt)
 
 # Control samples
 plt3 = plot(t_sample[1:end-1],hcat(U_nom_sample...)[1,:],color=:red,width=2.0,
@@ -208,7 +199,7 @@ savefig(plt,joinpath(@__DIR__,"results/acrobot_sample_control.png"))
 # simulate controller
 using Distributions
 model_sim = model
-model_sim.m2 = 1.1
+model_sim.m2 = 0.9
 T_sim = 10*T
 W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
 w = rand(W,T_sim)
@@ -246,7 +237,6 @@ pltu2 = plot(t_nominal[1:end-1],hcat(U_nom_sample...)[1:1,:]',color=:red,label=[
 pltu2 = plot!(t_sim[1:end-1],hcat(u_sample...)[1:1,:]',color=:orange,label=["(sample)" ""],
     legend=:top)
 
-plot(plt1,plt2,layout=(2,1))
 
 # objective value
 J_tvlqr
