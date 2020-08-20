@@ -40,9 +40,9 @@ xl_traj[T] = xT
 xu_traj[T] = xT
 
 # Objective
-Q = [t<T ? 0.0*Diagonal(ones(model.nx)) : 0.0*Diagonal(10.0*ones(model.nx)) for t = 1:T]
-R = [0.0*Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 1.0
+Q = [t<T ? Diagonal(0.0*ones(model.nx)) : Diagonal(0.0*ones(model.nx)) for t = 1:T]
+R = [Diagonal(0.0*ones(model.nu)) for t = 1:T-1]
+c = 10.0
 
 x_ref = linear_interp(x1,xT,T)
 obj = QuadraticTrackingObjective(Q,R,c,
@@ -208,7 +208,7 @@ savefig(plt,joinpath(@__DIR__,"results/acrobot_sample_control.png"))
 # simulate controller
 using Distributions
 model_sim = model
-model_sim.m2 = 0.85
+model_sim.m2 = 1.1
 T_sim = 10*T
 W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
 w = rand(W,T_sim)
