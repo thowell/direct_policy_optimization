@@ -137,10 +137,34 @@ Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=1000,nlp=:SNOPT7)
 # Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,nlp=:SNOPT7)
 
+prob_sample_alt = init_sample_problem(prob,[model for i = 1:N],
+    Q_lqr,R_lqr,H_lqr,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample,
+    β=β,w=w,γ=γ,
+    disturbance_ctrl=true,
+    α=1.0,
+    sample_general_constraints=true,
+    m_sample_general=N*model.nx,
+    sample_general_ineq=(1:0))
+
+prob_sample_moi_alt = init_MOI_Problem(prob_sample_alt)
+
+Z0_sample_alt = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample_alt)
+
+# Solve
+Z_sample_sol_alt = solve(prob_sample_moi_alt,Z0_sample,max_iter=1000,nlp=:SNOPT7)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,nlp=:SNOPT7)
+
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 K_sample = [reshape(Z_sample_sol[prob_sample.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
 Uw_sample = unpack_disturbance(Z_sample_sol,prob_sample)
+
+# Unpack solution
+X_nom_sample_alt, U_nom_sample_alt, H_nom_sample_alt, X_sample_alt, U_sample_alt, H_sample_alt = unpack(Z_sample_sol_alt,prob_sample_alt)
+K_sample_alt = [reshape(Z_sample_sol_alt[prob_sample_alt.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
+Uw_sample_alt = unpack_disturbance(Z_sample_sol_alt,prob_sample_alt)
 
 sum(H_nom_sample)
 sum(H_sample[1])
@@ -149,22 +173,22 @@ sum(H_sample[3])
 sum(H_sample[4])
 
 
-prob_sample.H
-
-
-
 # Plot results
 
 # Time
 t_nominal = zeros(T)
 t_sample = zeros(T)
+t_sample_alt = zeros(T)
+
 for t = 2:T
     t_nominal[t] = t_nominal[t-1] + H_nominal[t-1]
     t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
+    t_sample_alt[t] = t_sample_alt[t-1] + H_nom_sample_alt[t-1]
 end
 
 display("time (nominal): $(sum(H_nominal))s")
 display("time (sample nominal): $(sum(H_nom_sample))s")
+display("time (sample alt nominal): $(sum(H_nom_sample_alt))s")
 
 # Control
 plt = plot(t_nominal[1:T-1],Array(hcat(U_nominal...))',
@@ -173,17 +197,17 @@ plt = plot(t_nominal[1:T-1],Array(hcat(U_nominal...))',
     linetype=:steppost)
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',
     color=:orange,width=2.0,label="sample",linetype=:steppost)
+plt = plot!(t_sample_alt[1:T-1],Array(hcat(U_nom_sample_alt...))',
+    color=:cyan,width=2.0,label="sample alt",linetype=:steppost)
 # savefig(plt,joinpath(@__DIR__,"results/double_integrator_control.png"))
 
 # States
-plt = plot(t_nominal,hcat(X_nominal...)[1,:],
+plt = plot(t_nominal,hcat(X_nominal...)[1:2,:]',
     color=:purple,width=2.0,xlabel="time (s)",ylabel="state",
-    label="x (nominal)",title="Double Integrator",legend=:topleft)
-plt = plot!(t_nominal,hcat(X_nominal...)[2,:],color=:purple,width=2.0,label="ẋ (nominal)")
-plt = plot!(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="x (sample)")
-plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="ẋ (sample)")
+    label=["x (nominal)" "ẋ (nominal)"],title="Double Integrator",legend=:topleft)
+plt = plot!(t_sample,hcat(X_nom_sample...)[1:2,:]',color=:orange,width=2.0,label=["x (sample)" "ẋ (sample)"])
+plt = plot!(t_sample,hcat(X_nom_sample_alt...)[1:2,:]',color=:cyan,width=2.0,label=["x (sample alt)" "ẋ (sample alt)"])
 # savefig(plt,joinpath(@__DIR__,"results/double_integrator_state.png"))
-
 
 # State samples
 plt1 = plot(t_sample,hcat(X_nom_sample...)[1,:],color=:red,width=2.0,title="",
@@ -229,7 +253,7 @@ plot!(hcat(Uw_sample[4]...)',linetype=:steppost,labels="")
 # Simulate controllers
 using Distributions
 model_sim = model
-switch= -10
+switch= 10
 T_sim = 10*T+1
 
 model_sim.Tm = convert(Int,(T_sim-1)/2 + 1) + switch
@@ -250,6 +274,7 @@ X_nom_sample
 sum(H_nominal)
 t_sim_nominal = range(0,stop=H_nominal[1]*(T-1),length=T_sim)
 t_sim_sample = range(0,stop=H_nom_sample[1]*(T-1),length=T_sim)
+t_sim_sample_alt = range(0,stop=H_nom_sample_alt[1]*(T-1),length=T_sim)
 
 plt = plot(t_nominal,hcat(X_nominal...)[1:2,:]',legend=:bottom,color=:red,label="",
     width=2.0,xlabel="time (s)",title="Double Integrator (switch=$switch)",ylabel="state")
@@ -257,25 +282,33 @@ plt = plot(t_nominal,hcat(X_nominal...)[1:2,:]',legend=:bottom,color=:red,label=
 z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
     X_nominal,U_nominal,model_sim,Q_lqr,R_lqr,T_sim,H_nominal[1],X_nominal[1],w,_norm=2,
     ul=ul,uu=uu,xl=[0.0;-Inf])
-plt = plot!(t_sim_nominal,hcat(z_tvlqr...)[1,:],color=:purple,label="tvlqr",width=2.0)
-plt = plot!(t_sim_nominal,hcat(z_tvlqr...)[2,:],color=:purple,label="",width=2.0)
+plt = plot!(t_sim_nominal,hcat(z_tvlqr...)[1:2,:]',color=:purple,label=["tvlqr" ""],width=2.0)
 
 plt = plot(t_sample,hcat(X_nom_sample...)[1:2,:]',legend=:bottom,color=:red,label="",
     width=2.0,xlabel="time (s)",title="Double Integrator (switch=$switch)",ylabel="state")
 z_sample, u_sample, J_sample,Jx_sample, Ju_sample = simulate_linear_controller(K_sample,
     X_nom_sample,U_nom_sample,model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample[1],X_nom_sample[1],w,_norm=2,
     ul=ul,uu=uu,xl=[0.0;-Inf])
-plt = plot!(t_sim_sample,hcat(z_sample...)[1,:],linetype=:steppost,color=:orange,label="sample",width=2.0)
-plt = plot!(t_sim_sample,hcat(z_sample...)[2,:],linetype=:steppost,color=:orange,label="",width=2.0)
+plt = plot!(t_sim_sample,hcat(z_sample...)[1:2,:]',linetype=:steppost,color=:orange,label=["sample" ""],width=2.0)
+
+plt = plot(t_sample,hcat(X_nom_sample_alt...)[1:2,:]',legend=:bottom,color=:red,label="",
+    width=2.0,xlabel="time (s)",title="Double Integrator (switch=$switch)",ylabel="state")
+z_sample_alt, u_sample_alt, J_sample_alt,Jx_sample_alt, Ju_sample_alt = simulate_linear_controller(K_sample_alt,
+    X_nom_sample_alt,U_nom_sample_alt,model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample_alt[1],X_nom_sample_alt[1],w,_norm=2,
+    ul=ul,uu=uu,xl=[0.0;-Inf])
+plt = plot!(t_sim_sample_alt,hcat(z_sample_alt...)[1:2,:]',linetype=:steppost,color=:cyan,label=["sample alt" ""],width=2.0)
 
 # objective value
 J_tvlqr
 J_sample
+J_sample_alt
 
 # state tracking
 Jx_tvlqr
 Jx_sample
+Jx_sample_alt
 
 # control tracking
 Ju_tvlqr
 Ju_sample
+Ju_sample_alt
