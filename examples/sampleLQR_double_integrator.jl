@@ -23,7 +23,7 @@ function dynamics(x,u,Δt)
 end
 
 # LQR solution
-T = 20
+T = 51
 Q = Diagonal(ones(nx))
 R = Diagonal(ones(nu))
 K = TVLQR([A for t=1:T-1],[B for t=1:T-1],[Q for t=1:T],[R for t=1:T-1])

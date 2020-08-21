@@ -3,7 +3,7 @@ include("../tests/ipopt.jl")
 include("../dynamics/pendulum.jl")
 
 # Pendulum discrete-time dynamics (midpoint)
-Δt = 0.05
+Δt = 0.01
 function discrete_dynamics(model,x,u,Δt,t)
     midpoint(model,x,u,Δt)
 end
@@ -12,7 +12,7 @@ nx = model.nx
 nu = model.nu
 
 # Trajectory optimization for nominal trajectory
-T = 20
+T = 101
 x1_nom = [0.0; 0.0]
 xT_nom = [π; 0.0]
 

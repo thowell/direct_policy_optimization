@@ -3,7 +3,7 @@ include("../dynamics/biped.jl")
 using Plots
 
 # Horizon
-T = 21
+T = 35
 Tm = -1
 model.Tm = Tm
 
@@ -20,6 +20,20 @@ xT[2] -= 0.02
 
 x_ref = [π;π - π/4.0;0.0;π/2.0;0.0;0.0;0.0;0.0;0.0;0.0]
 
+r1 = abs(kinematics(model,x1)[1])
+r2 = 0.025
+x1_foot_des = -r1
+zM_foot_des = r2
+
+function z_foot_traj(x)
+    sqrt((1.0 - (x^2)/(r1^2))*(r2^2))
+end
+
+x_foot = range(-r1,stop=r1,length=T)
+z_foot = z_foot_traj.(x_foot)
+
+plot(x_foot,z_foot)
+
 # Bounds
 
 # xl <= x <= xu
@@ -33,8 +47,8 @@ xl_traj[T] = xT
 xu_traj[T] = xT
 
 # ul <= u <= uu
-uu = 100*20.0
-ul = -100*20.0
+uu = 20.0
+ul = -20.0
 
 tf0 = 0.36915
 h0 = tf0/(T-1)
@@ -49,31 +63,31 @@ function discrete_dynamics(model::Biped,x⁺,x,u,h,t)
     end
 end
 
-# function c_stage!(c,x,u,t,model)
-#     if t != 1
-#         c[1] = kinematics(model,x[1:5])[2]
-#     else
-#         c[1] = 0.0
-#     end
-#     nothing
-# end
-#
-# function c_stage!(c,x,t,model)
-#     c[1] = kinematics(model,x[1:5])[2]
-#     nothing
-# end
+function c_stage!(c,x,u,t,model)
+    if t != 1
+        c[1] = kinematics(model,x[1:5])[2]
+    else
+        c[1] = 0.0
+    end
+    nothing
+end
+
+function c_stage!(c,x,t,model)
+    c[1] = kinematics(model,x[1:5])[2]
+    nothing
+end
 
 m_stage = 1
 stage_ineq = (1:m_stage)
 
 # Objective
-qq = [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+qq = 1.0e-1*[1.0,1.0,1.0,1.0,10.0,1.0,1.0,1.0,1.0,10.0]
 Q = [t < T ? Diagonal(qq) : Diagonal(qq) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [x_ref for t=1:T],[zeros(model.nu) for t=1:T-1])
-penalty_obj = PenaltyObjective(1.0,0.1,[t for t = 1:T-1 if (t != T || t != 1)])
+penalty_obj = PenaltyObjective(1000.0,z_foot,[t for t = 1:T-1 if (t != T || t != 1)])
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
@@ -83,7 +97,7 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1])
+                    hu=[hu for t=1:T-1])#,
                     # stage_constraints=true,
                     # m_stage=[m_stage for t = 1:T-1],
                     # stage_ineq=[stage_ineq for t = 1:T-1])
@@ -99,14 +113,14 @@ U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,time_limit=30)
+@time Z_nominal_step = solve(prob_moi,copy(Z0),nlp=:SNOPT7,time_limit=10)
 
 # Unpack solutions
-X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
+X_nominal_step, U_nominal_step, H_nominal_step = unpack(Z_nominal_step,prob)
 
-Q_nominal = [X_nominal[t][1:5] for t = 1:T]
-plot(hcat(Q_nominal...)')
-foot_traj = [kinematics(model,Q_nominal[t]) for t = 1:T]
+Q_nominal_step = [X_nominal_step[t][1:5] for t = 1:T]
+plot(hcat(Q_nominal_step...)')
+foot_traj = [kinematics(model,Q_nominal_step[t]) for t = 1:T]
 
 foot_x = [foot_traj[t][1] for t=1:T]
 foot_y = [foot_traj[t][2] for t=1:T]
@@ -114,12 +128,15 @@ foot_y = [foot_traj[t][2] for t=1:T]
 plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="",color=:red)
 
+plot(hcat(U_nominal_step...)',linetype=:steppost)
+
 # start in mid trajectory
 Tm = convert(Int,(T-1)/2 + 1)
 model.Tm = Tm
-x1_gait = X_nominal[Tm]
+x1_gait = X_nominal_step[Tm+3]
 
-tf0 = 0.5*0.36915
+kinematics(model,X_nominal_step[Tm+3])[1]
+tf0 = 0.36915
 h0 = tf0/(T-1)
 hu = 5.0*h0
 hl = 0.0*h0
@@ -136,12 +153,14 @@ xu_traj_gait[Tm][1:5] = xT[1:5]
 xl_traj_gait[T][1:5] = x1_gait[1:5]
 xu_traj_gait[T][1:5] = x1_gait[1:5]
 
-Q = [t < T ? Diagonal(qq) : Diagonal(qq) for t = 1:T]
+Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(ones(model.nx)) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 1.0
+
+x_ref_ = [X_nominal_step[Tm+3:T]...,X_nominal[1:Tm+2]...]
 obj = QuadraticTrackingObjective(Q,R,c,
-    [x_ref for t=1:T],[zeros(model.nu) for t=1:T-1])
-penalty_obj = PenaltyObjective(1.0,0.1,[t for t = 1:T-1])
+    [x_ref_ for t=1:T],[zeros(model.nu) for t=1:T-1])
+penalty_obj = PenaltyObjective(1000.0,z_foot,[t for t = 1:T-1])
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
@@ -153,9 +172,9 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    # stage_constraints=true,
-                    # m_stage=[m_stage for t = 1:T-1],
-                    # stage_ineq=[stage_ineq for t = 1:T-1],
+                    stage_constraints=true,
+                    m_stage=[m_stage for t = 1:T-1],
+                    stage_ineq=[stage_ineq for t = 1:T-1],
                     general_constraints=true,
                     m_general=model.nx,
                     general_ineq=(1:0))
@@ -168,13 +187,13 @@ X0 = [linear_interp(x1_gait,xT,Tm)...,linear_interp(x1_gait,xT,Tm-1)...] # linea
 norm(X0[1] - x1_gait)
 norm(X0[Tm] - xT)
 
-U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:ipopt,time_limit=20)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
@@ -215,35 +234,35 @@ K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
 # Samples
 N = 2*model.nx
-# models=[model for i = 1:N]
-model1 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model2 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model3 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model4 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model5 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model6 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model7 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model8 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model9 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model10 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model11 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model12 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model13 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model14 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model15 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model16 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model17 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model18 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model19 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model20 = Biped(0.2755,0.288,Tm+1,nx,nu)
-
+models = [model for i = 1:N]
+# model1 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model2 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model3 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model4 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model5 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model6 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model7 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model8 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model9 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model10 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model11 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model12 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model13 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model14 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model15 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model16 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model17 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model18 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model19 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model20 = Biped(0.2755,0.288,Tm+1,nx,nu)
+#
 # models = [model1,model2,model3,model4,model5,model6,
 #           model7,model8,model9,model10,model11,model12,
 #           model13,model14,model15,model16,model17,
 #           model18,model19,model20]
 
 β = 1.0
-w = 1.0e-16*ones(model.nx)
+w = 1.0e-5*ones(model.nx)
 γ = 1.0
 x1_gait_sample = resample([x1_gait for i = 1:N],β=β,w=w)
 
@@ -276,8 +295,8 @@ prob_sample_moi = init_MOI_Problem(prob_sample)
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT7,time_limit=600)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100,nlp=:SNOPT7,time_limit=180)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT7,time_limit=60)
+Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100,nlp=:SNOPT7,time_limit=600)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
@@ -285,8 +304,6 @@ X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_s
 Q_nom_sample = [X_nom_sample[t][1:5] for t = 1:T]
 
 foot_traj_sample = [kinematics(model,Q_nom_sample[t]) for t = 1:T]
-@show foot_x_sample[1]
-@show foot_x_sample[end]
 
 plt_ft_nom = plot()
 for i = 1:N
@@ -308,6 +325,20 @@ plt_ft_nom = plot!(foot_x_sample,foot_y_sample,aspect_ratio=:equal,xlabel="x",yl
 
 display(plt_ft_nom)
 
+plt_x = plot()
+for i = 1:N
+    plt_x = plot!(hcat(X_sample[i]...)[1:5,:]',label="")
+end
+plt_x = plot!(hcat(X_nom_sample...)[1:5,:]',label="",color=:red)
+display(plt_x)
+
+
+plt_u = plot()
+for i = 1:N
+    plt_u = plot!(hcat(U_sample[i]...)[1:4,:]',label="")
+end
+plt_u = plot!(hcat(U_nom_sample...)[1:4,:]',label="",color=:red)
+display(plt_u)
 # Visualization
 using Colors
 using CoordinateTransformations
@@ -330,7 +361,7 @@ q0 = transformation_to_urdf_left_pinned(x1,rand(5))
 set_configuration!(mvis,q0)
 
 for i = 1:T
-    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nom_sample[i][1:5],X_nom_sample[i][6:10]))
+    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nominal[i][1:5],X_nominal[i][6:10]))
     sleep(0.2)
 end
 

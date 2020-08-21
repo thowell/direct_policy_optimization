@@ -20,7 +20,7 @@ model = Biped(0.2755,0.288,0,nx,nu)
 
 mutable struct PenaltyObjective{T} <: Objective
     α::T
-    pfz_des::T
+    pfz_des
     idx_t
 end
 
@@ -29,7 +29,7 @@ function objective(Z,l::PenaltyObjective,model::Biped,idx,T)
     for t in l.idx_t
         q = Z[idx.x[t][1:5]]
         pfz = kinematics(model,q)[2]
-        J += (pfz - l.pfz_des)*(pfz - l.pfz_des)
+        J += (pfz - l.pfz_des[t])*(pfz - l.pfz_des[t])
     end
     return l.α*J
 end
@@ -39,7 +39,7 @@ function objective_gradient!(∇l,Z,l::PenaltyObjective,model::Biped,idx,T)
         q = Z[idx.x[t][1:5]]
         tmp(w) = kinematics(model,w)[2]
         pfz = tmp(q)
-        ∇l[idx.x[t][1:5]] += 2.0*l.α*(pfz - l.pfz_des)*ForwardDiff.gradient(tmp,q)
+        ∇l[idx.x[t][1:5]] += 2.0*l.α*(pfz - l.pfz_des[t])*ForwardDiff.gradient(tmp,q)
     end
     return nothing
 end

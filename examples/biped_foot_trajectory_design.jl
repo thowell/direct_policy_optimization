@@ -3,7 +3,7 @@ include("../dynamics/biped.jl")
 using Plots
 
 # Horizon
-T = 11
+T = 21
 Tm = -1
 model.Tm = Tm
 
@@ -16,11 +16,10 @@ v_final = [2.47750069399969,3.99102008940145,-1.91724136219709,-3.95094757056324
 x1 = [q_init;v_init]
 # xT = [q_final;v_final]
 xT = Δ(x1)
-
 x_ref = [π;π - π/4.0;0.0;π/2.0;0.0;0.0;0.0;0.0;0.0;0.0]
 
-r1 = abs(kinematics(model,x1)[1])
-r2 = 0.25
+r1 = 0.05
+r2 = 0.01
 x1_des = -r1
 yM_des = r2
 
@@ -31,21 +30,89 @@ end
 x = range(-r1,stop=r1,length=T)
 y = y_traj.(x)
 
+plot(x,y)
+
+function general_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
+	c[1] = kinematics(prob.model,Z[prob.idx.x[1]])[1] + r1
+	c[2] = kinematics(prob.model,Z[prob.idx.x[1]])[2]
+	c[3] = kinematics(prob.model,Z[prob.idx.x[prob.T]])[1] - r1
+	c[4] = kinematics(prob.model,Z[prob.idx.x[prob.T]])[2]
+	nothing
+end
+
+function ∇general_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
+	tmp1(y) = [kinematics(prob.model,y)[1] + r1]
+	tmp2(y) = [kinematics(prob.model,y)[2]]
+	tmp3(y) = [kinematics(prob.model,y)[1] - r1]
+	tmp4(y) = [kinematics(prob.model,y)[2]]
+
+	s = 0
+	r_idx = 1:1
+	c_idx = prob.idx.x[1]
+	len = length(r_idx)*length(c_idx)
+	∇c[1:len] = ForwardDiff.jacobian(tmp1,Z[prob.idx.x[1]])
+	s += len
+
+	r_idx = 1 .+ (1:1)
+	c_idx = prob.idx.x[1]
+	len = length(r_idx)*length(c_idx)
+	∇c[1:len] = ForwardDiff.jacobian(tmp2,Z[prob.idx.x[1]])
+	s += len
+
+	r_idx = 2 .+ (1:1)
+	c_idx = prob.idx.x[T]
+	len = length(r_idx)*length(c_idx)
+	∇c[s .+ (1:len)] = ForwardDiff.jacobian(tmp3,Z[prob.idx.x[T]])
+	s += len
+
+	r_idx = 3 .+ (1:1)
+	c_idx = prob.idx.x[T]
+	len = length(r_idx)*length(c_idx)
+	∇c[s .+ (1:len)] = ForwardDiff.jacobian(tmp4,Z[prob.idx.x[T]])
+	s += len
+	nothing
+end
+
+function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
+		r_shift=0,)
+	row = []
+	col = []
+
+	s = 0
+	r_idx = r_shift .+ (1:1)
+	c_idx = prob.idx.x[1]
+	row_col!(row,col,r_idx,c_idx)
+
+	r_idx = r_shift + 1 .+ (1:1)
+	c_idx = prob.idx.x[1]
+	row_col!(row,col,r_idx,c_idx)
+
+	r_idx = r_shift + 2 .+ (1:1)
+	c_idx = prob.idx.x[T]
+	row_col!(row,col,r_idx,c_idx)
+
+	r_idx = r_shift + 3 .+ (1:1)
+	c_idx = prob.idx.x[T]
+	row_col!(row,col,r_idx,c_idx)
+
+	return collect(zip(row,col))
+end
+
 # Bounds
 
 # xl <= x <= xu
 xl_traj = [-Inf*ones(model.nx) for t = 1:T]
 xu_traj = [Inf*ones(model.nx) for t = 1:T]
 
-xl_traj[1] = x1
-xu_traj[1] = x1
-
-xl_traj[T] = xT
-xu_traj[T] = xT
+# xl_traj[1] = x1
+# xu_traj[1] = x1
+#
+# xl_traj[T] = xT
+# xu_traj[T] = xT
 
 # ul <= u <= uu
-uu = 10*20.0
-ul = -10*20.0
+uu = 100*20.0
+ul = -100*20.0
 
 tf0 = 0.36915
 h0 = tf0/(T-1)
@@ -84,7 +151,7 @@ R = [Diagonal(1.0e-2*ones(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [x_ref for t=1:T],[zeros(model.nu) for t=1:T-1])
-penalty_obj = PenaltyObjective(1000.0,y,[t for t = 1:T-1 if (t != T || t != 1)])
+penalty_obj = PenaltyObjective(100.0,y,[t for t = 1:T])
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
@@ -95,6 +162,9 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
+					general_constraints=true,
+					m_general=4,
+					general_ineq=(1:0))
                     stage_constraints=true,
                     m_stage=[m_stage for t = 1:T-1],
                     stage_ineq=[stage_ineq for t = 1:T-1])
@@ -104,13 +174,13 @@ prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:ipopt,max_iter=500,time_limit=30)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
@@ -225,32 +295,32 @@ K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
 # Samples
 N = 2*model.nx
-# models=[model for i = 1:N]
-model1 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model2 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model3 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model4 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model5 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model6 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model7 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model8 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model9 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model10 = Biped(0.2755,0.288,Tm-1,nx,nu)
-model11 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model12 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model13 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model14 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model15 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model16 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model17 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model18 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model19 = Biped(0.2755,0.288,Tm+1,nx,nu)
-model20 = Biped(0.2755,0.288,Tm+1,nx,nu)
+models=[model for i = 1:N]
+# model1 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model2 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model3 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model4 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model5 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model6 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model7 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model8 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model9 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model10 = Biped(0.2755,0.288,Tm-1,nx,nu)
+# model11 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model12 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model13 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model14 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model15 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model16 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model17 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model18 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model19 = Biped(0.2755,0.288,Tm+1,nx,nu)
+# model20 = Biped(0.2755,0.288,Tm+1,nx,nu)
 
-models = [model1,model2,model3,model4,model5,model6,
-          model7,model8,model9,model10,model11,model12,
-          model13,model14,model15,model16,model17,
-          model18,model19,model20]
+# models = [model1,model2,model3,model4,model5,model6,
+#           model7,model8,model9,model10,model11,model12,
+#           model13,model14,model15,model16,model17,
+#           model18,model19,model20]
 
 # K0 = [rand(model.nu,model.nx) for t = 1:T-1]
 β = 1.0
@@ -341,7 +411,7 @@ q0 = transformation_to_urdf_left_pinned(x1,rand(5))
 set_configuration!(mvis,q0)
 
 for i = 1:T
-    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nominal[i][1:5],X_nominal[i][6:10]))
+    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nom_sample[i][1:5],X_nom_sample[i][6:10]))
     sleep(0.2)
 end
 
