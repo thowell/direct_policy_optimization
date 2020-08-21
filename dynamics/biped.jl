@@ -28,7 +28,9 @@ function objective(Z,l::PenaltyObjective,model::Biped,idx,T)
     J = 0
     for t in l.idx_t
         q = Z[idx.x[t][1:5]]
+        # pfx = kinematics(model,q)[1]
         pfz = kinematics(model,q)[2]
+        # J += (pfx - l.pfz_des[1][t])*(pfx - l.pfz_des[1][t])
         J += (pfz - l.pfz_des[t])*(pfz - l.pfz_des[t])
     end
     return l.α*J
@@ -37,9 +39,12 @@ end
 function objective_gradient!(∇l,Z,l::PenaltyObjective,model::Biped,idx,T)
     for t in l.idx_t
         q = Z[idx.x[t][1:5]]
-        tmp(w) = kinematics(model,w)[2]
-        pfz = tmp(q)
-        ∇l[idx.x[t][1:5]] += 2.0*l.α*(pfz - l.pfz_des[t])*ForwardDiff.gradient(tmp,q)
+        # tmpx(w) = kinematics(model,w)[1]
+        tmpz(w) = kinematics(model,w)[2]
+        # pfx = tmpx(q)
+        pfz = tmpz(q)
+        # ∇l[idx.x[t][1:5]] += 2.0*l.α*(pfx - l.pfz_des[1][t])*ForwardDiff.gradient(tmpx,q)
+        ∇l[idx.x[t][1:5]] += 2.0*l.α*(pfz - l.pfz_des[t])*ForwardDiff.gradient(tmpz,q)
     end
     return nothing
 end

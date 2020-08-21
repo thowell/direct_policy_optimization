@@ -2,37 +2,75 @@ include("../src/sample_motion_planning.jl")
 include("../dynamics/biped.jl")
 using Plots
 
+# Visualization
+using Colors
+using CoordinateTransformations
+using FileIO
+using GeometryTypes:Vec,HyperRectangle,HyperSphere,Point3f0,Cylinder
+using LinearAlgebra
+using MeshCat, MeshCatMechanisms
+using MeshIO
+using Rotations
+using RigidBodyDynamics
+
+urdf = "/home/taylor/Research/sample_motion_planning/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
+mechanism = parse_urdf(urdf,floating=false)
+
+vis = Visualizer()
+open(vis)
+mvis = MechanismVisualizer(mechanism, URDFVisuals(urdf,package_path=[dirname(dirname(urdf))]), vis)
+
+ϵ = 1.0e-8
+θ = 10*pi/180
+h = model.l2 + model.l1*cos(θ)
+ψ = acos(h/(model.l1 + model.l2))
+stride = sin(θ)*model.l1 + sin(ψ)*(model.l1+model.l2)
+x1 = [π-θ,π+ψ,θ,0,0,0,0,0,0,0]
+xT = [π+ψ,π-θ-ϵ,0,θ,0,0,0,0,0,0]
+kinematics(model,x1)[1]
+kinematics(model,xT)[1]
+
+kinematics(model,x1)[2]
+kinematics(model,xT)[2]
+
+q1 = transformation_to_urdf_left_pinned(x1[1:5],x1[1:5])
+set_configuration!(mvis,q1)
+
+qT = transformation_to_urdf_left_pinned(xT[1:5],xT[1:5])
+set_configuration!(mvis,qT)
+
+ζ = 17.125
+xM = [π,π-ζ*pi/180,0,2*ζ*pi/180,0,0,0,0,0,0]
+qM = transformation_to_urdf_left_pinned(xM[1:5],xM[1:5])
+set_configuration!(mvis,qM)
+kinematics(model,xM)[1]
+kinematics(model,xM)[2]
+
+x1_foot_des = kinematics(model,x1)[1]
+xT_foot_des = kinematics(model,xT)[1]
+xc = 0.5*(x1_foot_des + xT_foot_des)
+
+zM_foot_des = r2
+
+# r1 = x1_foot_des - xc
+r1 = xT_foot_des - xc
+r2 = 0.025
+
+function z_foot_traj(x)
+    sqrt((1.0 - ((x - xc)^2)/(r1^2))*(r2^2))
+end
+
+foot_x_ref = range(x1_foot_des,stop=xT_foot_des,length=T)
+foot_z_ref = z_foot_traj.(foot_x_ref)
+
+plot(foot_x_ref,foot_z_ref)
+
+@assert norm(Δ(xT)[1:5] - x1[1:5]) < 1.0e-5
+
 # Horizon
 T = 35
 Tm = -1
 model.Tm = Tm
-
-# Initial and final states
-q_init = [2.44917526290273,2.78819438807838,0.812693850088907,0.951793806080012,1.49974183648719e-13]
-v_init = [0.0328917694318260,0.656277832705193,0.0441573173000750,1.03766701983449,1.39626340159558]
-q_final = [2.84353387648829,2.48652580597252,0.751072212241267,0.645830978766432, 0.0612754113212848]
-v_final = [2.47750069399969,3.99102008940145,-1.91724136219709,-3.95094757056324,0.0492401787458546]
-
-x1 = [q_init;v_init]
-# xT = [q_final;v_final]
-xT = Δ(x1)
-xT[2] -= 0.02
-
-x_ref = [π;π - π/4.0;0.0;π/2.0;0.0;0.0;0.0;0.0;0.0;0.0]
-
-r1 = abs(kinematics(model,x1)[1])
-r2 = 0.025
-x1_foot_des = -r1
-zM_foot_des = r2
-
-function z_foot_traj(x)
-    sqrt((1.0 - (x^2)/(r1^2))*(r2^2))
-end
-
-x_foot = range(-r1,stop=r1,length=T)
-z_foot = z_foot_traj.(x_foot)
-
-plot(x_foot,z_foot)
 
 # Bounds
 
@@ -40,17 +78,17 @@ plot(x_foot,z_foot)
 xl_traj = [-Inf*ones(model.nx) for t = 1:T]
 xu_traj = [Inf*ones(model.nx) for t = 1:T]
 
-xl_traj[1] = x1
-xu_traj[1] = x1
+xl_traj[1][1:5] = x1[1:5]
+xu_traj[1][1:5] = x1[1:5]
 
-xl_traj[T] = xT
-xu_traj[T] = xT
+xl_traj[T][1:5] = xT[1:5]
+xu_traj[T][1:5] = xT[1:5]
 
 # ul <= u <= uu
 uu = 20.0
 ul = -20.0
 
-tf0 = 0.36915
+tf0 = 0.5
 h0 = tf0/(T-1)
 hu = 5.0*h0
 hl = 0.0*h0
@@ -64,11 +102,7 @@ function discrete_dynamics(model::Biped,x⁺,x,u,h,t)
 end
 
 function c_stage!(c,x,u,t,model)
-    if t != 1
-        c[1] = kinematics(model,x[1:5])[2]
-    else
-        c[1] = 0.0
-    end
+    c[1] = kinematics(model,x[1:5])[2]
     nothing
 end
 
@@ -80,14 +114,16 @@ end
 m_stage = 1
 stage_ineq = (1:m_stage)
 
+include("../src/loop_delta.jl")
+
 # Objective
-qq = 1.0e-1*[1.0,1.0,1.0,1.0,10.0,1.0,1.0,1.0,1.0,10.0]
+qq = 1.0e-1*[1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
 Q = [t < T ? Diagonal(qq) : Diagonal(qq) for t = 1:T]
-R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+R = [Diagonal(1.0e-2*ones(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
-    [x_ref for t=1:T],[zeros(model.nu) for t=1:T-1])
-penalty_obj = PenaltyObjective(1000.0,z_foot,[t for t = 1:T-1 if (t != T || t != 1)])
+    [xM for t=1:T],[zeros(model.nu) for t=1:T-1])
+penalty_obj = PenaltyObjective(1000.0,foot_z_ref,[t for t = 1:T])
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
@@ -97,10 +133,13 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1])#,
-                    # stage_constraints=true,
-                    # m_stage=[m_stage for t = 1:T-1],
-                    # stage_ineq=[stage_ineq for t = 1:T-1])
+                    hu=[hu for t=1:T-1],
+                    general_constraints=true,
+                    m_general=model.nx,
+                    general_ineq=(1:0),
+                    stage_constraints=true,
+                    m_stage=[m_stage for t = 1:T-1],
+                    stage_ineq=[stage_ineq for t = 1:T-1])
 
 # MathOptInterface problem
 prob_moi = init_MOI_Problem(prob)
@@ -113,7 +152,7 @@ U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal_step = solve(prob_moi,copy(Z0),nlp=:SNOPT7,time_limit=10)
+@time Z_nominal_step = solve(prob_moi,copy(Z0),nlp=:SNOPT,max_iter=100,time_limit=20)
 
 # Unpack solutions
 X_nominal_step, U_nominal_step, H_nominal_step = unpack(Z_nominal_step,prob)
@@ -123,20 +162,25 @@ plot(hcat(Q_nominal_step...)')
 foot_traj = [kinematics(model,Q_nominal_step[t]) for t = 1:T]
 
 foot_x = [foot_traj[t][1] for t=1:T]
-foot_y = [foot_traj[t][2] for t=1:T]
+foot_z = [foot_traj[t][2] for t=1:T]
 
-plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+plt_ft_nom = plot(foot_x,foot_z,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="",color=:red)
 
 plot(hcat(U_nominal_step...)',linetype=:steppost)
 
+plot(foot_x)
+plot(foot_z)
+
 # start in mid trajectory
 Tm = convert(Int,(T-1)/2 + 1)
 model.Tm = Tm
-x1_gait = X_nominal_step[Tm+3]
 
-kinematics(model,X_nominal_step[Tm+3])[1]
-tf0 = 0.36915
+idx_x1_gait = Tm
+x1_gait = X_nominal_step[idx_x1_gait]
+kinematics(model,X_nominal_step[idx_x1_gait])[1]
+
+tf0 = 0.5
 h0 = tf0/(T-1)
 hu = 5.0*h0
 hl = 0.0*h0
@@ -157,11 +201,14 @@ Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(ones(model.nx)) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 1.0
 
-x_ref_ = [X_nominal_step[Tm+3:T]...,X_nominal[1:Tm+2]...]
+x_gait_ref = [X_nominal_step[idx_x1_gait:T]...,X_nominal_step[1:idx_x1_gait-1]...]
 obj = QuadraticTrackingObjective(Q,R,c,
-    [x_ref_ for t=1:T],[zeros(model.nu) for t=1:T-1])
-penalty_obj = PenaltyObjective(1000.0,z_foot,[t for t = 1:T-1])
+    [x_gait_ref[t] for t=1:T],[zeros(model.nu) for t=1:T-1])
+penalty_obj = PenaltyObjective(1000.0,[foot_z_ref[idx_x1_gait:T]...,foot_z_ref[1:idx_x1_gait-1]...],[t for t = 1:T])
 multi_obj = MultiObjective([obj,penalty_obj])
+
+plot(range(0,stop=H_nominal_step[1]*(T-1),length=T),[foot_z_ref[idx_x1_gait:T]...,foot_z_ref[1:idx_x1_gait-1]...])
+plot!(range(0,stop=H_nominal_step[1]*(T-1),length=T),hcat([foot_traj[idx_x1_gait:T]...,foot_traj[1:idx_x1_gait-1]...]...)[2:2,:]')
 
 # Problem
 include("../src/loop.jl")
@@ -193,7 +240,7 @@ U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:ipopt,time_limit=20)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:ipopt,max_iter=200,time_limit=20)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
@@ -209,8 +256,6 @@ foot_x = [foot_traj[t][1] for t=(1:Tm)]
 foot_y = [foot_traj[t][2] for t=(1:Tm)]
 plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="",color=:red)
-@show foot_x[1]
-@show foot_x[end]
 
 foot_x = [kinematics(model,Δ(X_nominal[Tm]))[1],[foot_traj[t][1] for t=(Tm+1):T]...]
 foot_y = [kinematics(model,Δ(X_nominal[Tm]))[2],[foot_traj[t][2] for t=(Tm+1):T]...]
@@ -262,7 +307,7 @@ models = [model for i = 1:N]
 #           model18,model19,model20]
 
 β = 1.0
-w = 1.0e-5*ones(model.nx)
+w = 1.0e-3*ones(model.nx)
 γ = 1.0
 x1_gait_sample = resample([x1_gait for i = 1:N],β=β,w=w)
 
@@ -286,7 +331,10 @@ prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
     xu=xu_traj_sample,
     policy_constraint=true,
     disturbance_ctrl=true,
-    α=1.0
+    α=1.0,
+    sample_general_constraints=true,
+    m_sample_general=N*prob.m_general,
+    sample_general_ineq=(1:0)
     )
 
 
@@ -295,8 +343,8 @@ prob_sample_moi = init_MOI_Problem(prob_sample)
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT7,time_limit=60)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100,nlp=:SNOPT7,time_limit=600)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT,time_limit=180)
+Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100,nlp=:SNOPT7,time_limit=180)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
@@ -324,6 +372,8 @@ plt_ft_nom = plot!(foot_x_sample,foot_y_sample,aspect_ratio=:equal,xlabel="x",yl
     title="Foot 1 trajectory",label="",color=:red)
 
 display(plt_ft_nom)
+
+norm(X_sample[1][1] - X_sample[1][T])
 
 plt_x = plot()
 for i = 1:N
@@ -361,8 +411,18 @@ q0 = transformation_to_urdf_left_pinned(x1,rand(5))
 set_configuration!(mvis,q0)
 
 for i = 1:T
-    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nominal[i][1:5],X_nominal[i][6:10]))
-    sleep(0.2)
+    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nominal_step[i][1:5],X_nominal_step[i][6:10]))
+    sleep(0.1)
+end
+
+for i = 1:T
+    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nominal_step[i][1:5],X_nominal_step[i][6:10]))
+    sleep(0.1)
+end
+
+for i = 1:T
+    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nom_sample[i][1:5],X_nom_sample[i][6:10]))
+    sleep(0.1)
 end
 
 # Q_left = [transformation_to_urdf_left_pinned(X_nominal[t][1:5],X_nominal[t][6:10]) for t = 1:T]

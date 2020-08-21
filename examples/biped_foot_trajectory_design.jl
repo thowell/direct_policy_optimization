@@ -164,7 +164,7 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     hu=[hu for t=1:T-1],
 					general_constraints=true,
 					m_general=4,
-					general_ineq=(1:0))
+					general_ineq=(1:0),
                     stage_constraints=true,
                     m_stage=[m_stage for t = 1:T-1],
                     stage_ineq=[stage_ineq for t = 1:T-1])

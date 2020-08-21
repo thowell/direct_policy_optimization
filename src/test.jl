@@ -16,7 +16,7 @@ eval_constraint_jacobian!(∇c_vec,Z0_test,prob)
 for (i,k) in enumerate(spar)
     ∇c[k[1],k[2]] = ∇c_vec[i]
 end
-@assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmp_c,c0,Z0_test))) < 1.0e-10
+@assert norm(vec(∇c) - vec(ForwardDiff.jacobian(tmp_c,c0,Z0_test))) < 1.0e-8
 @assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_test)) < 1.0e-10
 
 # test sample problem

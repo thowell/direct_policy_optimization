@@ -1,6 +1,5 @@
 include("../src/sample_motion_planning.jl")
 include("../dynamics/biped.jl")
-using Plots
 
 # Horizon
 T = 11
@@ -18,18 +17,6 @@ x1 = [q_init;v_init]
 xT = Δ(x1)
 
 x_ref = [π;π - π/4.0;0.0;π/2.0;0.0;0.0;0.0;0.0;0.0;0.0]
-
-r1 = abs(kinematics(model,x1)[1])
-r2 = 0.25
-x1_des = -r1
-yM_des = r2
-
-function y_traj(x)
-    sqrt((1.0 - (x^2)/(r1^2))*(r2^2))
-end
-
-x = range(-r1,stop=r1,length=T)
-y = y_traj.(x)
 
 # Bounds
 
