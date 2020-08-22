@@ -135,29 +135,35 @@ function sparsity_jacobian_sample_policy(prob::SampleProblem;
     row = []
     col = []
 
-    # controller for samples
-    for t = 1:T-1
-        for i = 1:N
+    if prob.policy_constraint
+        # controller for samples
+        for t = 1:T-1
+            for i = 1:N
 
-            r_idx = r_shift + shift .+ (1:nu_policy)
+                r_idx = r_shift + shift .+ (1:nu_policy)
 
-            c_idx = idx_K[t]
-            row_col!(row,col,r_idx,c_idx)
+                c_idx = idx_K[t]
+                row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_sample[i].x[t]
-            row_col!(row,col,r_idx,c_idx)
+                c_idx = idx_sample[i].x[t]
+                row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_sample[i].u[t]
-            row_col!(row,col,r_idx,c_idx)
+                c_idx = idx_sample[i].u[t]
+                row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_nom.x[t]
-            row_col!(row,col,r_idx,c_idx)
+                c_idx = idx_nom.x[t]
+                row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_nom.u[t]
-            row_col!(row,col,r_idx,c_idx)
+                c_idx = idx_nom.u[t]
+                row_col!(row,col,r_idx,c_idx)
 
-            shift += nu_policy
+                shift += nu_policy
+            end
         end
+    else
+        r_idx = r_shift .+ (1:0)
+        c_idx = (1:0)
+        row_col!(row,col,r_idx,c_idx)
     end
 
     return collect(zip(row,col))

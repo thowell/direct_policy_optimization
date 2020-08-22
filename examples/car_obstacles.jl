@@ -31,7 +31,6 @@ xu_traj[1] = x1
 xl_traj[T] = xT
 xu_traj[T] = xT
 
-
 # Circle obstacle
 r = 0.1
 xc1 = 0.85
@@ -114,14 +113,16 @@ K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
     xl=xl_traj_sample,
     xu=xu_traj_sample,
-    β=β,w=w,γ=γ,policy_constraint=false)
+    β=β,w=w,γ=γ,
+    resample_idx=[t for t = 1:T-1],
+    policy_constraint=true)
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:ipopt)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
