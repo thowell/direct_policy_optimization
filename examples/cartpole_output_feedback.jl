@@ -133,6 +133,7 @@ prob_sample = init_sample_problem(prob_nominal,models,Q_lqr,R_lqr,H_lqr,β=β,w=
 	n_features=n_features,
 	xl=xl_traj_sample,
     xu=xu_traj_sample,
+	resample_idx=[]
     )
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
@@ -181,7 +182,7 @@ model_sim = model
 T_sim = 10*T
 
 μ = zeros(nx)
-Σ = Diagonal(1.0e-1*ones(nx))
+Σ = Diagonal(0.5*ones(nx))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 

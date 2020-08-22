@@ -26,7 +26,7 @@ open(vis)
 mvis = MechanismVisualizer(mechanism, URDFVisuals(urdf,package_path=[dirname(dirname(urdf))]), vis)
 
 ϵ = 1.0e-8
-θ = 10*pi/180
+θ = 30*pi/180
 h = model.l2 + model.l1*cos(θ)
 ψ = acos(h/(model.l1 + model.l2))
 stride = sin(θ)*model.l1 + sin(ψ)*(model.l1+model.l2)
@@ -44,7 +44,7 @@ set_configuration!(mvis,q1)
 qT = transformation_to_urdf_left_pinned(xT[1:5],xT[1:5])
 set_configuration!(mvis,qT)
 
-ζ = 17.15
+ζ = 35
 xM = [π,π-ζ*pi/180,0,2*ζ*pi/180,0,0,0,0,0,0]
 qM = transformation_to_urdf_left_pinned(xM[1:5],xM[1:5])
 set_configuration!(mvis,qM)
@@ -57,7 +57,7 @@ xc = 0.5*(x1_foot_des + xT_foot_des)
 
 # r1 = x1_foot_des - xc
 r1 = xT_foot_des - xc
-r2 = 0.025
+r2 = 0.1
 
 zM_foot_des = r2
 
@@ -101,6 +101,14 @@ function discrete_dynamics(model::Biped,x⁺,x,u,h,t)
     end
 end
 
+function discrete_dynamics(model::Biped,x,u,h,t)
+    if t == model.Tm
+        return rk3(model,Δ(x),u,h)
+    else
+        return rk3(model,x,u,h)
+    end
+end
+
 function c_stage!(c,x,u,t,model)
     c[1] = kinematics(model,x[1:5])[2]
     nothing
@@ -136,10 +144,10 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     hu=[hu for t=1:T-1],
                     general_constraints=true,
                     m_general=model.nx,
-                    general_ineq=(1:0),
-                    stage_constraints=true,
-                    m_stage=[m_stage for t = 1:T-1],
-                    stage_ineq=[stage_ineq for t = 1:T-1])
+                    general_ineq=(1:0))#,
+                    # stage_constraints=true,
+                    # m_stage=[m_stage for t = 1:T-1],
+                    # stage_ineq=[stage_ineq for t = 1:T-1])
 
 # MathOptInterface problem
 prob_moi = init_MOI_Problem(prob)
@@ -152,7 +160,7 @@ U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal_step = solve(prob_moi,copy(Z0),nlp=:SNOPT,max_iter=100,time_limit=20)
+@time Z_nominal_step = solve(prob_moi,copy(Z0),nlp=:SNOPT,max_iter=100,time_limit=120)
 
 # Unpack solutions
 X_nominal_step, U_nominal_step, H_nominal_step = unpack(Z_nominal_step,prob)
@@ -172,7 +180,8 @@ plot(hcat(U_nominal_step...)',linetype=:steppost)
 plot(foot_x)
 plot(foot_z)
 
-sum(H_nominal)
+sum(H_nominal_step)
+
 # start in mid trajectory
 Tm = convert(Int,(T-1)/2 + 1)
 model.Tm = Tm
@@ -216,9 +225,9 @@ prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    stage_constraints=true,
-                    m_stage=[m_stage for t = 1:T-1],
-                    stage_ineq=[stage_ineq for t = 1:T-1],
+                    # stage_constraints=true,
+                    # m_stage=[m_stage for t = 1:T-1],
+                    # stage_ineq=[stage_ineq for t = 1:T-1],
                     general_constraints=true,
                     m_general=model.nx,
                     general_ineq=(1:0))
@@ -237,7 +246,7 @@ U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,max_iter=200,time_limit=30)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,max_iter=200,time_limit=120)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
@@ -262,7 +271,6 @@ kinematics(model,xT[1:5])
 plt_ft_nom = plot!(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="",color=:blue)
 
-
 # regulate to good ref.
 Q = [t < T ? 10.0*Diagonal(ones(model.nx)) : 10.0*Diagonal(ones(model.nx)) for t = 1:T]
 R = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
@@ -282,9 +290,9 @@ prob = init_problem(model.nx,model.nu,T,model,obj,
                     uu=[uu*ones(model.nu) for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    stage_constraints=true,
-                    m_stage=[m_stage for t = 1:T-1],
-                    stage_ineq=[stage_ineq for t = 1:T-1],
+                    # stage_constraints=true,
+                    # m_stage=[m_stage for t = 1:T-1],
+                    # stage_ineq=[stage_ineq for t = 1:T-1],
                     general_constraints=true,
                     m_general=model.nx,
                     general_ineq=(1:0))
@@ -303,7 +311,7 @@ U0 = U_nominal # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,max_iter=200,time_limit=30)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,max_iter=200,time_limit=120)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
@@ -321,13 +329,17 @@ plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=
     title="Foot 1 trajectory",label="",color=:red)
 
 # TVLQR policy
-Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
+Q_lqr = [t < T ? Diagonal(100.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-H_lqr = [1.0 for t = 1:T-1]
+H_lqr = [10.0 for t = 1:T-1]
 
-K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
+K_lqr = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
 # Samples
+n_policy = model.nu
+n_features = model.nx
+K0 = [rand(n_policy*n_features) for t = 1:T-1]
+
 N = 2*model.nx
 models = [model for i = 1:N]
 # model1 = Biped(0.2755,0.288,Tm-1,nx,nu)
@@ -357,9 +369,10 @@ models = [model for i = 1:N]
 #           model18,model19,model20]
 
 β = 1.0
-w = 1.0e-8*ones(model.nx)
+w = 1.0e-3*ones(model.nx)
 γ = 1.0
 x1_gait_sample = resample([x1_gait for i = 1:N],β=β,w=w)
+xT_gait_sample = resample([xT for i = 1:N],β=β,w=w)
 
 xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
@@ -369,19 +382,21 @@ for i = 1:N
     xl_traj_sample[i][1][1:5] = x1_gait_sample[i][1:5]
     xu_traj_sample[i][1][1:5] = x1_gait_sample[i][1:5]
 
-    xl_traj_sample[i][models[i].Tm][1:5] = xT[1:5]
-    xu_traj_sample[i][models[i].Tm][1:5] = xT[1:5]
-    #
-    # xl_traj_sample[i][T][1:5] = x1_gait_sample[i][1:5]
-    # xu_traj_sample[i][T][1:5] = x1_gait_sample[i][1:5]
+    xl_traj_sample[i][models[i].Tm][1:5] = xT_gait_sample[i][1:5]
+    xu_traj_sample[i][models[i].Tm][1:5] = xT_gait_sample[i][1:5]
+
+    xl_traj_sample[i][T][1:5] = x1_gait_sample[i][1:5]
+    xu_traj_sample[i][T][1:5] = x1_gait_sample[i][1:5]
 end
 
 prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
     xl=xl_traj_sample,
     xu=xu_traj_sample,
+    n_policy=n_policy,
+    n_features=n_features,
     policy_constraint=true,
     disturbance_ctrl=true,
-    α=1.0,
+    α=1.0e-1,
     sample_general_constraints=true,
     m_sample_general=N*prob.m_general,
     sample_general_ineq=(1:0)
@@ -390,14 +405,15 @@ prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
+Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K_lqr,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT,time_limit=180)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT7,time_limit=600)
 Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100,nlp=:SNOPT7,time_limit=180)
 
 # Unpack solution
-X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
+X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+K_sample = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-1]
 
 Q_nom_sample = [X_nom_sample[t][1:5] for t = 1:T]
 
@@ -439,6 +455,7 @@ for i = 1:N
 end
 plt_u = plot!(hcat(U_nom_sample...)[1:4,:]',label="",color=:red,linetype=:steppost)
 display(plt_u)
+
 # Visualization
 using Colors
 using CoordinateTransformations
@@ -466,6 +483,11 @@ for i = 1:T
 end
 
 for i = 1:T
+    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nominal[i][1:5],X_nominal[i][6:10]))
+    sleep(0.1)
+end
+
+for i = 1:T
     set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nom_sample[i][1:5],X_nom_sample[i][6:10]))
     sleep(0.1)
 end
@@ -473,3 +495,52 @@ end
 # Q_left = [transformation_to_urdf_left_pinned(X_nominal[t][1:5],X_nominal[t][6:10]) for t = 1:T]
 # animation = MeshCat.Animation(mvis,range(0,stop=h0*T,length=T),Q_left)
 # setanimation!(mvis,animation)
+
+using Distributions
+model_sim = Biped(0.2755,0.288,Tm,nx,nu)
+switch = -10
+T_sim = 10*T+1
+model_sim.Tm = convert(Int,(T_sim-1)/2 + 1) + switch
+
+μ = zeros(nx)
+Σ = Diagonal(1.0e-32*ones(nx))
+W = Distributions.MvNormal(μ,Σ)
+w = rand(W,T_sim)
+
+μ0 = zeros(nx)
+Σ0 = Diagonal(1.0e-32*ones(nx))
+W0 = Distributions.MvNormal(μ0,Σ0)
+w0 = rand(W0,1)
+
+t_nominal = range(0,stop=H_nominal[1]*(T-1),length=T)
+t_sample = range(0,stop=H_nom_sample[1]*(T-1),length=T)
+
+t_sim_nominal = range(0,stop=H_nominal[1]*(T-1),length=T_sim)
+t_sim_sample = range(0,stop=H_nom_sample[1]*(T-1),length=T_sim)
+
+plt = plot(t_nominal,hcat(X_nominal...)[1:5,:]',legend=:bottom,color=:red,label="",
+    width=2.0,xlabel="time (s)",title="Biped",ylabel="state")
+
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K_lqr,
+    X_nominal,U_nominal,model_sim,Q_lqr,R_lqr,T_sim,H_nominal[1],X_nominal[1],w,_norm=2,
+    ul=ul,uu=uu)
+plt = plot!(t_sim_nominal,hcat(z_tvlqr...)[1:5,:]',color=:purple,label=["tvlqr" "" "" "" ""],width=2.0)
+
+plt = plot(t_sample,hcat(X_nom_sample...)[1:5,:]',legend=:bottom,color=:red,label="",
+    width=2.0,xlabel="time (s)",title="Biped",ylabel="state")
+z_sample, u_sample, J_sample,Jx_sample, Ju_sample = simulate_linear_controller(K_sample,
+    X_nom_sample,U_nom_sample,model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample[1],X_nom_sample[1],w,_norm=2,
+    ul=ul,uu=uu,controller=:policy)
+plt = plot!(t_sim_sample,hcat(z_sample...)[1:5,:]',linetype=:steppost,color=:orange,label=["sample" "" "" "" ""],width=2.0)
+
+# objective value
+J_tvlqr
+J_sample
+
+# state tracking
+Jx_tvlqr
+Jx_sample
+
+# control tracking
+Ju_tvlqr
+Ju_sample
