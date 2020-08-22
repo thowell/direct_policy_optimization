@@ -79,7 +79,7 @@ U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:ipopt)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)

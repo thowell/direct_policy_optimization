@@ -59,7 +59,6 @@ mutable struct SampleProblem <: Problem
 end
 
 function init_sample_problem(prob::TrajectoryOptimizationProblem,models,Q,R,H;
-        u_policy=(1:prob.nu),
         n_policy=prob.nu,
         n_features=prob.nx,
         ul=[prob.ul for i = 1:length(models)],
@@ -79,6 +78,7 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,Q,R,H;
 
     nx = prob.nx
     nu = prob.nu
+    u_policy = 1:n_policy
 
     T = prob.T
     N = length(models)
