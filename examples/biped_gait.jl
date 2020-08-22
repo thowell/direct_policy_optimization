@@ -2,6 +2,11 @@ include("../src/sample_motion_planning.jl")
 include("../dynamics/biped.jl")
 using Plots
 
+# Horizon
+T = 31
+Tm = -1
+model.Tm = Tm
+
 # Visualization
 using Colors
 using CoordinateTransformations
@@ -39,7 +44,7 @@ set_configuration!(mvis,q1)
 qT = transformation_to_urdf_left_pinned(xT[1:5],xT[1:5])
 set_configuration!(mvis,qT)
 
-ζ = 17.125
+ζ = 17.15
 xM = [π,π-ζ*pi/180,0,2*ζ*pi/180,0,0,0,0,0,0]
 qM = transformation_to_urdf_left_pinned(xM[1:5],xM[1:5])
 set_configuration!(mvis,qM)
@@ -50,11 +55,11 @@ x1_foot_des = kinematics(model,x1)[1]
 xT_foot_des = kinematics(model,xT)[1]
 xc = 0.5*(x1_foot_des + xT_foot_des)
 
-zM_foot_des = r2
-
 # r1 = x1_foot_des - xc
 r1 = xT_foot_des - xc
 r2 = 0.025
+
+zM_foot_des = r2
 
 function z_foot_traj(x)
     sqrt((1.0 - ((x - xc)^2)/(r1^2))*(r2^2))
@@ -66,11 +71,6 @@ foot_z_ref = z_foot_traj.(foot_x_ref)
 plot(foot_x_ref,foot_z_ref)
 
 @assert norm(Δ(xT)[1:5] - x1[1:5]) < 1.0e-5
-
-# Horizon
-T = 35
-Tm = -1
-model.Tm = Tm
 
 # Bounds
 
@@ -119,10 +119,10 @@ include("../src/loop_delta.jl")
 # Objective
 qq = 1.0e-1*[1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
 Q = [t < T ? Diagonal(qq) : Diagonal(qq) for t = 1:T]
-R = [Diagonal(1.0e-2*ones(model.nu)) for t = 1:T-1]
+R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
-    [xM for t=1:T],[zeros(model.nu) for t=1:T-1])
+    [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
 penalty_obj = PenaltyObjective(1000.0,foot_z_ref,[t for t = 1:T])
 multi_obj = MultiObjective([obj,penalty_obj])
 
@@ -172,6 +172,7 @@ plot(hcat(U_nominal_step...)',linetype=:steppost)
 plot(foot_x)
 plot(foot_z)
 
+sum(H_nominal)
 # start in mid trajectory
 Tm = convert(Int,(T-1)/2 + 1)
 model.Tm = Tm
@@ -196,10 +197,6 @@ xu_traj_gait[Tm][1:5] = xT[1:5]
 
 xl_traj_gait[T][1:5] = x1_gait[1:5]
 xu_traj_gait[T][1:5] = x1_gait[1:5]
-
-Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 1.0
 
 x_gait_ref = [X_nominal_step[idx_x1_gait:T]...,X_nominal_step[1:idx_x1_gait-1]...]
 obj = QuadraticTrackingObjective(Q,R,c,
@@ -240,7 +237,7 @@ U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:ipopt,max_iter=200,time_limit=20)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,max_iter=200,time_limit=30)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
@@ -265,10 +262,63 @@ kinematics(model,xT[1:5])
 plt_ft_nom = plot!(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="",color=:blue)
 
-# foot_x = [foot_traj[t][1] for t=(1:T)]
-# foot_y = [foot_traj[t][2] for t=(1:T)]
-# plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
-#     title="Foot 1 trajectory",label="",color=:red)
+
+# regulate to good ref.
+Q = [t < T ? 10.0*Diagonal(ones(model.nx)) : 10.0*Diagonal(ones(model.nx)) for t = 1:T]
+R = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
+c = 1.0
+
+obj = QuadraticTrackingObjective(Q,R,c,
+    [X_nominal[t] for t=1:T],[U_nominal[t] for t=1:T-1])
+# penalty_obj = PenaltyObjective(1000.0,[foot_z_ref[idx_x1_gait:T]...,foot_z_ref[1:idx_x1_gait-1]...],[t for t = 1:T])
+# multi_obj = MultiObjective([obj,penalty_obj])
+
+# Problem
+include("../src/loop.jl")
+prob = init_problem(model.nx,model.nu,T,model,obj,
+                    xl=xl_traj_gait,
+                    xu=xu_traj_gait,
+                    ul=[ul*ones(model.nu) for t=1:T-1],
+                    uu=[uu*ones(model.nu) for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    stage_constraints=true,
+                    m_stage=[m_stage for t = 1:T-1],
+                    stage_ineq=[stage_ineq for t = 1:T-1],
+                    general_constraints=true,
+                    m_general=model.nx,
+                    general_ineq=(1:0))
+
+# MathOptInterface problem
+prob_moi = init_MOI_Problem(prob)
+
+# Trajectory initialization
+X0 = X_nominal # linear interpolation on state
+norm(X0[1] - x1_gait)
+norm(X0[Tm] - xT)
+
+U0 = U_nominal # random controls
+
+# Pack trajectories into vector
+Z0 = pack(X0,U0,h0,prob)
+
+# Solve nominal problem
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,max_iter=200,time_limit=30)
+
+# Unpack solutions
+X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
+
+@assert norm(X_nominal[1][1:5] - X_nominal[T][1:5]) < 1.0e-5
+@assert norm(X_nominal[Tm][1:5] - xT[1:5]) < 1.0e-5
+
+Q_nominal = [X_nominal[t][1:5] for t = 1:T]
+
+foot_traj = [kinematics(model,Q_nominal[t]) for t = 1:T]
+
+foot_x = [foot_traj[t][1] for t=1:T]
+foot_y = [foot_traj[t][2] for t=1:T]
+plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+    title="Foot 1 trajectory",label="",color=:red)
 
 # TVLQR policy
 Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
@@ -307,7 +357,7 @@ models = [model for i = 1:N]
 #           model18,model19,model20]
 
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-8*ones(model.nx)
 γ = 1.0
 x1_gait_sample = resample([x1_gait for i = 1:N],β=β,w=w)
 
@@ -385,9 +435,9 @@ display(plt_x)
 
 plt_u = plot()
 for i = 1:N
-    plt_u = plot!(hcat(U_sample[i]...)[1:4,:]',label="")
+    plt_u = plot!(hcat(U_sample[i]...)[1:4,:]',label="",linetype=:steppost)
 end
-plt_u = plot!(hcat(U_nom_sample...)[1:4,:]',label="",color=:red)
+plt_u = plot!(hcat(U_nom_sample...)[1:4,:]',label="",color=:red,linetype=:steppost)
 display(plt_u)
 # Visualization
 using Colors
@@ -409,11 +459,6 @@ mvis = MechanismVisualizer(mechanism, URDFVisuals(urdf,package_path=[dirname(dir
 
 q0 = transformation_to_urdf_left_pinned(x1,rand(5))
 set_configuration!(mvis,q0)
-
-for i = 1:T
-    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nominal_step[i][1:5],X_nominal_step[i][6:10]))
-    sleep(0.1)
-end
 
 for i = 1:T
     set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nominal_step[i][1:5],X_nominal_step[i][6:10]))
