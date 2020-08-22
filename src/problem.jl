@@ -176,8 +176,10 @@ end
 
 function eval_constraint!(c,Z,prob::TrajectoryOptimizationProblem)
     dynamics_constraints!(view(c,1:prob.M_dynamics),Z,prob)
-    prob.stage_constraints && stage_constraints!(view(c,prob.M_dynamics .+ (1:prob.M_stage)),Z,prob)
-    prob.general_constraints && general_constraints!(view(c,prob.M_dynamics + prob.M_stage .+ (1:prob.M_general)),Z,prob)
+    prob.stage_constraints && stage_constraints!(view(c,
+        prob.M_dynamics .+ (1:prob.M_stage)),Z,prob)
+    prob.general_constraints && general_constraints!(view(c,
+        prob.M_dynamics + prob.M_stage .+ (1:prob.M_general)),Z,prob)
 
     return nothing
 end
@@ -187,17 +189,21 @@ function eval_constraint_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     sparse_dynamics_constraints_jacobian!(view(∇c,1:len_dyn_jac),Z,prob)
 
     len_stage_jac = length(stage_constraint_sparsity(prob))
-    prob.stage_constraints && ∇stage_constraints!(view(∇c,len_dyn_jac .+ (1:len_stage_jac)),Z,prob)
+    prob.stage_constraints && ∇stage_constraints!(view(∇c,
+        len_dyn_jac .+ (1:len_stage_jac)),Z,prob)
 
     len_general_jac = length(general_constraint_sparsity(prob))
-    prob.general_constraints && ∇general_constraints!(view(∇c,len_dyn_jac+len_stage_jac .+ (1:len_general_jac)),Z,prob)
+    prob.general_constraints && ∇general_constraints!(view(∇c,
+        len_dyn_jac+len_stage_jac .+ (1:len_general_jac)),Z,prob)
     return nothing
 end
 
 function sparsity_jacobian(prob::TrajectoryOptimizationProblem)
     sparsity_dynamics = sparsity_dynamics_jacobian(prob)
-    sparsity_stage = stage_constraint_sparsity(prob,r_shift=prob.M_dynamics)
-    sparsity_general = general_constraint_sparsity(prob,r_shift=prob.M_dynamics+prob.M_stage)
+    sparsity_stage = stage_constraint_sparsity(prob,
+        r_shift=prob.M_dynamics)
+    sparsity_general = general_constraint_sparsity(prob,
+        r_shift=prob.M_dynamics+prob.M_stage)
 
     collect([sparsity_dynamics...,sparsity_stage...,sparsity_general...])
 end

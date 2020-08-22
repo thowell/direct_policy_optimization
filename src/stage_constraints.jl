@@ -1,8 +1,10 @@
 function c_stage!(c,x,u,t,model)
+	@error "stage constraints not defined"
 	nothing
 end
 
 function c_stage!(c,x,t,model)
+	@error " stage constraints not defined"
 	nothing
 end
 
@@ -13,21 +15,15 @@ function stage_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
 	model = prob.model
 
 	m_shift = 0
-	for t = 1:T-1
-		if m_stage[t] > 0
+
+	for (t,m) in enumerate(m_stage)
+		if m > 0
 			x = Z[idx.x[t]]
 			u = Z[idx.u[t]]
-			c_stage!(view(c,m_shift .+ (1:m_stage[t])),x,u,t,model)
-			m_shift += m_stage[t]
+			c_stage!(view(c,m_shift .+ (1:m)),x,u,t,model)
+			m_shift += m
 		end
 	end
-
-	if length(m_stage) == T
-		x = Z[idx.x[T]]
-		c_stage!(view(c,m_shift .+ (1:m_stage[T])),x,T,model)
-		m_shift += m_stage[T]
-	end
-
 	nothing
 end
 
@@ -40,16 +36,16 @@ function ∇stage_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 	shift = 0
 	m_shift = 0
 
-	for t = 1:T-1
-		if m_stage[t] > 0
-			c_tmp = zeros(m_stage[t])
+	for (t,m) in enumerate(m_stage)
+		if m > 0
+			c_tmp = zeros(m)
 
 			x = view(Z,idx.x[t])
 			u = view(Z,idx.u[t])
 			cx(c,z) = c_stage!(c,z,u,t,model)
 			cu(c,z) = c_stage!(c,x,z,t,model)
 
-			r_idx = m_shift .+ (1:m_stage[t])
+			r_idx = m_shift .+ (1:m)
 
 			c_idx = idx.x[t]
 			len = length(r_idx)*length(c_idx)
@@ -61,21 +57,10 @@ function ∇stage_constraints!(∇c,Z,prob::TrajectoryOptimizationProblem)
 			∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(cu,c_tmp,u))
 			shift += len
 
-			m_shift += m_stage[t]
+			m_shift += m
 		end
 	end
-	if length(m_stage) == T
-		cx(c,z) = c_stage!(c,z,T,model)
-		c_tmp = zeros(m_stage[T])
 
-		x = Z[idx.x[T]]
-		r_idx = m_shift .+ (1:m_stage[T])
-
-		c_idx = idx.x[T]
-		len = length(r_idx)*length(c_idx)
-		∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(cx,c_tmp,x))
-		m_shift += m_stage[T]
-	end
 	nothing
 end
 
@@ -90,9 +75,10 @@ function stage_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 	row = []
 	col = []
 	m_shift = 0
-	for t = 1:T-1
-		if m_stage[t] > 0
-			r_idx = r_shift + m_shift .+ (1:m_stage[t])
+
+	for (t,m) in enumerate(m_stage)
+		if m > 0
+			r_idx = r_shift + m_shift .+ (1:m)
 
 			c_idx = idx.x[t]
 			row_col!(row,col,r_idx,c_idx)
@@ -100,13 +86,9 @@ function stage_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 			c_idx = idx.u[t]
 			row_col!(row,col,r_idx,c_idx)
 
-			m_shift += m_stage[t]
+			m_shift += m
 		end
 	end
-	if length(m_stage) == T
-		r_idx = m_shift .+ (1:m_stage[T])
-		c_idx = idx.x[T]
-		row_col!(row,col,r_idx,c_idx)
-	end
+
 	return collect(zip(row,col))
 end
