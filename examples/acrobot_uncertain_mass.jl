@@ -126,6 +126,13 @@ prob_sample = init_sample_problem(prob_nom,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
+prob_sample_nom = init_sample_problem(prob_nom,[model for i = 1:N],Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample,
+   )
+
+prob_sample_nom_moi = init_MOI_Problem(prob_sample_nom)
+
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
@@ -136,6 +143,14 @@ Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT,time_limit=300)
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 K_sample = [reshape(Z_sample_sol[prob_sample.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
 
+Z_sample_nom_sol = solve(prob_sample_nom_moi,Z0_sample,nlp=:SNOPT,time_limit=300)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,nlp=:SNOPT,time_limit=600)
+
+# Unpack solution
+X_nom_sample_nom, U_nom_sample_nom, H_nom_sample_nom, X_sample_nom, U_sample_nom, H_sample_nom = unpack(Z_sample_nom_sol,prob_sample_nom)
+K_sample_nom = [reshape(Z_sample_nom_sol[prob_sample_nom.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
+
+norm(vec(hcat(K_sample...)) -vec(hcat(K_sample_nom...)))
 # Plot results
 
 # Time
@@ -199,12 +214,12 @@ savefig(plt,joinpath(@__DIR__,"results/acrobot_sample_control.png"))
 # simulate controller
 using Distributions
 model_sim = model
-model_sim.m2 = 0.9
+model_sim.m2 = 1.05
 T_sim = 10*T
-W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
+W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-32*ones(nx)))
 w = rand(W,T_sim)
 
-W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
+W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-32*ones(nx)))
 w0 = rand(W0,1)
 z0_sim = vec(copy(x1) + 1.0*w0[:,1])
 
@@ -237,18 +252,32 @@ pltu2 = plot(t_nominal[1:end-1],hcat(U_nom_sample...)[1:1,:]',color=:red,label=[
 pltu2 = plot!(t_sim[1:end-1],hcat(u_sample...)[1:1,:]',color=:orange,label=["(sample)" ""],
     legend=:top)
 
+z_sample_nom, u_sample_nom, J_sample_nom, Jx_sample_nom, Ju_sample_nom = simulate_linear_controller(K_sample_nom,
+    X_nom_sample_nom,U_nom_sample_nom,model_sim,Q_lqr,R_lqr,
+    T_sim,H_nom_sample_nom[1],z0_sim,w,ul=ul,uu=uu)
+pltx2 = plot(t_nominal,hcat(X_nom_sample_nom...)[1:2,:]',color=:red,label=["nominal (sample)" ""],
+    xlabel="time (s)",title="Acrobot",legend=:top)
+pltx2 = plot!(t_sim,hcat(z_sample_nom...)[1:2,:]',color=:orange,label=["sample" ""],width=2.0)
+
+pltu2 = plot(t_nominal[1:end-1],hcat(U_nom_sample_nom...)[1:1,:]',color=:red,label=["nominal (sample)" ""],
+    xlabel="time (s)",title="Acrobot")
+pltu2 = plot!(t_sim[1:end-1],hcat(u_sample_nom...)[1:1,:]',color=:orange,label=["(sample)" ""],
+    legend=:top)
 
 # objective value
 J_tvlqr
 J_sample
+J_sample_nom
 
 # state tracking
 Jx_tvlqr
 Jx_sample
+Jx_sample_nom
 
 # control tracking
 Ju_tvlqr
 Ju_sample
+Ju_sample_nom
 
 # vis = Visualizer()
 # open(vis)

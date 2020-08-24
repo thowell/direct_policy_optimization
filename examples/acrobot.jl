@@ -211,7 +211,7 @@ savefig(plt,joinpath(@__DIR__,"results/acrobot_sample_control.png"))
 # simulate controller
 using Distributions
 model_sim = model
-T_sim = 10*T
+T_sim = 10T
 W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
 w = rand(W,T_sim)
 
@@ -238,7 +238,7 @@ pltu1 = plot!(t_sim[1:end-1],hcat(u_tvlqr...)[1:1,:]',color=:purple,label=["tvlq
 
 z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(K_sample,
     X_nom_sample,U_nom_sample,model_sim,Q_lqr,R_lqr,
-    T_sim,H_nom_sample[1],z0_sim,w,ul=ul,uu=uu)
+    T_sim,H_nom_sample[1],z0_sim,w)#,ul=ul,uu=uu)
 pltx2 = plot(t_nominal,hcat(X_nom_sample...)[1:2,:]',color=:red,label=["nominal (sample)" ""],
     xlabel="time (s)",title="Acrobot",legend=:top)
 pltx2 = plot!(t_sim,hcat(z_sample...)[1:2,:]',color=:orange,label=["sample" ""],width=2.0)
