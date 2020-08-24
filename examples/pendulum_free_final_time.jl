@@ -15,7 +15,7 @@ ul = -3.0
 tf0 = 2.0
 h0 = tf0/(T-1) # timestep
 
-hu = h0
+hu = 10.0*h0
 hl = 0.0
 
 # Initial and final states
@@ -72,8 +72,8 @@ X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
 # Samples
 N = 2*model.nx
 models = [model for i = 1:N]
-β = 1.0
-w = 1.0e-3*ones(model.nx)
+β = 3.0
+w = 0.0*ones(model.nx)
 γ = 1.0
 
 α = 1.0e-3
@@ -105,7 +105,7 @@ Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
 #NOTE: Ipopt finds different solution compared to SNOPT
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:ipopt)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT7)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
