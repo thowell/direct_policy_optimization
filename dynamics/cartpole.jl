@@ -140,7 +140,7 @@ function general_constraints!(c,Z,prob::SampleProblem)
 		for i = 1:N
 			x⁺ = view(Z,idx_sample[i].x[t+1])
 			u = view(Z,idx_sample[i].u[t])
-			c[shift .+ (1:m_med)] = maximum_energy_dissipation(x⁺,u,model)
+			c[shift .+ (1:m_med)] = maximum_energy_dissipation(x⁺,u,models[i])
 			shift += m_med
 		end
 	end
@@ -160,8 +160,8 @@ function ∇general_constraints!(∇c,Z,prob::SampleProblem)
 			x⁺ = view(Z,idx_sample[i].x[t+1])
 			u = view(Z,idx_sample[i].u[t])
 
-			med_x⁺(y) = maximum_energy_dissipation(y,u,model)
-			med_u(y) = maximum_energy_dissipation(x⁺,y,model)
+			med_x⁺(y) = maximum_energy_dissipation(y,u,models[i])
+			med_u(y) = maximum_energy_dissipation(x⁺,y,models[i])
 
 			r_idx = s .+ (1:m_med)
 
