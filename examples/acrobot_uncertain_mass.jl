@@ -100,7 +100,7 @@ model7 = Acrobot(1.0,1.0,1.0,0.5,0.925,1.0,1.0,0.5,9.81,nx,nu)
 model8 = Acrobot(1.0,1.0,1.0,0.5,0.9,1.0,1.0,0.5,9.81,nx,nu)
 models = [model1,model2,model3,model4,model5,model6,model7,model8]
 # models = [model for i = 1:N]
-β = 1.0
+β = 3.0
 w = 0.0*ones(model.nx)
 γ = 1.0
 x1_sample = [x1 for i = 1:N]#
