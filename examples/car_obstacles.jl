@@ -95,8 +95,8 @@ X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 N = 2*model.nx
 models = [model for i = 1:N]
-β = 1.0
-w = 1.0e-4*ones(model.nx)
+β = 2.0
+w = 0.0*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -167,6 +167,7 @@ for i = 1:N
     y_sample_pos = [X_sample[i][t][2] for t = 1:T]
     plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,label="")
 end
+display(plt)
 
 plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)",color=:purple,legend=:topleft)
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
