@@ -51,7 +51,7 @@ obj = QuadraticTrackingObjective(Q,R,c,
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-H_lqr = [100.0 for t = 1:T-1]
+H_lqr = [10.0 for t = 1:T-1]
 
 # Problem
 prob_nom = init_problem(model.nx,model.nu,T,model,obj,
@@ -99,8 +99,8 @@ N = 2*model.nx
 # model8 = Acrobot(1.0,1.0,1.0,0.5,0.9,1.0,1.0,0.5,9.81,nx,nu)
 # models = [model1,model2,model3,model4,model5,model6,model7,model8]
 models = [model for i = 1:N]
-β = 1.0
-w = 1.0e-3*ones(model.nx)
+β = 2.25
+w = 0.0*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -212,10 +212,10 @@ savefig(plt,joinpath(@__DIR__,"results/acrobot_sample_control.png"))
 using Distributions
 model_sim = model
 T_sim = 10*T
-W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
+W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-3*ones(nx)))
 w = rand(W,T_sim)
 
-W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
+W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-3*ones(nx)))
 w0 = rand(W0,1)
 z0_sim = vec(copy(x1) + 1.0*w0[:,1])
 
