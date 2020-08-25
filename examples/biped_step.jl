@@ -183,9 +183,9 @@ plot(foot_z)
 sum(H_nominal_step)
 
 # TVLQR policy
-Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
-R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-H_lqr = [10.0 for t = 1:T-1]
+Q_lqr = [t < T ? Diagonal(1.0*ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
+R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+H_lqr = [1.0 for t = 1:T-1]
 
 K_lqr = TVLQR_gains(model,X_nominal_step,U_nominal_step,H_nominal_step,Q_lqr,R_lqr)
 
@@ -222,7 +222,7 @@ models = [model for i = 1:N]
 #           model13,model14,model15,model16,model17,
 #           model18,model19,model20]
 
-β = 1.0
+β = 2.0
 w = 0.0*ones(model.nx)
 γ = 1.0
 # x1_sample = [X_nominal_step[1] for i = 1:N]
@@ -321,10 +321,6 @@ for i = 1:T
     sleep(0.1)
 end
 
-for i = 1:T
-    set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nominal[i][1:5],X_nominal[i][6:10]))
-    sleep(0.1)
-end
 
 for i = 1:T
     set_configuration!(mvis,transformation_to_urdf_left_pinned(X_nom_sample[i][1:5],X_nom_sample[i][6:10]))
@@ -342,12 +338,12 @@ T_sim = 10*T+1
 # model_sim.Tm = convert(Int,(T_sim-1)/2 + 1) + switch
 
 μ = zeros(nx)
-Σ = Diagonal(1.0e-5*ones(nx))
+Σ = Diagonal(10.0*ones(nx))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 
 μ0 = zeros(nx)
-Σ0 = Diagonal(1.0e-5*ones(nx))
+Σ0 = Diagonal(1.0e-3*ones(nx))
 W0 = Distributions.MvNormal(μ0,Σ0)
 w0 = rand(W0,1)
 
@@ -361,14 +357,14 @@ plt = plot(t_nominal,hcat(X_nominal_step...)[1:5,:]',legend=:bottom,color=:red,l
     width=2.0,xlabel="time (s)",title="Biped",ylabel="state")
 
 z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K_lqr,
-    X_nominal_step,U_nominal_step,model_sim,Q_lqr,R_lqr,T_sim,H_nominal_step[1],X_nominal_step[1],w,_norm=2,
+    X_nominal_step,U_nominal_step,model_sim,Q_lqr,R_lqr,T_sim,H_nominal_step[1],vec(X_nominal_step[1]+w0),w,_norm=2,
     ul=ul,uu=uu)
 plt = plot!(t_sim_nominal,hcat(z_tvlqr...)[1:5,:]',color=:purple,label=["tvlqr" "" "" "" ""],width=2.0)
 
 plt = plot(t_sample,hcat(X_nom_sample...)[1:5,:]',legend=:bottom,color=:red,label="",
     width=2.0,xlabel="time (s)",title="Biped",ylabel="state")
 z_sample, u_sample, J_sample,Jx_sample, Ju_sample = simulate_linear_controller(K_sample,
-    X_nom_sample,U_nom_sample,model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample[1],X_nom_sample[1],w,_norm=2,
+    X_nom_sample,U_nom_sample,model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample[1],vec(X_nom_sample[1]+w0),w,_norm=2,
     ul=ul,uu=uu,controller=:policy)
 plt = plot!(t_sim_sample,hcat(z_sample...)[1:5,:]',linetype=:steppost,color=:orange,label=["sample" "" "" "" ""],width=2.0)
 
