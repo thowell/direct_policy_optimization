@@ -3,7 +3,7 @@ include("../dynamics/biped.jl")
 using Plots
 
 # Horizon
-T = 31
+T = 11
 Tm = -1
 model.Tm = Tm
 
@@ -85,8 +85,8 @@ xl_traj[T][1:5] = xT[1:5]
 xu_traj[T][1:5] = xT[1:5]
 
 # ul <= u <= uu
-uu = 20.0
-ul = -20.0
+uu = 100*20.0
+ul = -100*20.0
 
 tf0 = 0.5
 h0 = tf0/(T-1)
@@ -271,62 +271,62 @@ kinematics(model,xT[1:5])
 plt_ft_nom = plot!(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="",color=:blue)
 
-# regulate to good ref.
-Q = [t < T ? 10.0*Diagonal(ones(model.nx)) : 10.0*Diagonal(ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-c = 1.0
-
-obj = QuadraticTrackingObjective(Q,R,c,
-    [X_nominal[t] for t=1:T],[U_nominal[t] for t=1:T-1])
-# penalty_obj = PenaltyObjective(1000.0,[foot_z_ref[idx_x1_gait:T]...,foot_z_ref[1:idx_x1_gait-1]...],[t for t = 1:T])
-# multi_obj = MultiObjective([obj,penalty_obj])
-
-# Problem
-include("../src/loop.jl")
-prob = init_problem(model.nx,model.nu,T,model,obj,
-                    xl=xl_traj_gait,
-                    xu=xu_traj_gait,
-                    ul=[ul*ones(model.nu) for t=1:T-1],
-                    uu=[uu*ones(model.nu) for t=1:T-1],
-                    hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
-                    # stage_constraints=true,
-                    # m_stage=[m_stage for t = 1:T-1],
-                    # stage_ineq=[stage_ineq for t = 1:T-1],
-                    general_constraints=true,
-                    m_general=model.nx,
-                    general_ineq=(1:0))
-
-# MathOptInterface problem
-prob_moi = init_MOI_Problem(prob)
-
-# Trajectory initialization
-X0 = X_nominal # linear interpolation on state
-norm(X0[1] - x1_gait)
-norm(X0[Tm] - xT)
-
-U0 = U_nominal # random controls
-
-# Pack trajectories into vector
-Z0 = pack(X0,U0,h0,prob)
-
-# Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,max_iter=200,time_limit=120)
-
-# Unpack solutions
-X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
-
-@assert norm(X_nominal[1][1:5] - X_nominal[T][1:5]) < 1.0e-5
-@assert norm(X_nominal[Tm][1:5] - xT[1:5]) < 1.0e-5
-
-Q_nominal = [X_nominal[t][1:5] for t = 1:T]
-
-foot_traj = [kinematics(model,Q_nominal[t]) for t = 1:T]
-
-foot_x = [foot_traj[t][1] for t=1:T]
-foot_y = [foot_traj[t][2] for t=1:T]
-plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
-    title="Foot 1 trajectory",label="",color=:red)
+# # regulate to good ref.
+# Q = [t < T ? 10.0*Diagonal(ones(model.nx)) : 10.0*Diagonal(ones(model.nx)) for t = 1:T]
+# R = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
+# c = 1.0
+#
+# obj = QuadraticTrackingObjective(Q,R,c,
+#     [X_nominal[t] for t=1:T],[U_nominal[t] for t=1:T-1])
+# # penalty_obj = PenaltyObjective(1000.0,[foot_z_ref[idx_x1_gait:T]...,foot_z_ref[1:idx_x1_gait-1]...],[t for t = 1:T])
+# # multi_obj = MultiObjective([obj,penalty_obj])
+#
+# # Problem
+# include("../src/loop.jl")
+# prob = init_problem(model.nx,model.nu,T,model,obj,
+#                     xl=xl_traj_gait,
+#                     xu=xu_traj_gait,
+#                     ul=[ul*ones(model.nu) for t=1:T-1],
+#                     uu=[uu*ones(model.nu) for t=1:T-1],
+#                     hl=[hl for t=1:T-1],
+#                     hu=[hu for t=1:T-1],
+#                     # stage_constraints=true,
+#                     # m_stage=[m_stage for t = 1:T-1],
+#                     # stage_ineq=[stage_ineq for t = 1:T-1],
+#                     general_constraints=true,
+#                     m_general=model.nx,
+#                     general_ineq=(1:0))
+#
+# # MathOptInterface problem
+# prob_moi = init_MOI_Problem(prob)
+#
+# # Trajectory initialization
+# X0 = X_nominal # linear interpolation on state
+# norm(X0[1] - x1_gait)
+# norm(X0[Tm] - xT)
+#
+# U0 = U_nominal # random controls
+#
+# # Pack trajectories into vector
+# Z0 = pack(X0,U0,h0,prob)
+#
+# # Solve nominal problem
+# @time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,max_iter=200,time_limit=120)
+#
+# # Unpack solutions
+# X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
+#
+# @assert norm(X_nominal[1][1:5] - X_nominal[T][1:5]) < 1.0e-5
+# @assert norm(X_nominal[Tm][1:5] - xT[1:5]) < 1.0e-5
+#
+# Q_nominal = [X_nominal[t][1:5] for t = 1:T]
+#
+# foot_traj = [kinematics(model,Q_nominal[t]) for t = 1:T]
+#
+# foot_x = [foot_traj[t][1] for t=1:T]
+# foot_y = [foot_traj[t][2] for t=1:T]
+# plt_ft_nom = plot(foot_x,foot_y,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+#     title="Foot 1 trajectory",label="",color=:red)
 
 # TVLQR policy
 Q_lqr = [t < T ? Diagonal(100.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
@@ -342,37 +342,37 @@ K0 = [rand(n_policy*n_features) for t = 1:T-1]
 
 N = 2*model.nx
 models = [model for i = 1:N]
-# model1 = Biped(0.2755,0.288,Tm-1,nx,nu)
-# model2 = Biped(0.2755,0.288,Tm-1,nx,nu)
-# model3 = Biped(0.2755,0.288,Tm-1,nx,nu)
-# model4 = Biped(0.2755,0.288,Tm-1,nx,nu)
-# model5 = Biped(0.2755,0.288,Tm-1,nx,nu)
-# model6 = Biped(0.2755,0.288,Tm-1,nx,nu)
-# model7 = Biped(0.2755,0.288,Tm-1,nx,nu)
-# model8 = Biped(0.2755,0.288,Tm-1,nx,nu)
-# model9 = Biped(0.2755,0.288,Tm-1,nx,nu)
-# model10 = Biped(0.2755,0.288,Tm-1,nx,nu)
-# model11 = Biped(0.2755,0.288,Tm+1,nx,nu)
-# model12 = Biped(0.2755,0.288,Tm+1,nx,nu)
-# model13 = Biped(0.2755,0.288,Tm+1,nx,nu)
-# model14 = Biped(0.2755,0.288,Tm+1,nx,nu)
-# model15 = Biped(0.2755,0.288,Tm+1,nx,nu)
-# model16 = Biped(0.2755,0.288,Tm+1,nx,nu)
-# model17 = Biped(0.2755,0.288,Tm+1,nx,nu)
-# model18 = Biped(0.2755,0.288,Tm+1,nx,nu)
-# model19 = Biped(0.2755,0.288,Tm+1,nx,nu)
-# model20 = Biped(0.2755,0.288,Tm+1,nx,nu)
-#
-# models = [model1,model2,model3,model4,model5,model6,
-#           model7,model8,model9,model10,model11,model12,
-#           model13,model14,model15,model16,model17,
-#           model18,model19,model20]
+model1 = Biped(0.2755,0.288,Tm-1,nx,nu)
+model2 = Biped(0.2755,0.288,Tm-1,nx,nu)
+model3 = Biped(0.2755,0.288,Tm-1,nx,nu)
+model4 = Biped(0.2755,0.288,Tm-1,nx,nu)
+model5 = Biped(0.2755,0.288,Tm-1,nx,nu)
+model6 = Biped(0.2755,0.288,Tm-1,nx,nu)
+model7 = Biped(0.2755,0.288,Tm-1,nx,nu)
+model8 = Biped(0.2755,0.288,Tm-1,nx,nu)
+model9 = Biped(0.2755,0.288,Tm-1,nx,nu)
+model10 = Biped(0.2755,0.288,Tm-1,nx,nu)
+model11 = Biped(0.2755,0.288,Tm+1,nx,nu)
+model12 = Biped(0.2755,0.288,Tm+1,nx,nu)
+model13 = Biped(0.2755,0.288,Tm+1,nx,nu)
+model14 = Biped(0.2755,0.288,Tm+1,nx,nu)
+model15 = Biped(0.2755,0.288,Tm+1,nx,nu)
+model16 = Biped(0.2755,0.288,Tm+1,nx,nu)
+model17 = Biped(0.2755,0.288,Tm+1,nx,nu)
+model18 = Biped(0.2755,0.288,Tm+1,nx,nu)
+model19 = Biped(0.2755,0.288,Tm+1,nx,nu)
+model20 = Biped(0.2755,0.288,Tm+1,nx,nu)
 
-β = 1.0
-w = 1.0e-3*ones(model.nx)
+models = [model1,model2,model3,model4,model5,model6,
+          model7,model8,model9,model10,model11,model12,
+          model13,model14,model15,model16,model17,
+          model18,model19,model20]
+
+β = 1.0e-1
+w = 0.0*ones(model.nx)
 γ = 1.0
-x1_gait_sample = resample([x1_gait for i = 1:N],β=β,w=w)
-xT_gait_sample = resample([xT for i = 1:N],β=β,w=w)
+x1_gait_sample = resample([x1_gait for i = 1:N],β=1.0e-1,w=1.0e-8*ones(model.nx))
+# xT_gait_sample = resample([xT for i = 1:N],β=β,w=w)
 
 xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
@@ -382,11 +382,11 @@ for i = 1:N
     xl_traj_sample[i][1][1:5] = x1_gait_sample[i][1:5]
     xu_traj_sample[i][1][1:5] = x1_gait_sample[i][1:5]
 
-    xl_traj_sample[i][models[i].Tm][1:5] = xT_gait_sample[i][1:5]
-    xu_traj_sample[i][models[i].Tm][1:5] = xT_gait_sample[i][1:5]
-
-    xl_traj_sample[i][T][1:5] = x1_gait_sample[i][1:5]
-    xu_traj_sample[i][T][1:5] = x1_gait_sample[i][1:5]
+    # xl_traj_sample[i][models[i].Tm][1:5] = xT_gait_sample[i][1:5]
+    # xu_traj_sample[i][models[i].Tm][1:5] = xT_gait_sample[i][1:5]
+    #
+    # xl_traj_sample[i][T][1:5] = x1_gait_sample[i][1:5]
+    # xu_traj_sample[i][T][1:5] = x1_gait_sample[i][1:5]
 end
 
 prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
@@ -394,12 +394,12 @@ prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
     xu=xu_traj_sample,
     n_policy=n_policy,
     n_features=n_features,
-    policy_constraint=true,
+    policy_constraint=false,
     disturbance_ctrl=true,
-    α=1.0e-1,
-    sample_general_constraints=true,
-    m_sample_general=N*prob.m_general,
-    sample_general_ineq=(1:0)
+    α=1.0e-3,
+    # sample_general_constraints=true,
+    # m_sample_general=N*prob.m_general,
+    # sample_general_ineq=(1:0)
     )
 
 

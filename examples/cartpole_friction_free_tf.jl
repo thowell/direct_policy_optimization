@@ -3,7 +3,7 @@ include("../dynamics/cartpole.jl")
 using Plots
 
 α_cartpole_friction = 100.0
-μ0 = 0.1
+μ0 = 0.25
 
 model_nominal = CartpoleFriction(1.0,0.2,0.5,9.81,0.0,
     nx_friction,nu_friction,nu_policy_friction)
@@ -18,8 +18,8 @@ T = 51
 # h = h0 (fixed timestep)
 tf0 = 5.0
 h0 = tf0/(T-1)
-hu = h0
-hl = h0
+hu = 3.0*h0
+hl = 0.0*h0
 
 # Initial and final states
 x1 = [0.0; 0.0; 0.0; 0.0]
@@ -35,9 +35,9 @@ xl_traj[T] = xT
 xu_traj[T] = xT
 
 # Objective
-Q = [t < T ? Diagonal(ones(model_nominal.nx)) : Diagonal(zeros(model_nominal.nx)) for t = 1:T]
-R = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
-c = 0.0
+Q = [t < T ? 0.0*Diagonal(ones(model_nominal.nx)) : 0.0*Diagonal(zeros(model_nominal.nx)) for t = 1:T]
+R = [0.0*Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
+c = 100.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model_nominal.nu) for t=1:T])
 penalty_obj = PenaltyObjective(α_cartpole_friction)
@@ -47,7 +47,7 @@ multi_obj = MultiObjective([obj,penalty_obj])
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0;1.0]) : Diagonal(100.0*ones(model_nominal.nx)) for t = 1:T]
 R_lqr = [Diagonal([1.0,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
-H_lqr = [0.0 for t = 1:T-1]
+H_lqr = [10.0 for t = 1:T-1]
 
 # Problem
 prob_nominal = init_problem(model_nominal.nx,model_nominal.nu,T,
@@ -131,12 +131,12 @@ plot(hcat(b_friction_nominal...)',linetype=:steppost)
 N = 2*model.nx
 models = [model_friction for i = 1:N]
 
-μ_sample = range(0.0975,stop=0.1025,length=N)
+μ_sample = range(0.1,stop=0.3,length=N)
 models_coefficients = [CartpoleFriction(1.0,0.2,0.5,9.81,μ_sample[i],
     nx_friction,nu_friction,nu_policy_friction) for i = 1:N]
 
 β = 1.0
-w = 1.0e-3*ones(model_friction.nx)
+w = 1.0e-8*ones(model_friction.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -181,7 +181,7 @@ Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7)
 # Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),nlp=:SNOPT7)
 
 Z_sample_sol_coefficients = solve(prob_sample_moi_coefficients,copy(Z0_sample),nlp=:SNOPT7)
-Z_sample_sol_coefficients = solve(prob_sample_moi_coefficients,copy(Z_sample_sol),nlp=:SNOPT7)
+# Z_sample_sol_coefficients = solve(prob_sample_moi_coefficients,copy(Z_sample_sol),nlp=:SNOPT7)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
