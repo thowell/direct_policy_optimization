@@ -42,6 +42,9 @@ yc3 = 0.2
 xc4 = 0.75
 yc4 = 0.8
 
+xc = [xc1,xc2,xc3,xc4]
+yc = [yc1,yc2,yc3,yc4]
+
 # Constraints
 function c_stage!(c,x,u,t,model)
     c[1] = circle_obs(x[1],x[2],xc1,yc1,r)
@@ -96,7 +99,7 @@ X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-4*ones(model.nx)
+w = 1.0e-3*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -213,3 +216,81 @@ plt2 = plot!(t_sample[1:end-1],hcat(U_nom_sample...)',color=:red,width=2.0,
     label=["nominal" ""],linetype=:steppost)
 display(plt2)
 savefig(plt2,joinpath(@__DIR__,"results/car_sample_controls.png"))
+
+# visualize
+
+function visualize!(vis,p,q; Δt=0.1,r=0.25)
+
+    obj_path = joinpath(pwd(),"/home/taylor/Research/contact_implicit_trajectory_optimization/models/cybertruck/cybertruck.obj")
+    mtl_path = joinpath(pwd(),"/home/taylor/Research/contact_implicit_trajectory_optimization/models/cybertruck/cybertruck.mtl")
+
+    ctm = ModifiedMeshFileObject(obj_path,mtl_path,scale=0.05)
+    setobject!(vis["cybertruck"],ctm,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
+    settransform!(vis["cybertruck"], LinearMap(RotZ(pi)*RotX(pi/2.0)))
+
+    anim = MeshCat.Animation(convert(Int,floor(1/Δt)))
+
+    for t = 1:length(q)
+
+        MeshCat.atframe(anim,t) do
+            x = [q[t][1];q[t][2];0.0]
+            settransform!(vis["cybertruck"], compose(Translation(x),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+        end
+    end
+    # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
+    MeshCat.setanimation!(vis,anim)
+end
+
+function ModifiedMeshFileObject(obj_path::String, material_path::String; scale::T=0.1) where {T}
+    obj = MeshFileObject(obj_path)
+    rescaled_contents = rescale_contents(obj_path, scale=scale)
+    material = select_material(material_path)
+    mod_obj = MeshFileObject(
+        rescaled_contents,
+        obj.format,
+        material,
+        obj.resources,
+        )
+    return mod_obj
+end
+
+function rescale_contents(obj_path::String; scale::T=0.1) where T
+    lines = readlines(obj_path)
+    rescaled_lines = copy(lines)
+    for (k,line) in enumerate(lines)
+        if length(line) >= 2
+            if line[1] == 'v'
+                stringvec = split(line, " ")
+                vals = map(x->parse(Float64,x),stringvec[2:end])
+                rescaled_vals = vals .* scale
+                rescaled_lines[k] = join([stringvec[1]; string.(rescaled_vals)], " ")
+            end
+        end
+    end
+    rescaled_contents = join(rescaled_lines, "\r\n")
+    return rescaled_contents
+end
+
+function select_material(material_path::String)
+    mtl_file = open(material_path)
+    mtl = read(mtl_file, String)
+    return mtl
+end
+
+using Colors
+using CoordinateTransformations
+using FileIO
+using GeometryTypes
+using LinearAlgebra
+using MeshCat
+using MeshIO
+using Rotations
+
+vis = Visualizer()
+open(vis)
+visualize!(vis,model,X_nom,Δt=H_nom_sample[1])
+
+for i = 1:4
+    cyl = Cylinder(Point3f0(xc[i],yc[i],0),Point3f0(xc[i],yc[i],0.1),convert(Float32,0.035))
+    setobject!(vis["cyl$i"],cyl,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
+end
