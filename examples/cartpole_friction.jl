@@ -177,8 +177,8 @@ Ū_friction_nominal = deepcopy(U_friction_nominal)
 Z0_sample = pack(X_friction_nominal,Ū_friction_nominal,H_friction_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7)
-# Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),nlp=:SNOPT7)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=600)
+Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),nlp=:SNOPT7)
 
 Z_sample_sol_coefficients = solve(prob_sample_moi_coefficients,copy(Z0_sample),nlp=:SNOPT7)
 Z_sample_sol_coefficients = solve(prob_sample_moi_coefficients,copy(Z_sample_sol),nlp=:SNOPT7)
@@ -192,11 +192,11 @@ K_sample_coefficients = [reshape(Z_sample_sol_coefficients[prob_sample_coefficie
 
 norm(vec(hcat(K_sample...)) - vec(hcat(K_sample_coefficients...)))
 
-plt = plot(hcat(X_nom_sample_coefficients...)[1:4,:]',label="")
-for i = 1:N
-    plt = plot!(hcat(X_sample_coefficients[i]...)[1:4,:]',label="")
-end
-display(plt)
+# plt = plot(hcat(X_nom_sample_coefficients...)[1:4,:]',label="")
+# for i = 1:N
+#     plt = plot!(hcat(X_sample_coefficients[i]...)[1:4,:]',label="")
+# end
+# display(plt)
 
 plt = plot(hcat(X_nom_sample...)[1:4,:]',label="")
 for i = 1:N

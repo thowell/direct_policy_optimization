@@ -282,3 +282,43 @@ end
 function policy(model::CartpoleFriction,K,x,u,x_nom,u_nom)
 	u_nom[1:model.nu_policy] - reshape(K,model.nu_policy,model.nx)*(x - x_nom)
 end
+
+function visualize!(vis,model::Cartpole,q;
+       Δt=0.1,color=[RGBA(1,0,0,1.0) for i = 1:length(q)])
+
+   l2 = Cylinder(Point3f0(-model.l*2,0,0),Point3f0(model.l*2,0,0),convert(Float32,0.025))
+   setobject!(vis["slider"],l2,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
+
+	N = length(q)
+
+	for i = 1:N
+	    l1 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,model.l),convert(Float32,0.025))
+	    setobject!(vis["arm$i"],l1,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
+
+	    setobject!(vis["base$i"], HyperSphere(Point3f0(0),
+	        convert(Float32,0.1)),
+	        MeshPhongMaterial(color=color[i]))
+	    setobject!(vis["ee$i"], HyperSphere(Point3f0(0),
+	        convert(Float32,0.05)),
+	        MeshPhongMaterial(color=color[i]))
+	end
+
+    anim = MeshCat.Animation(convert(Int,floor(1/Δt)))
+
+    for t = 1:length(q[1])
+
+
+        MeshCat.atframe(anim,t) do
+			for i = 1:N
+				x = q[i][t]
+				px = x[1] + model.l*sin(x[2])
+				pz = -model.l*cos(x[2])
+	            settransform!(vis["arm$i"], cable_transform([x[1];0;0],[px;0.0;pz]))
+	            settransform!(vis["base$i"], Translation([x[1];0.0;0.0]))
+	            settransform!(vis["ee$i"], Translation([px;0.0;pz]))
+			end
+        end
+    end
+    # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
+    MeshCat.setanimation!(vis,anim)
+end

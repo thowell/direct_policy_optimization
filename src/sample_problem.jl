@@ -153,7 +153,8 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,Q,R,H;
 end
 
 function pack(X0,U0,h0,K0,prob::SampleProblem;
-        uw=0.0,s=1.0)
+        uw=1.0,s=1.0,r=0.0)
+    model = prob.prob.model
 
     Z0 = zeros(prob.N_nlp)
     Z0[prob.idx_nom_z] = pack(X0,U0,h0,prob.prob)
@@ -163,10 +164,11 @@ function pack(X0,U0,h0,K0,prob::SampleProblem;
 
     for t = 1:T
         for i = 1:N
-            Z0[prob.idx_sample[i].x[t]] = X0[t]
+            Z0[prob.idx_sample[i].x[t]] = X0[t] + r*rand(model.nx)
             t==T && continue
-            Z0[prob.idx_sample[i].u[t]] = U0[t]
-            Z0[prob.idx_x_tmp[i].x[t]] = X0[t+1]
+            Z0[prob.idx_sample[i].u[t]] = U0[t] + r*rand(model.nu)
+            Z0[prob.idx_sample[i].h[t]] = h0 + r*rand(1)[1]
+            Z0[prob.idx_x_tmp[i].x[t]] = X0[t+1] + r*rand(model.nx)
 
             if prob.disturbance_ctrl
                 Z0[prob.idx_uw[i][t]] .= uw
@@ -184,7 +186,9 @@ function pack(X0,U0,h0,K0,prob::SampleProblem;
 end
 
 function pack(X0,U0,h0,prob::SampleProblem;
-        uw=0.0,s=1.0)
+        uw=1.0,s=1.0,r=0.0)
+
+    model = prob.prob.model
 
     Z0 = zeros(prob.N_nlp)
     Z0[prob.idx_nom_z] = pack(X0,U0,h0,prob.prob)
@@ -194,10 +198,12 @@ function pack(X0,U0,h0,prob::SampleProblem;
 
     for t = 1:T
         for i = 1:N
-            Z0[prob.idx_sample[i].x[t]] = X0[t]
+            Z0[prob.idx_sample[i].x[t]] = X0[t] + r*rand(model.nx)
             t==T && continue
-            Z0[prob.idx_sample[i].u[t]] = U0[t]
-            Z0[prob.idx_x_tmp[i].x[t]] = X0[t+1]
+            Z0[prob.idx_sample[i].u[t]] = U0[t] + r*rand(model.nu)
+            Z0[prob.idx_sample[i].h[t]] = h0 + r*rand(1)[1]
+
+            Z0[prob.idx_x_tmp[i].x[t]] = X0[t+1] + r*rand(model.nx)
 
             if prob.disturbance_ctrl
                 Z0[prob.idx_uw[i][t]] .= uw

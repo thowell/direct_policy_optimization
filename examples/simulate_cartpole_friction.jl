@@ -68,6 +68,7 @@ end
 using Distributions
 T_sim = 10T
 Δt = h0
+dt_sim = sum(H_nom_sample)/(T_sim-1)
 
 W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
 w = rand(W,T_sim)
@@ -77,7 +78,7 @@ w0 = rand(W0,1)
 
 
 model_sim = model_friction
-μ_sim = .101
+μ_sim = .1
 
 t_sim_nominal = range(0,stop=H_nominal[1]*(T-1),length=T_sim)
 t_sim_sample = range(0,stop=H_nom_sample[1]*(T-1),length=T_sim)
@@ -143,3 +144,12 @@ Ju_tvlqr
 Ju_tvlqr_friction
 Ju_sample
 Ju_sample_c
+
+# Visualize
+include("../dynamics/visualize.jl")
+vis = Visualizer()
+open(vis)
+
+visualize!(vis,model,[z_tvlqr,z_tvlqr_friction,z_sample],
+    color=[RGBA(128/255,0/255,128/255),RGBA(255/255,0/255,255/255),RGBA(255/255,165/255,0/255,1.0)],
+    Δt=dt_sim)
