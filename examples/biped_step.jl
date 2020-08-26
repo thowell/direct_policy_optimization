@@ -110,7 +110,7 @@ function discrete_dynamics(model::Biped,x,u,h,t)
 end
 
 function c_stage!(c,x,u,t,model)
-    c[1] = kinematics(model,x[1:5])[2] + 1.0e-4
+    c[1] = kinematics(model,x[1:5])[2]
     nothing
 end
 #
@@ -125,17 +125,17 @@ stage_ineq = (1:m_stage)
 include("../src/loop_delta.jl")
 
 # Objective
-qq = [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+qq = 0.1*[1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
 Q = [t < T ? Diagonal(qq) : Diagonal(qq) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T-1])
-# penalty_obj = PenaltyObjective(1000.0,foot_z_ref,[t for t = 1:T])
-# multi_obj = MultiObjective([obj,penalty_obj])
+penalty_obj = PenaltyObjective(1000.0,foot_z_ref,[t for t = 1:T])
+multi_obj = MultiObjective([obj,penalty_obj])
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,model,obj,
+prob = init_problem(model.nx,model.nu,T,model,multi_obj,
                     xl=xl_traj,
                     xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
@@ -167,12 +167,12 @@ X_nominal_step, U_nominal_step, H_nominal_step = unpack(Z_nominal_step,prob)
 
 Q_nominal_step = [X_nominal_step[t][1:5] for t = 1:T]
 plot(hcat(Q_nominal_step...)')
-foot_traj = [kinematics(model,Q_nominal_step[t]) for t = 1:T]
+foot_traj_nom = [kinematics(model,Q_nominal_step[t]) for t = 1:T]
 
-foot_x = [foot_traj[t][1] for t=1:T]
-foot_z = [foot_traj[t][2] for t=1:T]
+foot_x_nom = [foot_traj_nom[t][1] for t=1:T]
+foot_z_nom = [foot_traj_nom[t][2] for t=1:T]
 
-plt_ft_nom = plot(foot_x,foot_z,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
+plt_ft_nom = plot(foot_x_nom,foot_z_nom,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
     title="Foot 1 trajectory",label="",color=:red)
 
 plot(hcat(U_nominal_step...)',linetype=:steppost)
@@ -183,7 +183,7 @@ plot(foot_z)
 sum(H_nominal_step)
 
 # TVLQR policy
-Q_lqr = [t < T ? Diagonal(1.0*ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
+Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 H_lqr = [1.0 for t = 1:T-1]
 
@@ -222,7 +222,7 @@ models = [model for i = 1:N]
 #           model13,model14,model15,model16,model17,
 #           model18,model19,model20]
 
-β = 2.0
+β = 1.0
 w = 0.0*ones(model.nx)
 γ = 1.0
 # x1_sample = [X_nominal_step[1] for i = 1:N]
@@ -264,19 +264,23 @@ prob_sample_moi = init_MOI_Problem(prob_sample)
 Z0_sample = pack(X_nominal_step,U_nominal_step,H_nominal_step[1],K_lqr,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT7,time_limit=120)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT7,time_limit=300)
 Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100,nlp=:SNOPT7,time_limit=180)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 K_sample = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-1]
 
+norm(vec(hcat(K_lqr...)) - vec(hcat(K_sample...)))
+norm(vec(hcat(X_nom_sample...)) - vec(hcat(X_nominal_step...)))
+
 norm(X_nom_sample[1] - Δ(X_nom_sample[T]))
 Q_nom_sample = [X_nom_sample[t][1:5] for t = 1:T]
 
 foot_traj_sample = [kinematics(model,Q_nom_sample[t]) for t = 1:T]
 
-plt_ft_nom = plot()
+plt_ft_nom = plot(foot_x_nom,foot_z_nom,xlabel="x",ylabel="z",width=2.0,
+    title="Foot trajectory",label="",color=:purple)
 for i = 1:N
     Q_nom_sample = [X_sample[i][t][1:5] for t = 1:T]
 
@@ -284,15 +288,15 @@ for i = 1:N
 
     foot_x_sample = [foot_traj_sample[t][1] for t=(1:T)]
     foot_y_sample = [foot_traj_sample[t][2] for t=(1:T)]
-    plt_ft_nom = plot!(foot_x_sample,foot_y_sample,aspect_ratio=:equal,xlabel="x",ylabel="z",
+    plt_ft_nom = plot!(foot_x_sample,foot_y_sample,xlabel="x",ylabel="z",
         title="Foot 1 trajectory",label="")
     @show foot_x_sample[1]
     @show foot_x_sample[end]
 end
 foot_x_sample = [foot_traj_sample[t][1] for t=(1:T)]
 foot_y_sample = [foot_traj_sample[t][2] for t=(1:T)]
-plt_ft_nom = plot!(foot_x_sample,foot_y_sample,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,
-    title="Foot 1 trajectory",label="",color=:red)
+plt_ft_nom = plot!(foot_x_sample,foot_y_sample,xlabel="x",ylabel="z",width=2.0,
+    title="Foot 1 trajectory",label="",color=:orange)
 
 display(plt_ft_nom)
 
@@ -333,17 +337,17 @@ end
 
 using Distributions
 model_sim = Biped(0.2755,0.288,Tm,nx,nu)
-switch = -1
+switch = 0
 T_sim = 10*T+1
 # model_sim.Tm = convert(Int,(T_sim-1)/2 + 1) + switch
 
 μ = zeros(nx)
-Σ = Diagonal(10.0*ones(nx))
+Σ = Diagonal(1.0e-3*ones(nx))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 
 μ0 = zeros(nx)
-Σ0 = Diagonal(1.0e-3*ones(nx))
+Σ0 = Diagonal(1.0e-5*ones(nx))
 W0 = Distributions.MvNormal(μ0,Σ0)
 w0 = rand(W0,1)
 
