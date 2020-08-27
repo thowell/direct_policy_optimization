@@ -177,14 +177,14 @@ plt_ft_nom = plot(foot_x_nom,foot_z_nom,aspect_ratio=:equal,xlabel="x",ylabel="z
 
 plot(hcat(U_nominal_step...)',linetype=:steppost)
 
-plot(foot_x)
-plot(foot_z)
+plot(foot_x_nom)
+plot(foot_z_nom)
 
 sum(H_nominal_step)
 
 # TVLQR policy
 Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
-R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
 H_lqr = [1.0 for t = 1:T-1]
 
 K_lqr = TVLQR_gains(model,X_nominal_step,U_nominal_step,H_nominal_step,Q_lqr,R_lqr)
@@ -265,7 +265,7 @@ Z0_sample = pack(X_nominal_step,U_nominal_step,H_nominal_step[1],K_lqr,prob_samp
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,Z0_sample,max_iter=100,nlp=:SNOPT7,time_limit=300)
-Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100,nlp=:SNOPT7,time_limit=180)
+# Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,max_iter=100,nlp=:SNOPT7,time_limit=180)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -279,8 +279,10 @@ Q_nom_sample = [X_nom_sample[t][1:5] for t = 1:T]
 
 foot_traj_sample = [kinematics(model,Q_nom_sample[t]) for t = 1:T]
 
-plt_ft_nom = plot(foot_x_nom,foot_z_nom,xlabel="x",ylabel="z",width=2.0,
-    title="Foot trajectory",label="",color=:purple)
+# plt_ft_nom = plot(foot_x_nom,foot_z_nom,xlabel="x",ylabel="z",width=2.0,
+#     title="Foot trajectory",label="",color=:purple)
+
+plt_ft_nom = plot()
 for i = 1:N
     Q_nom_sample = [X_sample[i][t][1:5] for t = 1:T]
 
@@ -289,30 +291,42 @@ for i = 1:N
     foot_x_sample = [foot_traj_sample[t][1] for t=(1:T)]
     foot_y_sample = [foot_traj_sample[t][2] for t=(1:T)]
     plt_ft_nom = plot!(foot_x_sample,foot_y_sample,xlabel="x",ylabel="z",
-        title="Foot 1 trajectory",label="")
+        title="Foot 1 trajectory",label=i==1 ? "sample" : "",color=:lightblue)
     @show foot_x_sample[1]
     @show foot_x_sample[end]
 end
 foot_x_sample = [foot_traj_sample[t][1] for t=(1:T)]
 foot_y_sample = [foot_traj_sample[t][2] for t=(1:T)]
-plt_ft_nom = plot!(foot_x_sample,foot_y_sample,xlabel="x",ylabel="z",width=2.0,
-    title="Foot 1 trajectory",label="",color=:orange)
+plt_ft_nom = plot!(foot_x_sample,foot_y_sample,xlabel="x",ylabel="z",width=4.0,
+    title="Foot trajectory",label="robust",color=:orange)
 
 display(plt_ft_nom)
 
 
-plt_x = plot()
-for i = 1:N
-    plt_x = plot!(hcat(X_sample[i]...)[1:5,:]',label="")
-end
-plt_x = plot!(hcat(X_nom_sample...)[1:5,:]',label="",color=:red)
+plt_x = plot(title="Robust Biped State",xaxis="time (s)",yaxis="configuration",legend=:right)
+# for i = 1:N
+#     plt_x = plot!(t_sample,hcat(X_sample[i]...)[1:5,:]',label=i==1 ? ["sample" "" "" "" ""] : "",
+#     color=:lightblue)
+# end
+plt_x = plot!(t_sample,hcat(X_nom_sample...)[1:5,:]',label=["q1" "q2" "q3" "q4" "q5"],
+    width=2.0)
 display(plt_x)
 
-plt_u = plot()
-for i = 1:N
-    plt_u = plot!(hcat(U_sample[i]...)[1:4,:]',label="",linetype=:steppost)
-end
-plt_u = plot!(hcat(U_nom_sample...)[1:4,:]',label="",color=:red,linetype=:steppost)
+plt_x = plot(title="Robust Biped State",xaxis="time (s)",yaxis="velocity",legend=:topright)
+# for i = 1:N
+#     plt_x = plot!(t_sample,hcat(X_sample[i]...)[5 .+ (1:5),:]',label=i==1 ? ["sample" "" "" "" ""] : "",
+#     color=:lightblue)
+# end
+plt_x = plot!(t_sample,hcat(X_nom_sample...)[5 .+ (1:5),:]',label=["q̇_1" "q̇_2" "q̇_3" "q̇_4" "q̇_5"],
+    width=2.0)
+display(plt_x)
+
+plt_u = plot(title="Robust Biped Control",xaxis="time (s)",yaxis="control",legend=:bottom)
+# for i = 1:N
+#     plt_u = plot!(hcat(U_sample[i]...)[1:4,:]',label="",linetype=:steppost)
+# end
+plt_u = plot!(t_sample[1:end-1],hcat(U_nom_sample...)[1:4,:]',
+    label=["τ_1" "τ_2" "τ_3" "τ_4"],width=2.0,linetype=:steppost)
 display(plt_u)
 
 # Visualization
@@ -342,12 +356,12 @@ T_sim = 10*T+1
 # model_sim.Tm = convert(Int,(T_sim-1)/2 + 1) + switch
 
 μ = zeros(nx)
-Σ = Diagonal(1.0e-3*ones(nx))
+Σ = Diagonal(1.0e-4*ones(nx))
 W = Distributions.MvNormal(μ,Σ)
 w = rand(W,T_sim)
 
 μ0 = zeros(nx)
-Σ0 = Diagonal(1.0e-5*ones(nx))
+Σ0 = Diagonal(1.0e-4*ones(nx))
 W0 = Distributions.MvNormal(μ0,Σ0)
 w0 = rand(W0,1)
 
@@ -365,12 +379,22 @@ z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K_lqr
     ul=ul,uu=uu)
 plt = plot!(t_sim_nominal,hcat(z_tvlqr...)[1:5,:]',color=:purple,label=["tvlqr" "" "" "" ""],width=2.0)
 
-plt = plot(t_sample,hcat(X_nom_sample...)[1:5,:]',legend=:bottom,color=:red,label="",
-    width=2.0,xlabel="time (s)",title="Biped",ylabel="state")
+plt = plot(t_sample,hcat(X_nom_sample...)[1:5,:]',legend=:right,color=:orange,label=["robust nominal" "" "" "" ""],
+    width=2.0,xlabel="time (s)",title="Robust Biped Tracking Performance",ylabel="configuration")
 z_sample, u_sample, J_sample,Jx_sample, Ju_sample = simulate_linear_controller(K_sample,
     X_nom_sample,U_nom_sample,model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample[1],vec(X_nom_sample[1]+w0),w,_norm=2,
     ul=ul,uu=uu,controller=:policy)
-plt = plot!(t_sim_sample,hcat(z_sample...)[1:5,:]',linetype=:steppost,color=:orange,label=["sample" "" "" "" ""],width=2.0)
+plt = plot!(t_sim_sample,hcat(z_sample...)[1:5,:]',
+    color=:magenta,label=["simulated" "" "" "" ""],width=1.0)
+
+
+plt = plot(t_sample[1:end-1],hcat(U_nom_sample...)[1:4,:]',legend=:bottom,color=:orange,label=["robust nominal" "" "" ""],
+    linetype=:steppost,width=2.0,xlabel="time (s)",title="Robust Biped Tracking Performance",ylabel="control")
+z_sample, u_sample, J_sample,Jx_sample, Ju_sample = simulate_linear_controller(K_sample,
+    X_nom_sample,U_nom_sample,model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample[1],vec(X_nom_sample[1]+w0),w,_norm=2,
+    ul=ul,uu=uu,controller=:policy)
+plt = plot!(t_sim_sample[1:end-1],hcat(u_sample...)[1:4,:]',
+    color=:magenta,label=["simulated" "" "" ""],width=1.0)
 
 # objective value
 J_tvlqr

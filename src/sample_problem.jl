@@ -167,7 +167,7 @@ function pack(X0,U0,h0,K0,prob::SampleProblem;
             t==T && continue
             Z0[prob.idx_sample[i].u[t]] = U0[t]
             Z0[prob.idx_x_tmp[i].x[t]] = X0[t+1]
-
+            Z0[prob.idx_sample[i].h[t]] = h0
             if prob.disturbance_ctrl
                 Z0[prob.idx_uw[i][t]] .= uw
                 Z0[prob.idx_slack[i][t]] .= s
@@ -198,6 +198,7 @@ function pack(X0,U0,h0,prob::SampleProblem;
             t==T && continue
             Z0[prob.idx_sample[i].u[t]] = U0[t]
             Z0[prob.idx_x_tmp[i].x[t]] = X0[t+1]
+            Z0[prob.idx_sample[i].h[t]] = h0
 
             if prob.disturbance_ctrl
                 Z0[prob.idx_uw[i][t]] .= uw
