@@ -155,8 +155,9 @@ z_sol = solve(z0,prob)
 
 K_sample = [reshape(z_sol[idx_k[t]],nu,nx) for t = 1:T-1]
 K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-println("Policy solution error: $(sum(K_error)/N)")
+println("Policy solution error: $(sum(K_error)/T)")
 
-plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",yaxis=:log,
-    ylims=(1.0e-16,1.0),width=2.0,legend=:bottom,
+plt = plot(K_error,xlabel="time step",ylabel="norm(Θ-K)/norm(K)",yaxis=:log,
+    ylims=(1.0e-16,1.0),width=2.0,legend=:bottom,label="",
     title="Gain matrix error")
+savefig(plt,joinpath(@__DIR__,"results/sample_TVLQR_pendulum.png"))

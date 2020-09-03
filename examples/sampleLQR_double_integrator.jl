@@ -86,7 +86,10 @@ z_sol = solve(z0,prob)
 
 K_sample = [reshape(z_sol[idx_k[t]],nu,nx) for t = 1:T-1]
 K_error = [norm(vec(K_sample[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-println("Policy solution error: $(sum(K_error)/N)")
+println("Policy solution error: $(sum(K_error)/T)")
 
 using Plots
-plot(K_error,xlabel="time step",ylabel="norm(Ks-K)/norm(K)",ylims=(1.0e-16,1.0),yaxis=:log,width=2.0,legend=:bottom,title="Gain matrix error")
+plt = plot(K_error,xlabel="time step",ylabel="norm(θ-K)/norm(K)",
+    ylims=(1.0e-16,1.0),yaxis=:log,width=2.0,legend=:bottom,
+    title="Gain matrix error",label="")
+savefig(plt,joinpath(@__DIR__,"results/sample_LQR_double_integrator.png"))

@@ -14,7 +14,6 @@ model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,μ0,
 T = 51
 
 # Bounds
-
 # h = h0 (fixed timestep)
 tf0 = 5.0
 h0 = tf0/(T-1)
