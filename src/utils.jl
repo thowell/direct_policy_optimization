@@ -105,22 +105,33 @@ function TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr;
     K = TVLQR(A,B,Q_lqr,[R_lqr[t][u_policy,u_policy] for t=1:T-1])
 end
 
-function resample(X; β=1.0,w=1.0)
+function sample_mean(X)
     N = length(X)
     nx = length(X[1])
 
     xμ = sum(X)./N
-    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + Diagonal(w)
-    cols = fastsqrt(Σμ)
-    Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:nx]
+end
 
+function sample_covariance(X; β=1.0,w=ones(length(X[1])))
+    N = length(X)
+    xμ = sample_mean(X)
+    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + Diagonal(w)
+end
+
+function resample(X; β=1.0,w=ones(length(X[1])))
+    N = length(X)
+    nx = length(X[1])
+    xμ = sample_mean(X)
+    Σμ = sample_covariance(X,β=β,w=w)
+    cols = sqrt(Σμ)
+    Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:nx]
     return Xs
 end
 
 function resample_vec(X,n,N,k; β=1.0,w=1.0)
     xμ = sum([X[(i-1)*n .+ (1:n)] for i = 1:N])./N
     Σμ = (0.5/(β^2))*sum([(X[(i-1)*n .+ (1:n)] - xμ)*(X[(i-1)*n .+ (1:n)] - xμ)' for i = 1:N]) + Diagonal(w)
-    cols = fastsqrt(Σμ)
+    cols = sqrt(Σμ)
     Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:n]
     return Xs[k]
 end

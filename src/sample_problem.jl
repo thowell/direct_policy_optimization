@@ -335,7 +335,7 @@ function eval_constraint!(c,Z,prob::SampleProblem)
 
    sample_dynamics_constraints!(view(c,M .+ (1:prob.M_dynamics)),Z,prob)
 
-   prob.policy_constraint && sample_policy_constraints!(view(c,
+   prob.policy_constraint && policy_constraints!(view(c,
     M+prob.M_dynamics .+ (1:prob.M_policy)),Z,prob)
 
    prob.prob.stage_constraints && sample_stage_constraints!(view(c,
@@ -357,8 +357,8 @@ function eval_constraint_jacobian!(∇c,Z,prob::SampleProblem)
     len_dyn = length(sparsity_jacobian_sample_dynamics(prob))
     ∇sample_dynamics_constraints!(view(∇c,len .+ (1:len_dyn)),Z,prob)
 
-    len_policy = length(sparsity_jacobian_sample_policy(prob))
-    prob.policy_constraint && ∇sample_policy_constraints!(view(∇c,
+    len_policy = length(sparsity_jacobian_policy(prob))
+    prob.policy_constraint && ∇policy_constraints!(view(∇c,
         len+len_dyn .+ (1:len_policy)),Z,prob)
 
     len_stage = length(sparsity_jacobian_sample_stage(prob))
@@ -381,7 +381,7 @@ function sparsity_jacobian(prob::SampleProblem)
     collect([sparsity_jacobian(prob.prob)...,
              sparsity_jacobian_sample_dynamics(prob,
                 r_shift=prob.prob.M)...,
-             sparsity_jacobian_sample_policy(prob,
+             sparsity_jacobian_policy(prob,
                 r_shift=prob.prob.M+prob.M_dynamics)...,
              sparsity_jacobian_sample_stage(prob,
                 r_shift=prob.prob.M+prob.M_dynamics+prob.M_policy)...,

@@ -1,4 +1,4 @@
-function sample_policy_constraints!(c,z,prob::SampleProblem)
+function policy_constraints!(c,z,prob::SampleProblem)
     idx_nom = prob.idx_nom
     idx_sample = prob.idx_sample
     idx_x_tmp = prob.idx_x_tmp
@@ -36,7 +36,7 @@ function sample_policy_constraints!(c,z,prob::SampleProblem)
     nothing
 end
 
-function ∇sample_policy_constraints!(∇c,z,prob::SampleProblem)
+function ∇policy_constraints!(∇c,z,prob::SampleProblem)
     idx_nom = prob.idx_nom
     idx_sample = prob.idx_sample
     idx_x_tmp = prob.idx_x_tmp
@@ -110,7 +110,7 @@ function ∇sample_policy_constraints!(∇c,z,prob::SampleProblem)
     nothing
 end
 
-function sparsity_jacobian_sample_policy(prob::SampleProblem;
+function sparsity_jacobian_policy(prob::SampleProblem;
         r_shift=0)
 
     idx_nom = prob.idx_nom

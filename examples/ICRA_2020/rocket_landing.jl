@@ -107,11 +107,6 @@ xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 for i = 1:N
     xl_traj_sample[i][1] = x1_sample[1]
     xu_traj_sample[i][1] = x1_sample[1]
-
-    xl_traj_sample[i][T] = xT
-    xu_traj_sample[i][T] = xT
-    xl_traj_sample[i][T][1] = -0.5
-    xu_traj_sample[i][T][1] = 0.5
 end
 
 prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
@@ -126,7 +121,7 @@ Z0_sample = pack(X_nom,U_nom,h0,K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
-Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
+# Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)

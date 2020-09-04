@@ -53,14 +53,14 @@ end
 @assert sum(∇c) - sum(ForwardDiff.jacobian(tmp_c,c0,Z0_sample)) < 1.0e-10
 
 c0 = zeros(prob_sample.M_policy)
-sample_policy_constraints!(c0,Z0_sample,prob_sample)
-tmp_c(c,z) = sample_policy_constraints!(c,z,prob_sample)
+policy_constraints!(c0,Z0_sample,prob_sample)
+tmp_c(c,z) = policy_constraints!(c,z,prob_sample)
 ForwardDiff.jacobian(tmp_c,c0,Z0_sample)
 
-spar = sparsity_jacobian_sample_policy(prob_sample)
+spar = sparsity_jacobian_policy(prob_sample)
 ∇c_vec = zeros(length(spar))
 ∇c = zeros(prob_sample.M_policy,prob_sample.N_nlp)
-∇sample_policy_constraints!(∇c_vec,Z0_sample,prob_sample)
+∇policy_constraints!(∇c_vec,Z0_sample,prob_sample)
 for (i,k) in enumerate(spar)
     ∇c[k[1],k[2]] = ∇c_vec[i]
 end

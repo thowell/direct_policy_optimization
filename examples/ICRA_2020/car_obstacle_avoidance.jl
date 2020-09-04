@@ -1,6 +1,7 @@
-include("../src/direct_policy_optimization.jl")
-include("../dynamics/car.jl")
-include("../dynamics/obstacles.jl")
+include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
+include(joinpath(pwd(),"dynamics/car.jl"))
+include(joinpath(pwd(),"dynamics/obstacles.jl"))
+
 using Plots
 
 # Horizon
@@ -168,7 +169,8 @@ plt = plot!(Shape(cx4,cy4),color=:red,label="",linecolor=:red)
 for i = 1:N
     x_sample_pos = [X_sample[i][t][1] for t = 1:T]
     y_sample_pos = [X_sample[i][t][2] for t = 1:T]
-    plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,label="")
+    plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,
+        color=:cyan,label="")
 end
 
 plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)",color=:purple,legend=:topleft)
@@ -294,3 +296,8 @@ for i = 1:4
     cyl = Cylinder(Point3f0(xc[i],yc[i],0),Point3f0(xc[i],yc[i],0.1),convert(Float32,0.035))
     setobject!(vis["cyl$i"],cyl,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
 end
+
+
+
+
+x1_sample

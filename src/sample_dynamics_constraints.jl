@@ -139,7 +139,9 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::SampleProblem)
             c_idx = idx_x_tmp_vec
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec)
             len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec))
+            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec))
+            ∇c[s .+ (1:len)] = vec(real.(FiniteDiff.finite_difference_jacobian(resample_x_tmp,x⁺_tmp_vec)))
+
             s += len
 
             if disturbance_ctrl
