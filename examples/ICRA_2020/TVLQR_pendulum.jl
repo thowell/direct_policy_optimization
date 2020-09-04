@@ -219,12 +219,12 @@ plt_x = plot!(t_sim,hcat(z_nonlin...)[1:2,:]',linetype=:steppost,color=:orange,
 plt_u = plot(t_nom[1:T-1],hcat(u_nom...)[1:1,:]',legend=:topright,color=:red,
     label=["nominal"],width=2.0,xlabel="time (s)",
     title="Pendulum",ylabel="control",linetype=:steppost)
-plt_u = plot!(t_sim[1:T_sim-1],hcat(u_tvlqr...)[1:1,:]',color=:purple,label="tvlqr",
-    width=2.0)
-plt_u = plot!(t_sim[1:T_sim-1],hcat(u_linear...)[1:1,:]',color=:cyan,label="linear",
-    width=2.0)
-plt_u = plot!(t_sim[1:T_sim-1],hcat(u_nonlin...)[1:1,:]',color=:orange,label="nonlinear",
-    width=2.0)
+plt_u = plot!(t_sim[1:T_sim-1],hcat(u_tvlqr...)[1:1,:]',color=:purple,
+    label="tvlqr",width=2.0)
+plt_u = plot!(t_sim[1:T_sim-1],hcat(u_linear...)[1:1,:]',color=:cyan,
+    label="linear",width=2.0)
+plt_u = plot!(t_sim[1:T_sim-1],hcat(u_nonlin...)[1:1,:]',color=:orange,
+    label="nonlinear",width=2.0)
 
 # objective value
 J_tvlqr
