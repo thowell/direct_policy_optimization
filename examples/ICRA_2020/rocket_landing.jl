@@ -2,6 +2,11 @@ include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
 include(joinpath(pwd(),"dynamics/rocket.jl"))
 using Plots
 
+# Model
+model = model
+nx = model.nx
+nu = model.nu
+
 # Horizon
 T = 51
 
@@ -120,7 +125,7 @@ Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),max_iter=500,nlp=:SNOPT7
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
-
+Θ = [reshape(Z_sample_sol[prob_sample.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
 # Time trajectories
 t_nominal = zeros(T)
 t_sample = zeros(T)
@@ -196,3 +201,58 @@ for t = 1:T
 end
 MeshCat.setanimation!(vis,anim)
 # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
+
+# Simulate policy
+using Distributions
+model_sim = model
+T_sim = 10*T
+
+W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-3*ones(nx)))
+w = rand(W,T_sim)
+
+W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-3*ones(nx)))
+w0 = rand(W0,1)
+
+z0_sim = vec(copy(X_nom[1]) + w0)
+
+t_nom = range(0,stop=sum(H_nom),length=T)
+t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
+t_sim_sample = range(0,stop=sum(H_nom_sample),length=T_sim)
+
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
+    X_nom,U_nom,model_sim,Q,R,T_sim,H_nom[1],z0_sim,w,_norm=2)
+
+z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(Θ,
+    X_nom_sample,U_nom_sample,model_sim,Q,R,T_sim,H_nom_sample[1],z0_sim,w,_norm=2)
+
+plt_x = plot(t_nom,hcat(X_nom...)[1:nx,:]',legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Rocket",ylabel="state")
+plt_x = plot!(t_sim_nom,hcat(z_tvlqr...)[1:nx,:]',color=:purple,label="tvlqr",
+    width=2.0)
+
+plt_x = plot(t_sample,hcat(X_nom_sample...)[1:nx,:]',legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Rocket",ylabel="state")
+plt_x = plot!(t_sim_sample,hcat(z_sample...)[1:nx,:]',linetype=:steppost,color=:orange,
+    label="",width=2.0)
+
+# plt_u = plot(t_nom[1:T-1],hcat(u_nom...)[1:1,:]',legend=:topright,color=:red,
+#     label=["nominal"],width=2.0,xlabel="time (s)",
+#     title="Pendulum",ylabel="control",linetype=:steppost)
+# plt_u = plot!(t_sim[1:T_sim-1],hcat(u_tvlqr...)[1:1,:]',color=:purple,label="tvlqr",
+#     width=2.0)
+# plt_u = plot!(t_sim[1:T_sim-1],hcat(u_nonlin...)[1:1,:]',color=:orange,label="nonlinear",
+#     width=2.0)
+
+# objective value
+J_tvlqr
+J_sample
+
+# state tracking
+Jx_tvlqr
+Jx_sample
+
+# control tracking
+Ju_tvlqr
+Ju_sample
