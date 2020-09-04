@@ -1,10 +1,10 @@
-include("../src/sample_motion_planning.jl")
+include("../src/direct_policy_optimization.jl")
 include("../dynamics/car.jl")
 include("../dynamics/obstacles.jl")
 using Plots
 
 # Horizon
-T = 50
+T = 51
 
 # Bounds
 

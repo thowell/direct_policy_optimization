@@ -75,7 +75,7 @@ function TVLQR(A,B,Q,R)
     return K
 end
 
-function TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr;
+function nominal_jacobians(model,X_nominal,U_nominal,H_nominal;
         u_policy=(1:length(U_nominal[1])))
     A = []
     B = []
@@ -93,6 +93,14 @@ function TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr;
         push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
         push!(B,-A⁺\ForwardDiff.jacobian(fu,u))
     end
+    return A, B
+end
+
+function TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr;
+        u_policy=(1:length(U_nominal[1])))
+
+    A,B = nominal_jacobians(model,X_nominal,U_nominal,H_nominal,
+            u_policy=u_policy)
 
     K = TVLQR(A,B,Q_lqr,[R_lqr[t][u_policy,u_policy] for t=1:T-1])
 end

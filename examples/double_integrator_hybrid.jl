@@ -1,4 +1,4 @@
-include("../src/sample_motion_planning.jl")
+include("../src/direct_policy_optimization.jl")
 include("../dynamics/double_integrator.jl")
 include("../src/loop.jl")
 using Plots

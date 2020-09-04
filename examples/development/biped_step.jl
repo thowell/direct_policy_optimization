@@ -1,4 +1,4 @@
-include("../src/sample_motion_planning.jl")
+include("../src/direct_policy_optimization.jl")
 include("../dynamics/biped.jl")
 
 # Horizon
@@ -317,7 +317,7 @@ using MeshIO
 using Rotations
 using RigidBodyDynamics
 
-urdf = "/home/taylor/Research/sample_motion_planning/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
+urdf = "/home/taylor/Research/direct_policy_optimization/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
 mechanism = parse_urdf(urdf,floating=false)
 
 vis = Visualizer()

@@ -1,4 +1,4 @@
-include("../src/sample_motion_planning.jl")
+include("../src/direct_policy_optimization.jl")
 include("../dynamics/biped.jl")
 using Plots
 
@@ -18,7 +18,7 @@ model.Tm = Tm
 # using Rotations
 # using RigidBodyDynamics
 
-# urdf = "/home/taylor/Research/sample_motion_planning/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
+# urdf = "/home/taylor/Research/direct_policy_optimization/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
 # mechanism = parse_urdf(urdf,floating=false)
 #
 # vis = Visualizer()
@@ -473,7 +473,7 @@ display(plt_u)
 # using Rotations
 # using RigidBodyDynamics
 #
-# urdf = "/home/taylor/Research/sample_motion_planning/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
+# urdf = "/home/taylor/Research/direct_policy_optimization/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
 # mechanism = parse_urdf(urdf,floating=false)
 #
 # vis = Visualizer()
