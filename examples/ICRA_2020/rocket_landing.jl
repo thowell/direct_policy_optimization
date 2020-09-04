@@ -1,14 +1,12 @@
-include("../src/direct_policy_optimization.jl")
-include("../dynamics/rocket.jl")
+include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
+include(joinpath(pwd(),"dynamics/rocket.jl"))
 using Plots
 
 # Horizon
-T = 100
-Tm = 50
+T = 51
 
 # Initial and final states
-x1 = [1.0; model.l2+3.0; 5.0*pi/180.0; -0.1; -1.0; 0.1*pi/180.0]
-# xm = [0.0; model.l2+1.0; 0.0; 0.0; 0.0; 0.0]
+x1 = [5.0; model.l2+10.0; -5*pi/180.0; -1.0; -1.0; -0.5*pi/180.0]
 xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0]
 
 # Bounds
@@ -16,50 +14,45 @@ xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0]
 # xl <= x <= xl
 xl = -Inf*ones(model.nx)
 xl[2] = model.l2
-xl[3] = -20.0*pi/180.0
-
 xu = Inf*ones(model.nx)
-xu[3] = 20.0*pi/180.0
 
 xl_traj = [xl for t = 1:T]
-xl_traj[1] = x1
-# xl_traj[T] = [xT[1:3];-Inf*ones(3)]
-xl_traj[T] = xT
 xu_traj = [xu for t = 1:T]
-xu_traj[1] = x1
-# xu_traj[T] = [xT[1:3];Inf*ones(3)]
-xu_traj[T] = xT
-# ul <= u <= uu
-uu = [100.0;50.0;30.0*pi/180.0]
-ul = [0.0;-50.0;-30.0*pi/180.0]
 
-# h = h0 (fixed timestep)
-tf0 = 5.0
+xl_traj[1] = x1
+xu_traj[1] = x1
+
+xl_traj[T] = xT
+xu_traj[T] = xT
+xl_traj[T][1] = -0.5
+xu_traj[T][1] = 0.5
+
+
+# ul <= u <= uu
+uu = [25.0;5.0;10*pi/180.0]
+ul = [0.0;-5.0;-10*pi/180.0]
+
+tf0 = 10.0
 h0 = tf0/(T-1)
-hu = h0
-hl = h0
+hu = 10*h0
+hl = 0*h0
 
 # Objective
-Q = [t == Tm ? Diagonal([1.0*ones(3);1.0*ones(3)]) : Diagonal([100.0*ones(3);100.0*ones(3)]) for t = 1:T]
-R = [Diagonal(1.0e-2*ones(model.nu)) for t = 1:T-1]
-c = 0.0
+Q = [(t != T ? Diagonal([1.0*ones(3);1.0*ones(3)])
+    : Diagonal([100.0*ones(3);100.0*ones(3)])) for t = 1:T]
+R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
 
-# TVLQR cost
-Q_lqr = [t < T ? Diagonal([10.0*ones(3);10.0*ones(3)]) : Diagonal([10.0*ones(3);10.0*ones(3)]) for t = 1:T]
-R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-H_lqr = [0.0 for t = 1:T-1]
-
 # Problem
-prob = init_problem(model.nx,model.nu,T,x1,xT,model,obj,
+prob = init_problem(model.nx,model.nu,T,model,obj,
                     xl=xl_traj,
                     xu=xu_traj,
                     ul=[ul for t=1:T-1],
                     uu=[uu for t=1:T-1],
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1],
-                    goal_constraint=false
                     )
 
 # MathOptInterface problem
@@ -74,50 +67,56 @@ Z0 = pack(X0,U0,h0,prob)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0))
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
-# TVLQR policy
-K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
+@show sum(H_nom)
+x_pos = [X_nom[t][1] for t = 1:T]
+z_pos = [X_nom[t][2] for t = 1:T]
 
-# # Sample
-# α = 5.0e-4
-# x11 = x1 + α*[1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-# x12 = x1 + α*[-1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-# x13 = x1 + α*[0.0; 1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-# x14 = x1 + α*[0.0; -1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-# x15 = x1 + α*[0.0; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-# x16 = x1 + α*[0.0; 0.0; -1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-# x17 = x1 + α*[0.0; 0.0; 0.0; 1.0; 0.0; 0.0; 0.0; 0.0]
-# x18 = x1 + α*[0.0; 0.0; 0.0; -1.0; 0.0; 0.0; 0.0; 0.0]
-# x19 = x1 + α*[0.0; 0.0; 0.0; 0.0; 1.0; 0.0; 0.0; 0.0]
-# x110 = x1 + α*[0.0; 0.0; 0.0; 0.0; -1.0; 0.0; 0.0; 0.0]
-# x111 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 1.0; 0.0; 0.0]
-# x112 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; -1.0; 0.0; 0.0]
-# x113 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 1.0; 0.0]
-# x114 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; -1.0; 0.0]
-# x115 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 1.0]
-# x116 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0; -1.0]
-# x1_sample = [x11,x12,x13,x14,x15,x16,x17,x18,x19,x110,x111,x112,x113,x114,x115,x116]
+plot(x_pos,z_pos,xlabel="x",ylabel="z",title="Rocket trajectory",
+    aspect_ratio=:equal)
+
+plot(x_pos)
+plot(z_pos)
+plot(hcat(U_nom...)',linetype=:steppost)
+
+# TVLQR policy
+Q_lqr = [(t < T ? Diagonal([10.0*ones(3);10.0*ones(3)])
+   : Diagonal([100.0*ones(3);100.0*ones(3)])) for t = 1:T]
+R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
+H_lqr = [10.0 for t = 1:T-1]
+
+K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w0 = 1.0e-3*ones(model.nx)
-w = 1.0e-8*ones(model.nx)
+w = 1.0e-2*ones(model.nx)
 γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=β,w=w0)
+x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
-prob_sample = init_sample_problem(prob,models,x1_sample,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
-    disturbance_ctrl=true,α=1.0e-6)
+xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+
+for i = 1:N
+    xl_traj_sample[i][1] = x1_sample[1]
+    xu_traj_sample[i][1] = x1_sample[1]
+end
+
+prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample,
+    n_policy=model.nu)
+
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 # Z0_sample = pack(X0,U0,h0,K0,prob_sample)
 Z0_sample = pack(X_nom,U_nom,h0,K,prob_sample)
-Z_sample_sol = Z0_sample
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
+Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -134,15 +133,8 @@ display("time (nominal): $(sum(H_nom))s")
 display("time (sample): $(sum(H_nom_sample))s")
 
 # Plots results
-
-# Position trajectory
-x_nom_pos = [X_nom[t][1] for t = 1:T]
-z_nom_pos = [X_nom[t][2] for t = 1:T]
-θ_nom_pos = [X_nom[t][3] for t = 1:T]
-plot(θ_nom_pos)
-
-plt = plot(x_nom_pos,z_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="z",width=2.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)",color=:purple,legend=:topleft)
-
+plot(x_pos,z_pos,xlabel="x",ylabel="z",title="Rocket trajectory",
+    aspect_ratio=:equal,color=:purple,width=2.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)")
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 z_sample_pos = [X_nom_sample[t][2] for t = 1:T]
 plt = plot!(x_sample_pos,z_sample_pos,aspect_ratio=:equal,width=2.0,label="sample  (tf=$(round(sum(H_nom_sample),digits=3))s)",color=:orange,legend=:bottomright)
@@ -156,8 +148,8 @@ plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',width=2.0,
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',color=:orange,
     width=2.0,label=["FE (sample nominal)" "FT (sample nominal)" "φ (sample nominal)"],linetype=:steppost)
 savefig(plt,joinpath(@__DIR__,"results/rocket_control.png"))
-#
-# # Samples
+
+# Samples
 
 # State samples
 plt1 = plot(title="Sample states",legend=:topright,xlabel="time (s)");
@@ -191,12 +183,12 @@ using Rotations
 
 vis = Visualizer()
 open(vis)
-model.l1
+
 l1 = Cylinder(Point3f0(0,0,-model.l2),Point3f0(0,0,model.l1),convert(Float32,0.1))
 setobject!(vis["rocket"],l1,MeshPhongMaterial(color=RGBA(1,1,1,1.0)))
 
-anim = MeshCat.Animation(convert(Int,floor(1/h0)))
-
+anim = MeshCat.Animation(convert(Int,floor(1/H_nom[1])))
+H_nom[1]
 for t = 1:T
     MeshCat.atframe(anim,t) do
         settransform!(vis["rocket"], compose(Translation(X_nom[t][1],0.0,X_nom[t][2]),LinearMap(RotY(X_nom[t][3]))))

@@ -200,7 +200,6 @@ t_sim = range(0,stop=Δt*T,length=T_sim)
 z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
     x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,_norm=2)
 
-
 z_linear, u_linear, J_linear, Jx_linear, Ju_linear = simulate_linear_controller(Θ_linear,
     x_nom,u_nom,model_sim,Q,R,T_sim,Δt,z0_sim,w,_norm=2)
 
