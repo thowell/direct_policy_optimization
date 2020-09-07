@@ -71,10 +71,10 @@ u_nom = [z_nom_sol[u_nom_idx[t]] for t = 1:T-1]
 θ_nom_sol = vec([x_nom[t][1] for t = 1:T])
 dθ_nom_sol = vec([x_nom[t][2] for t = 1:T])
 
-plot(hcat(x_nom...)',xlabel="time step",ylabel="state",label=["θ" "dθ"],
+Plots.plot(hcat(x_nom...)',xlabel="time step",ylabel="state",label=["θ" "dθ"],
     width=2.0,legend=:topleft)
-plot(hcat(u_nom...)',xlabel="time step",ylabel="control",label="",width=2.0)
-plot(θ_nom_sol,dθ_nom_sol,xlabel="θ",ylabel="dθ",width=2.0)
+Plots.plot(hcat(u_nom...)',xlabel="time step",ylabel="control",label="",width=2.0)
+Plots.plot(θ_nom_sol,dθ_nom_sol,xlabel="θ",ylabel="dθ",width=2.0)
 
 # TVLQR solution
 Q = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0;100.0]) for t = 1:T]
@@ -126,7 +126,7 @@ function con!(c,z)
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_dynamics_linear(xs,u,A[t],B[t],β=β,w=w)
+        xs⁺ = sample_dynamics_linear(xs,u,A[t],B[t],β=β,w=w,fast_sqrt=true)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         θ = reshape(view(z,idx_θ[t]),nu,nx)
 
@@ -159,7 +159,7 @@ function con!(c,z)
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_dynamics(model,xs,u,Δt,t,β=β,w=w)
+        xs⁺ = sample_dynamics(model,xs,u,Δt,t,β=β,w=w,fast_sqrt=true)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         θ = reshape(view(z,idx_θ[t]),nu,nx)
 
@@ -180,6 +180,24 @@ policy_error_nonlinear = [norm(vec(Θ_nonlinear[t]-K[t]))/norm(vec(K[t]))
     for t = 1:T-1]
 println("Policy solution difference (avg.) [nonlinear dynamics]:
     $(sum(policy_error_nonlinear)/T)")
+
+using PGFPlots
+const PGF = PGFPlots
+
+p = PGF.Plots.Linear(range(1,stop=T-1,length=T-1),policy_error_linear,mark="",style="color=black, very thick")
+
+a = Axis(p,
+    xmin=1., ymin=1.0e-16, xmax=T-1, ymax=1.0,
+    axisEqualImage=false,
+    hideAxis=false,
+	ylabel="matrix-norm error",
+	xlabel="time step",
+	ymode="log",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"TVLQR_pendulum.tikz"), a, include_preamble=false)
 
 # Simulate policy
 using Distributions
