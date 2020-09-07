@@ -70,7 +70,7 @@ function con!(c,z)
     for t = 1:T-1
         xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
         u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_dynamics_linear(xs,u,A,B,β=β,w=w)
+        xs⁺ = sample_dynamics_linear(xs,u,A,B,β=β,w=w,fast_sqrt=true)
         x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
         θ = reshape(view(z,idx_θ[t]),nu,nx)
 
@@ -95,3 +95,21 @@ using Plots
 plt = plot(policy_error,xlabel="time step",ylims=(1.0e-16,1.0),yaxis=:log,
     width=2.0,legend=:bottom,ylabel="matrix-norm error",label="")
 savefig(plt,joinpath(@__DIR__,"results/LQR_double_integrator.png"))
+
+using PGFPlots
+const PGF = PGFPlots
+
+p = PGF.Plots.Linear(range(1,stop=T-1,length=T-1),policy_error,mark="",style="color=black, very thick")
+
+a = Axis(p,
+    xmin=1., ymin=1.0e-16, xmax=T-1, ymax=1.0,
+    axisEqualImage=false,
+    hideAxis=false,
+	ylabel="matrix-norm error",
+	xlabel="time step",
+	ymode="log",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"LQR_double_integrator.tikz"), a, include_preamble=false)

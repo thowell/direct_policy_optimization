@@ -128,6 +128,17 @@ function resample(X; β=1.0,w=ones(length(X[1])))
     return Xs
 end
 
+
+function resample_fastsqrt(X; β=1.0,w=ones(length(X[1])))
+    N = length(X)
+    nx = length(X[1])
+    xμ = sample_mean(X)
+    Σμ = sample_covariance(X,β=β,w=w)
+    cols = fastsqrt(Σμ)
+    Xs = [xμ + s*β*cols[:,i] for s in [-1.0,1.0] for i = 1:nx]
+    return Xs
+end
+
 function resample_vec(X,n,N,k; β=1.0,w=1.0)
     xμ = sum([X[(i-1)*n .+ (1:n)] for i = 1:N])./N
     Σμ = (0.5/(β^2))*sum([(X[(i-1)*n .+ (1:n)] - xμ)*(X[(i-1)*n .+ (1:n)] - xμ)' for i = 1:N]) + Diagonal(w)
@@ -136,22 +147,22 @@ function resample_vec(X,n,N,k; β=1.0,w=1.0)
     return Xs[k]
 end
 
-function sample_dynamics_linear(X,U,A,B; β=1.0,w=1.0)
+function sample_dynamics_linear(X,U,A,B; β=1.0,w=1.0,fast_sqrt=false)
     N = length(X)
     X⁺ = []
     for i = 1:N
         push!(X⁺,A*X[i] + B*U[i])
     end
-    Xs⁺ = resample(X⁺,β=β,w=w)
+    Xs⁺ = fast_sqrt ? resample_fastsqrt(X⁺,β=β,w=w) : resample(X⁺,β=β,w=w)
     return Xs⁺
 end
 
-function sample_dynamics(model,X,U,Δt,t; β=1.0,w=1.0)
+function sample_dynamics(model,X,U,Δt,t; β=1.0,w=1.0,fast_sqrt=false)
     N = length(X)
     X⁺ = []
     for i = 1:N
         push!(X⁺,discrete_dynamics(model,X[i],U[i],Δt,t))
     end
-    Xs⁺ = resample(X⁺,β=β,w=w)
+    Xs⁺ = fast_sqrt ? resample_fastsqrt(X⁺,β=β,w=w) : resample(X⁺,β=β,w=w)
     return Xs⁺
 end

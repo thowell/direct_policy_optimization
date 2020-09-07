@@ -1,4 +1,4 @@
-using LinearAlgebra, ForwardDiff, StaticArrays
+using LinearAlgebra, ForwardDiff, FiniteDiff, StaticArrays
 using MathOptInterface, Ipopt
 const MOI = MathOptInterface
 

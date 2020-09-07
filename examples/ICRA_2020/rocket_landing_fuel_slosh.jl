@@ -3,7 +3,7 @@ include(joinpath(pwd(),"dynamics/rocket.jl"))
 using Plots
 
 # Model
-model = model
+model = model_slosh
 nx = model.nx
 nu = model.nu
 
@@ -11,8 +11,8 @@ nu = model.nu
 T = 51
 
 # Initial and final states
-x1 = [5.0; model.l2+10.0; -5*pi/180.0; -1.0; -1.0; -0.5*pi/180.0]
-xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0]
+x1 = [5.0; model.l2+10.0; -5*pi/180.0; 0.0; -1.0; -1.0; -0.5*pi/180.0; 0.0]
+xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
 
 # Bounds
 
@@ -43,8 +43,8 @@ hu = 10*h0
 hl = 0*h0
 
 # Objective
-Q = [(t != T ? Diagonal([1.0*ones(3);1.0*ones(3)])
-    : Diagonal([100.0*ones(3);100.0*ones(3)])) for t = 1:T]
+Q = [(t != T ? Diagonal([1.0*ones(4);1.0*ones(4)])
+    : Diagonal([100.0*ones(4);100.0*ones(4)])) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
@@ -87,17 +87,21 @@ plot(z_pos)
 plot(hcat(U_nom...)',linetype=:steppost)
 
 # TVLQR policy
-Q_lqr = [(t < T ? Diagonal([10.0*ones(3);10.0*ones(3)])
-   : Diagonal([100.0*ones(3);100.0*ones(3)])) for t = 1:T]
+Q_lqr = [(t < T ? Diagonal([10.0*ones(4);10.0*ones(4)])
+   : Diagonal([100.0*ones(4);100.0*ones(4)])) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
 H_lqr = [10.0 for t = 1:T-1]
 
 K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 
 N = 2*model.nx
-models = [model for i = 1:N]
+mf = range(0.9*model.mf,stop=1.1*model.mf,length=N)
+lf = range(0.9*model.l3,stop=1.1*model.l3,length=N)
+models = [RocketSlosh(model.mr,model.Jr,mf[i],model.g,model.l1,model.l2,
+    lf[i],model.nx,model.nu) for i = 1:N]
+
 β = 1.0
-w = 1.0e-2*ones(model.nx)
+w = 1.0e-3*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
