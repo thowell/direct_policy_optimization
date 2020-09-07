@@ -46,6 +46,8 @@ yc4 = 0.8
 xc = [xc1,xc2,xc3,xc4]
 yc = [yc1,yc2,yc3,yc4]
 
+circles = [(xc1,yc1,r),(xc2,yc2,r),(xc3,yc3,r),(xc4,yc4,r)]
+
 # Constraints
 function c_stage!(c,x,u,t,model)
     c[1] = circle_obs(x[1],x[2],xc1,yc1,r)
@@ -218,6 +220,34 @@ plt2 = plot!(t_sample[1:end-1],hcat(U_nom_sample...)',color=:red,width=2.0,
     label=["nominal" ""],linetype=:steppost)
 display(plt2)
 savefig(plt2,joinpath(@__DIR__,"results/car_sample_controls.png"))
+
+using PGFPlots
+const PGF = PGFPlots
+
+# nominal trajectory
+p_nom = PGF.Plots.Linear(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],
+    mark="",style="color=purple, very thick",legendentry="nominal")
+
+# DPO trajectory
+p_dpo = PGF.Plots.Linear(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],
+    mark="",style="color=orange, very thick",legendentry="DPO")
+
+# obstacles
+p_circle = [PGF.Plots.Circle(circle..., style="color=black,fill=black") for circle in circles]
+
+a = Axis([p_circle;p_nom;p_dpo],
+    xmin=-0.4, ymin=-0.1, xmax=1.4, ymax=1.1,
+    axisEqualImage=true,
+    hideAxis=false,
+	ylabel="y",
+	xlabel="x",
+	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"car_obstacles.tikz"), a, include_preamble=false)
+
 
 # visualize
 

@@ -223,4 +223,4 @@ a = Axis([psu_nom;psu_dpo],
 
 # Save to tikz format
 dir = joinpath(@__DIR__,"results")
-PGF.save(joinpath(dir,"minimum_time_pendulu_control.tikz"), a, include_preamble=false)
+PGF.save(joinpath(dir,"minimum_time_pendulum_control.tikz"), a, include_preamble=false)
