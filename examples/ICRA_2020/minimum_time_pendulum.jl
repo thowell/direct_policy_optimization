@@ -1,5 +1,5 @@
-include("../src/direct_policy_optimization.jl")
-include("../dynamics/pendulum.jl")
+include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
+include(joinpath(pwd(),"dynamics/pendulum.jl"))
 using Plots
 
 # Horizon
@@ -175,3 +175,52 @@ for i = 1:N
 end
 display(plt3)
 savefig(plt,joinpath(@__DIR__,"results/pendulum_sample_control.png"))
+
+using PGFPlots
+const PGF = PGFPlots
+
+# nominal trajectory
+psx_nom = PGF.Plots.Linear(t_nominal,hcat(X_nominal...)[1,:],mark="",
+	style="color=purple, very thick",legendentry="position (nominal)")
+psθ_nom = PGF.Plots.Linear(t_nominal,hcat(X_nominal...)[2,:],mark="",
+	style="color=purple, very thick, densely dashed",legendentry="angle (nominal)")
+
+# DPO trajectory
+psx_dpo = PGF.Plots.Linear(t_sample,hcat(X_nom_sample...)[1,:],mark="",
+	style="color=orange, very thick",legendentry="position (DPO)")
+psθ_dpo = PGF.Plots.Linear(t_sample,hcat(X_nom_sample...)[2,:],mark="",
+	style="color=orange, very thick, densely dashed",legendentry="angle (DPO)")
+
+a = Axis([psx_nom;psθ_nom;psx_dpo;psθ_dpo],
+    xmin=0., ymin=-3, xmax=max(sum(H_nom_sample),sum(H_nominal)), ymax=7.0,
+    axisEqualImage=false,
+    hideAxis=false,
+	ylabel="state",
+	xlabel="time (seconds)",
+	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"minimum_time_pendulum_state.tikz"), a, include_preamble=false)
+
+# nominal trajectory
+psu_nom = PGF.Plots.Linear(t_nominal[1:end-1],hcat(U_nominal...)[1,:],mark="",
+	style="const plot,color=purple, very thick",legendentry="nominal")
+
+# DPO trajectory
+psu_dpo = PGF.Plots.Linear(t_sample[1:end-1],hcat(U_nom_sample...)[1,:],mark="",
+	style="const plot, color=orange, very thick",legendentry="DPO")
+
+a = Axis([psu_nom;psu_dpo],
+    xmin=0., ymin=-3.1, xmax=max(sum(H_nom_sample[1:end-1]),sum(H_nominal[1:end-1])), ymax=3.1,
+    axisEqualImage=false,
+    hideAxis=false,
+	ylabel="control",
+	xlabel="time (seconds)",
+	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"minimum_time_pendulu_control.tikz"), a, include_preamble=false)

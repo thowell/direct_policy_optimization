@@ -101,7 +101,7 @@ models = [RocketSlosh(model.mr,model.Jr,mf[i],model.g,model.l1,model.l2,
     lf[i],model.nx,model.nu) for i = 1:N]
 
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 5.0e-3*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -125,7 +125,7 @@ Z0_sample = pack(X_nom,U_nom,h0,K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
-# Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
+Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -149,7 +149,7 @@ z_sample_pos = [X_nom_sample[t][2] for t = 1:T]
 plt = plot!(x_sample_pos,z_sample_pos,aspect_ratio=:equal,width=2.0,label="sample  (tf=$(round(sum(H_nom_sample),digits=3))s)",color=:orange,legend=:bottomright)
 savefig(plt,joinpath(@__DIR__,"results/rocket_trajectory.png"))
 
-plt = plot(t_nom,z_pos,xlabel="time s(s)",ylabel="z",
+plt = plot(t_nominal,z_pos,xlabel="time s(s)",ylabel="z",
     color=:purple,width=2.0,label="nominal")
 plt = plot!(t_sample,z_sample_pos,label="sample",
     color=:orange,width=2.0)
