@@ -103,10 +103,23 @@ for t = 1:T-1
     push!(K_unobserved,K_tmp)
 end
 
+Q_unobserved = []
+for t = 1:T
+    Q_tmp = copy(Q[t])
+    Q_tmp[:,4] .= 0.0
+	Q_tmp[4,:] .= 0.0
+    Q_tmp[:,8] .= 0.0
+	Q_tmp[8,:] .= 0.0
+
+    push!(Q_unobserved,Q_tmp)
+end
+
 K_reduced = []
 for t = 1:T-1
      push!(K_reduced,K[t][:,[(1:3)...,(5:7)...]])
 end
+
+
 
 N = 2*model.nx
 mf = range(0.9*model.mf,stop=1.1*model.mf,length=N)
@@ -249,10 +262,10 @@ t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
 t_sim_sample = range(0,stop=sum(H_nom_sample),length=T_sim)
 
 z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K_unobserved,
-    X_nom,U_nom,model_sim,Q,R,T_sim,H_nom[1],z0_sim,w,_norm=2)
+    X_nom,U_nom,model_sim,Q_unobserved,R,T_sim,H_nom[1],z0_sim,w,_norm=2)
 
 z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(Θ,
-    X_nom_sample,U_nom_sample,model_sim,Q,R,T_sim,H_nom_sample[1],z0_sim,w,_norm=2,
+    X_nom_sample,U_nom_sample,model_sim,Q_unobserved,R,T_sim,H_nom_sample[1],z0_sim,w,_norm=2,
 	controller=:policy)
 
 plt_x = plot(t_nom,hcat(X_nom...)[1:nx,:]',legend=:topright,color=:red,
@@ -286,3 +299,27 @@ Jx_sample
 # control tracking
 Ju_tvlqr
 Ju_sample
+
+using PGFPlots
+const PGF = PGFPlots
+
+# nominal trajectory
+p_traj_nom = PGF.Plots.Linear(x_pos,z_pos,mark="",
+	style="color=purple, very thick",legendentry="nominal (tf=$(round(sum(H_nom),digits=3))s)")
+
+# DPO trajectory
+p_traj_dpo = PGF.Plots.Linear(x_sample_pos,z_sample_pos,mark="",
+	style="color=orange, very thick",legendentry="DPO (tf=$(round(sum(H_nom_sample),digits=3))s)")
+
+a = Axis([p_traj_nom; p_traj_dpo],
+    xmin=-0.5, ymin=0, xmax=6, ymax=11.0,
+    axisEqualImage=true,
+    hideAxis=false,
+	ylabel="z",
+	xlabel="x",
+	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"rocket_trajectory.tikz"), a, include_preamble=false)
