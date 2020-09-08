@@ -94,6 +94,20 @@ H_lqr = [10.0 for t = 1:T-1]
 
 K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 
+K_unobserved = []
+for t = 1:T-1
+    K_tmp = copy(K[t])
+    K_tmp[:,4] .= 0.0
+    K_tmp[:,8] .= 0.0
+
+    push!(K_unobserved,K_tmp)
+end
+
+K_reduced = []
+for t = 1:T-1
+     push!(K_reduced,K[t][:,[(1:3)...,(5:7)...]])
+end
+
 N = 2*model.nx
 mf = range(0.9*model.mf,stop=1.1*model.mf,length=N)
 lf = range(0.9*model.l3,stop=1.1*model.l3,length=N)
@@ -101,7 +115,7 @@ models = [RocketSlosh(model.mr,model.Jr,mf[i],model.g,model.l1,model.l2,
     lf[i],model.nx,model.nu) for i = 1:N]
 
 β = 1.0
-w = 5.0e-3*ones(model.nx)
+w = 1.0e-3*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -113,15 +127,20 @@ for i = 1:N
     xu_traj_sample[i][1] = x1_sample[1]
 end
 
+function policy(model::RocketSlosh,K,x,u,x_nom,u_nom)
+	u_nom - reshape(K,model.nu,model.nx-2)*(x - x_nom)[[(1:3)...,(5:7)...]]
+end
+
 prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
     xl=xl_traj_sample,
     xu=xu_traj_sample,
-    n_policy=model.nu)
+    n_policy=model.nu,
+	n_features=model.nx-2)
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 # Z0_sample = pack(X0,U0,h0,K0,prob_sample)
-Z0_sample = pack(X_nom,U_nom,h0,K,prob_sample)
+Z0_sample = pack(X_nom,U_nom,h0,K_reduced,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
@@ -129,7 +148,7 @@ Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),max_iter=500,nlp=:SNOPT7
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
-Θ = [reshape(Z_sample_sol[prob_sample.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
+Θ = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-1]
 # Time trajectories
 t_nominal = zeros(T)
 t_sample = zeros(T)
@@ -229,11 +248,12 @@ t_nom = range(0,stop=sum(H_nom),length=T)
 t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
 t_sim_sample = range(0,stop=sum(H_nom_sample),length=T_sim)
 
-z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K_unobserved,
     X_nom,U_nom,model_sim,Q,R,T_sim,H_nom[1],z0_sim,w,_norm=2)
 
 z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(Θ,
-    X_nom_sample,U_nom_sample,model_sim,Q,R,T_sim,H_nom_sample[1],z0_sim,w,_norm=2)
+    X_nom_sample,U_nom_sample,model_sim,Q,R,T_sim,H_nom_sample[1],z0_sim,w,_norm=2,
+	controller=:policy)
 
 plt_x = plot(t_nom,hcat(X_nom...)[1:nx,:]',legend=:topright,color=:red,
     label="",width=2.0,xlabel="time (s)",

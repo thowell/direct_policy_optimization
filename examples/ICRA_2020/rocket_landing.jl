@@ -11,7 +11,7 @@ nu = model.nu
 T = 51
 
 # Initial and final states
-x1 = [5.0; model.l2+10.0; -5*pi/180.0; -1.0; -1.0; -0.5*pi/180.0]
+x1 = [5.0; model.l2+10.0; -5*pi/180.0; 1.0*pi/180.0; -1.0; -1.0; -0.5*pi/180.0; 0.1*pi/180.0]
 xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0]
 
 # Bounds
