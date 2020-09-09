@@ -436,22 +436,22 @@ const PGF = PGFPlots
 
 # nominal trajectory
 psx_nom = PGF.Plots.Linear(t_nominal,hcat(X_nominal...)[1,:],mark="",
-	style="color=purple, very thick",legendentry="position (no friction)")
+	style="color=purple, very thick")
 psθ_nom = PGF.Plots.Linear(t_nominal,hcat(X_nominal...)[2,:],mark="",
-	style="color=purple, very thick, densely dashed",legendentry="angle (no friction)")
+	style="color=purple, very thick, densely dashed")
 
 psx_nom_sim_tvlqr = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr...)[1,:],mark="",
-	style="color=black, very thick",legendentry="position (TVLQR)")
+	style="color=black, very thick",legendentry="pos.")
 psθ_nom_sim_tvlqr = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr...)[2,:],mark="",
-	style="color=black, very thick, densely dashed",legendentry="angle (TVLQR)")
+	style="color=black, very thick, densely dashed",legendentry="ang.")
 
-a = Axis([psx_nom;psθ_nom;psx_nom_sim_tvlqr;psθ_nom_sim_tvlqr],
+a = Axis([psx_nom_sim_tvlqr;psθ_nom_sim_tvlqr;psx_nom;psθ_nom],
     xmin=0., ymin=-1, xmax=sum(H_nominal), ymax=3.5,
     axisEqualImage=false,
     hideAxis=false,
 	ylabel="state",
 	xlabel="time (seconds)",
-	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	legendStyle="{at={(0.01,0.99)},anchor=north west}",
 	)
 
 # Save to tikz format
@@ -460,50 +460,50 @@ PGF.save(joinpath(dir,"cartpole_sim_tvlqr_no_friction.tikz"), a, include_preambl
 
 # nominal trajectory
 psx_nom_friction = PGF.Plots.Linear(t_nominal,hcat(X_friction_nominal...)[1,:],mark="",
-	style="color=cyan, very thick",legendentry="position (friction)")
+	style="color=purple, very thick")
 psθ_nom_friction = PGF.Plots.Linear(t_sample,hcat(X_friction_nominal...)[2,:],mark="",
-	style="color=cyan, very thick, densely dashed",legendentry="angle (friction)")
+	style="color=purple, very thick, densely dashed")
 
 psx_nom_sim_tvlqr_friction = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr_friction...)[1,:],mark="",
-	style="color=black, very thick",legendentry="position (TVLQR)")
+	style="color=black, very thick",legendentry="pos.")
 psθ_nom_sim_tvlqr_friction = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr_friction...)[2,:],mark="",
-	style="color=black, very thick, densely dashed",legendentry="angle (TVLQR)")
+	style="color=black, very thick, densely dashed",legendentry="ang.")
 
-a = Axis([psx_nom_friction;psθ_nom_friction;psx_nom_sim_tvlqr_friction;
-    psθ_nom_sim_tvlqr_friction],
+a_tvlqr_friction = Axis([psx_nom_sim_tvlqr_friction;psθ_nom_sim_tvlqr_friction;
+    psx_nom_friction;psθ_nom_friction],
     xmin=0., ymin=-1, xmax=sum(H_nominal), ymax=3.5,
     axisEqualImage=false,
     hideAxis=false,
 	ylabel="state",
-	xlabel="time (seconds)",
-	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	xlabel="time",
+	legendStyle="{at={(0.01,0.99)},anchor=north west}",
 	)
 
 # Save to tikz format
 dir = joinpath(@__DIR__,"results")
-PGF.save(joinpath(dir,"cartpole_sim_tvlqr_friction.tikz"), a, include_preamble=false)
+PGF.save(joinpath(dir,"cartpole_sim_tvlqr_friction.tikz"), a_tvlqr_friction, include_preamble=false)
 
 # nominal trajectory
 psx_dpo = PGF.Plots.Linear(t_sample,hcat(X_nom_sample...)[1,:],mark="",
-	style="color=orange, very thick",legendentry="position (DPO)")
+	style="color=orange, very thick")
 psθ_dpo = PGF.Plots.Linear(t_sample,hcat(X_nom_sample...)[2,:],mark="",
-	style="color=orange, very thick, densely dashed",legendentry="angle (DPO)")
+	style="color=orange, very thick, densely dashed")
 
 psx_sim_dpo = PGF.Plots.Linear(t_sim_sample,hcat(z_sample...)[1,:],mark="",
-	style="color=black, very thick",legendentry="position (DPO)")
+	style="color=black, very thick",legendentry="pos.")
 psθ_sim_dpo = PGF.Plots.Linear(t_sim_sample,hcat(z_sample...)[2,:],mark="",
-	style="color=black, very thick, densely dashed",legendentry="angle (DPO)")
+	style="color=black, very thick, densely dashed",legendentry="ang.")
 
-a = Axis([psx_dpo;psθ_dpo;psx_sim_dpo;
-    psθ_sim_dpo],
+a_dpo = Axis([psx_sim_dpo;
+    psθ_sim_dpo;psx_dpo;psθ_dpo],
     xmin=0., ymin=-1, xmax=sum(H_nom_sample), ymax=3.5,
     axisEqualImage=false,
     hideAxis=false,
 	ylabel="state",
-	xlabel="time (seconds)",
-	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	xlabel="time",
+	legendStyle="{at={(0.01,0.99)},anchor=north west}",
 	)
 
 # Save to tikz format
 dir = joinpath(@__DIR__,"results")
-PGF.save(joinpath(dir,"cartpole_sim_dpo.tikz"), a, include_preamble=false)
+PGF.save(joinpath(dir,"cartpole_sim_dpo.tikz"), a_dpo, include_preamble=false)
