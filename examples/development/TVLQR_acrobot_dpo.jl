@@ -8,12 +8,13 @@ nx = model.nx
 nu = model.nu
 
 # Trajectory optimization for nominal trajectory
-T = 51
-Δt = 0.02
+T = 21
+Δt = 0.05
 x1_nom = [0.0; 0.0; 0.0; 0.0]
 xT_nom = [π; 0.0; 0.0; 0.0]
 Δt*(T-1)
 x_nom_ref = linear_interp(x1_nom,xT_nom,T)
+u_nom
 Q_nom = [t < T ? Diagonal([1.0; 1.0; 1.0; 1.0]) : Diagonal([1000.0; 1000.0; 1000.0; 1000.0]) for t = 1:T]
 R_nom = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 
@@ -142,7 +143,7 @@ function con!(c,z)
     return c
 end
 
-con!(zeros(m_nom_nlp),rand(n_nom_nlp))
+con!(zeros(m_nlp),rand(n_nlp))
 
 prob_linear = ProblemIpopt(n_nlp,m_nlp)
 

@@ -44,7 +44,7 @@ penalty_obj = PenaltyObjective(α_cartpole_friction)
 multi_obj = MultiObjective([obj,penalty_obj])
 
 # TVLQR cost
-Q_lqr = [(t < T ? Diagonal([10.0;10.0;1.0;1.0])
+Q_lqr = [(t < T ? Diagonal([10.0;10.0;10.0;10.0])
     : Diagonal(100.0*ones(model_nominal.nx))) for t = 1:T]
 R_lqr = [Diagonal([1.0,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
 H_lqr = [0.0 for t = 1:T-1]
@@ -82,7 +82,7 @@ prob_friction_moi = init_MOI_Problem(prob_friction)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [0.1*rand(model_nominal.nu) for t = 1:T-1] # random controls
+U0 = [ones(model_nominal.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob_nominal)
@@ -106,7 +106,7 @@ end
 
 # Plots results
 S_friction_nominal = [U_friction_nominal[t][7] for t=1:T-1]
-@assert sum(S_friction_nominal) < 1.0e-4
+@assert norm(S_friction_nominal,Inf) < 1.0e-4
 b_friction_nominal = [(U_friction_nominal[t][2]
     - U_friction_nominal[t][3]) for t=1:T-1]
 
@@ -146,7 +146,7 @@ models = [model_friction for i = 1:N]
 β = 1.0
 w = 1.0e-3*ones(model_friction.nx)
 γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+x1_sample = resample([x1 for i = 1:N],β=1.0,w=ones(model.nx))
 
 xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
@@ -250,8 +250,7 @@ display(plt_state)
 savefig(plt_state,joinpath(@__DIR__,"results/cartpole_friction_state.png"))
 
 S_nominal = [U_nom_sample[t][7] for t=1:T-1]
-@assert sum(S_nominal) < 1.0e-4
-
+@assert norm(S_nominal,Inf) < 1.0e-4
 β = [U_nom_sample[t][2:3] for t = 1:T-1]
 b = [U_nom_sample[t][2] - U_nom_sample[t][3] for t = 1:T-1]
 ψ = [U_nom_sample[t][4] for t = 1:T-1]
