@@ -353,6 +353,9 @@ t_sim_sample = range(0,stop=H_nom_sample[1]*(T-1),length=T_sim)
 K_nominal = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr,
     u_policy=(1:1))
 
+K_friction_nominal = TVLQR_gains(model,X_friction_nominal,U_friction_nominal,
+    H_friction_nominal,Q_lqr,R_lqr,u_policy=(1:1))
+
 z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_cartpole_friction(K_nominal,
     X_nominal,U_nominal,
     model_sim,Q_lqr,R_lqr,T_sim,Δt,X_nominal[1],w,ul=ul_friction,uu=uu_friction,
@@ -360,13 +363,11 @@ z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_cartpole_friction(K_nom
     μ=μ_sim)
 plt_tvlqr_nom = plot(t_nominal,hcat(X_nominal...)[1:2,:]',legend=:topleft,color=:red,
     label=["nominal (no friction)" ""],
-    width=2.0,xlabel="time (s)",title="Cartpole",ylabel="state",ylims=(-1,5))
+    width=2.0,xlabel="time",title="Cartpole",ylabel="state",ylims=(-1,5))
 plt_tvlqr_nom = plot!(t_sim_nominal,hcat(z_tvlqr...)[1:2,:]',color=:purple,
     label=["tvlqr" ""],width=2.0)
 savefig(plt_tvlqr_nom,joinpath(@__DIR__,"results/cartpole_friction_tvlqr_nom_sim.png"))
 
-K_friction_nominal = TVLQR_gains(model,X_friction_nominal,U_friction_nominal,
-    H_friction_nominal,Q_lqr,R_lqr,u_policy=(1:1))
 
 z_tvlqr_friction, u_tvlqr_friction, J_tvlqr_friction, Jx_tvlqr_friction, Ju_tvlqr_friction = simulate_cartpole_friction(K_friction_nominal,
     X_friction_nominal,U_friction_nominal,
@@ -374,7 +375,7 @@ z_tvlqr_friction, u_tvlqr_friction, J_tvlqr_friction, Jx_tvlqr_friction, Ju_tvlq
     μ=μ_sim)
 plt_tvlqr_friction = plot(t_nominal,hcat(X_friction_nominal...)[1:2,:]',
     color=:red,label=["nominal (sample)" ""],
-    width=2.0,xlabel="time (s)",title="Cartpole",ylabel="state",legend=:topleft)
+    width=2.0,xlabel="time",title="Cartpole",ylabel="state",legend=:topleft)
 plt_tvlqr_friction = plot!(t_sim_nominal,hcat(z_tvlqr_friction...)[1:2,:]',
     color=:magenta,label=["tvlqr" ""],width=2.0)
 savefig(plt_tvlqr_friction,joinpath(@__DIR__,"results/cartpole_friction_tvlqr_friction_sim.png"))
@@ -386,7 +387,7 @@ z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_cartpole_friction(
 
 plt_sample = plot(t_sample,hcat(X_nom_sample...)[1:2,:]',legend=:bottom,color=:red,
     label=["nominal (sample)" ""],
-    width=2.0,xlabel="time (s)",title="Cartpole",ylabel="state")
+    width=2.0,xlabel="time",title="Cartpole",ylabel="state")
 plt_sample = plot!(t_sim_nominal,hcat(z_sample...)[1:2,:]',color=:orange,
     label=["sample" ""],width=2.0,legend=:topleft)
 savefig(plt_sample,joinpath(@__DIR__,"results/cartpole_friction_sample_sim.png"))
@@ -450,7 +451,7 @@ a = Axis([psx_nom_sim_tvlqr;psθ_nom_sim_tvlqr;psx_nom;psθ_nom],
     axisEqualImage=false,
     hideAxis=false,
 	ylabel="state",
-	xlabel="time (seconds)",
+	xlabel="time",
 	legendStyle="{at={(0.01,0.99)},anchor=north west}",
 	)
 

@@ -1,5 +1,5 @@
 \begin{tikzpicture}[]
-\begin{axis}[legend style = {{at={(0.0,1.0)},anchor=north west}}, ylabel = {control}, xmin = {0.0}, xmax = {1.7921848914141856}, axis equal image = {false}, ymax = {3.1}, xlabel = {time (seconds)}, hide axis = {false}, ymin = {-3.1}]\addplot+ [mark = {}, const plot,color=purple, very thick]coordinates {
+\begin{axis}[legend style = {{at={(0.01,0.99)},anchor=north west}}, ylabel = {control}, xmin = {0.0}, xmax = {1.7921848914141856}, axis equal image = {false}, ymax = {3.1}, xlabel = {time (seconds)}, hide axis = {false}, ymin = {-3.1}]\addplot+ [mark = {}, const plot,color=purple, very thick]coordinates {
 (0.0, -3.0)
 (0.032671209555398324, -3.0)
 (0.06534241911079665, -3.0)

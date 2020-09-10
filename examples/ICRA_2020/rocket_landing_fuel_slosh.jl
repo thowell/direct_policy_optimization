@@ -128,7 +128,7 @@ models = [RocketSlosh(model.mr,model.Jr,mf[i],model.g,model.l1,model.l2,
     lf[i],model.nx,model.nu) for i = 1:N]
 
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 5.0e-3*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 

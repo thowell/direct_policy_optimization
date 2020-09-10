@@ -1,22 +1,22 @@
-include("../src/direct_policy_optimization.jl")
-include("../dynamics/acrobot.jl")
+include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
+include(joinpath(pwd(),"dynamics/acrobot.jl"))
 using Plots
 
 # Horizon
-T = 31
+T = 51
 
 # Bounds
 
 # ul <= u <= uu
-uu = 10.0
-ul = -10.0
+uu = 100.0
+ul = -100.0
 
 # hl <= h <= hu
-tf0 = 5.0
+tf0 = 1.0
 h0 = tf0/(T-1) # timestep
 
-hu = 10.0*h0
-hl = 0.0*h0
+hu = 1.0*h0
+hl = 1.0*h0
 
 # Initial and final states
 x1 = [0.0; 0.0; 0.0; 0.0]
@@ -24,12 +24,6 @@ xT = [π; 0.0; 0.0; 0.0]
 
 xl = -Inf*ones(model.nx)
 xu = Inf*ones(model.nx)
-# xl[2] = -π
-# xu[2] = π
-# xl[3] = -5.0
-# xu[3] = 5.0
-# xl[4] = -5.0
-# xu[4] = 5.0
 xl_traj = [xl for t = 1:T]
 xu_traj = [xu for t = 1:T]
 
@@ -40,18 +34,18 @@ xl_traj[T] = xT
 xu_traj[T] = xT
 
 # Objective
-Q = [t<T ? Diagonal(ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
-c = 1.0
+Q = [t<T ? Diagonal(1.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
+R = [Diagonal(1.0e-5*ones(model.nu)) for t = 1:T-1]
+c = 0.0
 
 x_ref = linear_interp(x1,xT,T)
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
-R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-H_lqr = [100.0 for t = 1:T-1]
+Q_lqr = [t < T ? Diagonal(1.0*ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
+R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+H_lqr = [1.0 for t = 1:T-1]
 
 # Problem
 prob_nom = init_problem(model.nx,model.nu,T,model,obj,
@@ -62,18 +56,19 @@ prob_nom = init_problem(model.nx,model.nu,T,model,obj,
                     hl=[hl for t=1:T-1],
                     hu=[hu for t=1:T-1]
                     )
+
 # MathOptInterface problem
 prob_nom_moi = init_MOI_Problem(prob_nom)
 
 # Initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation for states
-U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [0.01*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob_nom)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_nom_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal = solve(prob_nom_moi,copy(Z0),nlp=:SNOPT7,time_limit=60)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob_nom)
@@ -100,7 +95,7 @@ N = 2*model.nx
 # models = [model1,model2,model3,model4,model5,model6,model7,model8]
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-2*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -117,12 +112,10 @@ end
 
 K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
-prob_sample = init_sample_problem(prob_nom,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+prob_sample = init_sample_problem(prob_nom,models,Q_lqr,R_lqr,H_lqr,
+    β=β,w=w,γ=γ,
     xl=xl_traj_sample,
     xu=xu_traj_sample,
-    disturbance_ctrl=false,
-    α=1.0,
-    policy_constraint=true,
    )
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
@@ -130,7 +123,7 @@ prob_sample_moi = init_MOI_Problem(prob_sample)
 Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT,time_limit=60*10)
 # Z_sample_sol = solve(prob_sample_moi,Z_sample_sol,nlp=:SNOPT,time_limit=600)
 
 # Unpack solution

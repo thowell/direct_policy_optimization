@@ -1,0 +1,5 @@
+\begin{tikzpicture}[]
+\begin{groupplot}[, group style={, group size=1 by 2}]
+\end{groupplot}
+
+\end{tikzpicture}

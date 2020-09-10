@@ -1,9 +1,19 @@
+\documentclass[tikz]{standalone}
+\usepackage{pgfplots}
+\pgfplotsset{compat=newest}
+\pgfplotsset{every axis legend/.append style={%
+cells={anchor=west}}
+}
+\usetikzlibrary{arrows}
+\tikzset{>=stealth'}
+
+\begin{document}
 \begin{tikzpicture}[]
 \begin{axis}[legend style = {{at={(0.01,0.99)},anchor=north west}}, ylabel = {y}, xmin = {-0.4}, xmax = {1.4}, axis equal image = {true}, ymax = {1.1}, xlabel = {x}, hide axis = {false}, ymin = {-0.1}]\draw[color=black,fill=black] (axis cs:0.85, 0.3) circle[radius=0.1];
 \draw[color=black,fill=black] (axis cs:0.375, 0.75) circle[radius=0.1];
 \draw[color=black,fill=black] (axis cs:0.25, 0.2) circle[radius=0.1];
 \draw[color=black,fill=black] (axis cs:0.75, 0.8) circle[radius=0.1];
-\addplot+ [mark = {}, color=gray, line width=1pt, solid]coordinates {
+\addplot+ [mark = {}, color=grey, thin, solid]coordinates {
 (-0.1, 0.0)
 (-0.16186143959463203, -0.002450188127795319)
 (-0.22011386236848923, -0.008921376914078006)
@@ -56,8 +66,7 @@
 (0.9656467169203451, 1.0195940887872446)
 (0.9003563505743536, 1.0176873879056747)
 };
-\addlegendentry{sample}
-\addplot+ [mark = {}, color=gray, line width=1pt, solid]coordinates {
+\addplot+ [mark = {}, color=grey, thin, solid]coordinates {
 (0.0, -0.1)
 (-0.05913582520505554, -0.10668080363389593)
 (-0.11705154904727491, -0.11672851588059485)
@@ -110,7 +119,7 @@
 (1.0795123756787017, 0.869894904448235)
 (1.0191459051061476, 0.8634143574700806)
 };
-\addplot+ [mark = {}, color=gray, line width=1pt, solid]coordinates {
+\addplot+ [mark = {}, color=grey, thin, solid]coordinates {
 (0.0, 0.0)
 (-0.05866255072712561, -0.0013256379456660407)
 (-0.11555631035967286, -0.006020862449634908)
@@ -163,7 +172,7 @@
 (1.053230192074158, 1.0112671618140339)
 (0.994926271007587, 1.0085164266172273)
 };
-\addplot+ [mark = {}, color=gray, line width=1pt, solid]coordinates {
+\addplot+ [mark = {}, color=grey, thin, solid]coordinates {
 (0.1, 0.0)
 (0.045003288530128374, -0.0010366887821353832)
 (-0.009806674622491409, -0.004738815810503089)
@@ -216,7 +225,7 @@
 (1.1539322010614204, 0.9801482554139109)
 (1.0993773322796445, 0.9791292605445828)
 };
-\addplot+ [mark = {}, color=gray, line width=1pt, solid]coordinates {
+\addplot+ [mark = {}, color=grey, thin, solid]coordinates {
 (0.0, 0.1)
 (-0.057722325859395615, 0.10319392672396661)
 (-0.11286898794371578, 0.10306832315600936)
@@ -269,7 +278,7 @@
 (1.0400665423028252, 1.1298474397494738)
 (0.9805877777452162, 1.1334022909803143)
 };
-\addplot+ [mark = {}, color=gray, line width=1pt, solid]coordinates {
+\addplot+ [mark = {}, color=grey, thin, solid]coordinates {
 (0.0, 0.0)
 (-0.05819560033732557, -0.0021612389642652477)
 (-0.11436422663131783, -0.007639330274945706)
@@ -322,7 +331,7 @@
 (1.0663487259073683, 0.9884751823836051)
 (1.0048074118423378, 0.9883002218383676)
 };
-\addplot+ [mark = {}, color=purple, line width=3pt, solid]coordinates {
+\addplot+ [mark = {}, color=purple, very thick, solid]coordinates {
 (0.0, 0.0)
 (-0.05997569915192486, -0.0017075175103926428)
 (-0.11974916699670733, -0.006916448403652574)
@@ -376,7 +385,7 @@
 (1.0, 1.0)
 };
 \addlegendentry{TO}
-\addplot+ [mark = {}, color=orange, line width=3pt, solid]coordinates {
+\addplot+ [mark = {}, color=orange, very thick, solid]coordinates {
 (0.0, 0.0)
 (-0.058438515856677864, -0.0017536816117528385)
 (-0.11497875833160992, -0.006856087375112394)
@@ -433,3 +442,4 @@
 \end{axis}
 
 \end{tikzpicture}
+\end{document}

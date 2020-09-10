@@ -102,16 +102,16 @@ X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-3*[1.0;1.0;0.1]
 γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+x1_sample = resample([x1 for i = 1:N],β=0.1,w=[1.0;1.0;0.1])
 
 xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 
 for i = 1:N
-    xl_traj_sample[i][1] = x1_sample[1]
-    xu_traj_sample[i][1] = x1_sample[1]
+    xl_traj_sample[i][1] = x1_sample[i]
+    xu_traj_sample[i][1] = x1_sample[i]
 end
 
 K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
@@ -119,16 +119,15 @@ K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
     xl=xl_traj_sample,
     xu=xu_traj_sample,
-    β=β,w=w,γ=γ,
-    resample_idx=[t for t = 1:T-1],
-    policy_constraint=true)
+    β=β,w=w,γ=γ)
+
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
 Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=60)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -172,13 +171,12 @@ for i = 1:N
     x_sample_pos = [X_sample[i][t][1] for t = 1:T]
     y_sample_pos = [X_sample[i][t][2] for t = 1:T]
     plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,
-        color=:cyan,label="")
+        color=:cyan,label= i != 1 ? "" : "sample")
 end
-
-plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)",color=:purple,legend=:topleft)
+plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="TO",color=:purple,legend=:topleft)
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
-plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=4.0,label="sample  (tf=$(round(sum(H_nom_sample),digits=3))s)",color=:orange,legend=:bottomright)
+plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=4.0,label="DPO",color=:orange,legend=:bottomright)
 
 savefig(plt,joinpath(@__DIR__,"results/car_trajectory.png"))
 
@@ -224,24 +222,38 @@ savefig(plt2,joinpath(@__DIR__,"results/car_sample_controls.png"))
 using PGFPlots
 const PGF = PGFPlots
 
-# nominal trajectory
+# TO trajectory
 p_nom = PGF.Plots.Linear(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],
-    mark="",style="color=purple, very thick",legendentry="nominal")
+    mark="",style="color=purple, line width=3pt, solid",legendentry="TO")
 
 # DPO trajectory
 p_dpo = PGF.Plots.Linear(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],
-    mark="",style="color=orange, very thick",legendentry="DPO")
+    mark="",style="color=orange, line width=3pt, solid",legendentry="DPO")
+
+# DPO trajectory
+p_sample = [PGF.Plots.Linear(hcat(X_sample[i]...)[1,:],hcat(X_sample[i]...)[2,:],
+    mark="",style="color=gray, line width=1pt, solid") for i = 1:N]
+p_sample[1].legendentry="sample"
 
 # obstacles
 p_circle = [PGF.Plots.Circle(circle..., style="color=black,fill=black") for circle in circles]
 
-a = Axis([p_circle;p_nom;p_dpo],
+a = Axis([p_circle;
+    p_sample[1];
+    p_sample[2];
+    p_sample[3];
+    p_sample[4];
+    p_sample[5];
+    p_sample[6];
+    p_nom;
+    p_dpo
+    ],
     xmin=-0.4, ymin=-0.1, xmax=1.4, ymax=1.1,
     axisEqualImage=true,
     hideAxis=false,
 	ylabel="y",
 	xlabel="x",
-	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	legendStyle="{at={(0.01,0.99)},anchor=north west}",
 	)
 
 # Save to tikz format

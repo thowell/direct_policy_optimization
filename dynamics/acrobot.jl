@@ -1,13 +1,19 @@
 mutable struct Acrobot{T}
     m1::T    # mass
-    J1::T
-    l1::T
-    lc1::T    # length
+    J1::T    # inertia
+    l1::T    # length
+    lc1::T   # length to COM
+
     m2::T
     J2::T
     l2::T
     lc2::T
+
     g::T    # gravity
+
+    b1::T   # joint friction
+    b2::T
+
     nx::Int # state dimension
     nu::Int # control dimension
 end
@@ -20,7 +26,6 @@ function M(model::Acrobot,q)
 
     @SMatrix [a b;
               b c]
-
 end
 
 function τ(model::Acrobot,q)
@@ -38,14 +43,13 @@ function C(model::Acrobot,x)
 end
 
 function B(model::Acrobot,q)
-
     @SMatrix [0.0; 1.0]
 end
 
 function dynamics(model::Acrobot,x,u)
     q = view(x,1:2)
     v = view(x,3:4)
-    qdd = M(model,q)\(-C(model,x)*v + τ(model,q) + B(model,q)*u)
+    qdd = M(model,q)\(-C(model,x)*v + τ(model,q) + B(model,q)*u - [model.b1;model.b2].*v)
     @SVector [x[3],x[4],qdd[1],qdd[2]]
 end
 
@@ -60,7 +64,7 @@ end
 
 nx = 4
 nu = 1
-model = Acrobot(1.0,1.0,1.0,0.5,1.0,1.0,1.0,0.5,9.81,nx,nu)
+model = Acrobot(1.0,0.33,1.0,0.5,1.0,0.33,1.0,0.5,9.81,0.1,0.1,nx,nu)
 
 function visualize!(vis,model::Acrobot,q;
         color=[RGBA(0,0,0,1.0) for i = 1:length(q)],r=0.1,Δt=0.1)

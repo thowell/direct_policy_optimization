@@ -68,4 +68,4 @@ end
 
 nx_slosh = 8
 nu_slosh = 3
-model_slosh = RocketSlosh(1.0,0.1,0.01,9.81,0.5,0.5,0.1,nx_slosh,nu_slosh)
+model_slosh = RocketSlosh(0.5,0.1,0.5,9.81,0.5,0.5,0.1,nx_slosh,nu_slosh)
