@@ -1,5 +1,7 @@
 include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
 include(joinpath(pwd(),"dynamics/rocket.jl"))
+include(joinpath(pwd(),"dynamics/visualize.jl"))
+
 using Plots, Random
 #
 # # Model
@@ -321,7 +323,7 @@ nu = model.nu
 T = 51
 
 # Initial and final states
-x1_slosh = [5.0; model.l2+10.0; -5.0*pi/180.0; 0.0*pi/180.0; -0.5; -1.0; -0.5*pi/180.0; 0.0*pi/180.0]
+x1_slosh = [5.0; model.l2+10.0; -5*pi/180.0; 0.0*pi/180.0; -1.0; -1.0; -0.5*pi/180.0; 0.0*pi/180.0]
 x1 = x1_slosh
 xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
 
@@ -345,8 +347,8 @@ xu_traj[T][1] = 0.25
 
 
 # ul <= u <= uu
-uu = [10.0;0.1;10*pi/180.0]
-ul = [0.0;-0.1;-10*pi/180.0]
+uu = [20.0;0.2;20*pi/180.0]
+ul = [0.0;-0.2;-20*pi/180.0]
 
 tf0 = 10.0
 h0 = tf0/(T-1)
@@ -354,10 +356,10 @@ hu = 10*h0
 hl = 0*h0
 #
 # Objective
-Q = [(t != T ? Diagonal([1.0;10.0;1.0;0.0;1.0*ones(3);0.0])
-    : Diagonal([10.0;100.0;10.0;0.0;10.0;100.0;10.0;0.0])) for t = 1:T]
-R = [Diagonal(10.0*ones(model.nu)) for t = 1:T-1]
-c = 10.0
+Q = [(t != T ? Diagonal([ones(3);0.0;ones(3);0.0])
+    : Diagonal([10.0*ones(3);0.0;10.0*ones(3);0.0])) for t = 1:T]
+R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
 
@@ -388,6 +390,21 @@ X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 plot(hcat(U_nom...)')
 @show sum(H_nom)
+H_nom
+# vis = Visualizer()
+# open(vis)
+
+# l1 = Cylinder(Point3f0(0,0,-model.l2),Point3f0(0,0,model.l1),convert(Float32,0.1))
+# setobject!(vis["rocket"],l1,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
+
+anim = MeshCat.Animation(convert(Int,floor(1/H_nom[1])))
+for t = 1:T
+    MeshCat.atframe(anim,t) do
+        settransform!(vis["rocket"], compose(Translation(X_nom[t][1],0.0,X_nom[t][2]),LinearMap(RotY(-1.0*X_nom[t][3]))))
+    end
+end
+MeshCat.setanimation!(vis,anim)
+
 # x_pos = [X_nom[t][1] for t = 1:T]
 # z_pos = [X_nom[t][2] for t = 1:T]
 #

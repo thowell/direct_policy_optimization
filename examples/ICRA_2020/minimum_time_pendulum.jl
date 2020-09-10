@@ -39,9 +39,9 @@ obj = QuadraticTrackingObjective(Q,R,c,
     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal([10.0;1.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
+Q_lqr = [t < T ? Diagonal([10.0;10.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
 R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
-H_lqr = [100.0 for t = 1:T-1]
+H_lqr = [10.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,model,obj,
@@ -73,7 +73,7 @@ X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 2.0e-3*ones(model.nx)
 γ = 1.0
 
 α = 1.0e-3
@@ -87,8 +87,8 @@ xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 
 for i = 1:N
-    xl_traj_sample[i][1] = x1_sample[1]
-    xu_traj_sample[i][1] = x1_sample[1]
+    xl_traj_sample[i][1] = x1_sample[i]
+    xu_traj_sample[i][1] = x1_sample[i]
 end
 
 K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
@@ -105,7 +105,7 @@ Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
 #NOTE: Ipopt finds different solution compared to SNOPT
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:ipopt)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT7)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -181,23 +181,23 @@ const PGF = PGFPlots
 
 # nominal trajectory
 psx_nom = PGF.Plots.Linear(t_nominal,hcat(X_nominal...)[1,:],mark="",
-	style="color=purple, very thick",legendentry="position (nominal)")
+	style="color=purple, line width=3pt",legendentry="pos. (TO)")
 psθ_nom = PGF.Plots.Linear(t_nominal,hcat(X_nominal...)[2,:],mark="",
-	style="color=purple, very thick, densely dashed",legendentry="angle (nominal)")
+	style="color=purple, line width=3pt, densely dashed",legendentry="ang. (TO)")
 
 # DPO trajectory
 psx_dpo = PGF.Plots.Linear(t_sample,hcat(X_nom_sample...)[1,:],mark="",
-	style="color=orange, very thick",legendentry="position (DPO)")
+	style="color=orange, line width=3pt",legendentry="pos. (DPO)")
 psθ_dpo = PGF.Plots.Linear(t_sample,hcat(X_nom_sample...)[2,:],mark="",
-	style="color=orange, very thick, densely dashed",legendentry="angle (DPO)")
+	style="color=orange, line width=3pt, densely dashed",legendentry="ang. (DPO)")
 
 a = Axis([psx_nom;psθ_nom;psx_dpo;psθ_dpo],
     xmin=0., ymin=-3, xmax=max(sum(H_nom_sample),sum(H_nominal)), ymax=7.0,
     axisEqualImage=false,
     hideAxis=false,
 	ylabel="state",
-	xlabel="time (seconds)",
-	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	xlabel="time",
+	legendStyle="{at={(0.01,0.99)},anchor=north west}",
 	)
 
 # Save to tikz format
@@ -206,19 +206,19 @@ PGF.save(joinpath(dir,"minimum_time_pendulum_state.tikz"), a, include_preamble=f
 
 # nominal trajectory
 psu_nom = PGF.Plots.Linear(t_nominal[1:end-1],hcat(U_nominal...)[1,:],mark="",
-	style="const plot,color=purple, very thick",legendentry="nominal")
+	style="const plot,color=purple, line width=3pt",legendentry="TO")
 
 # DPO trajectory
 psu_dpo = PGF.Plots.Linear(t_sample[1:end-1],hcat(U_nom_sample...)[1,:],mark="",
-	style="const plot, color=orange, very thick",legendentry="DPO")
+	style="const plot, color=orange, line width=3pt",legendentry="DPO")
 
 a = Axis([psu_nom;psu_dpo],
     xmin=0., ymin=-3.1, xmax=max(sum(H_nom_sample[1:end-1]),sum(H_nominal[1:end-1])), ymax=3.1,
     axisEqualImage=false,
     hideAxis=false,
 	ylabel="control",
-	xlabel="time (seconds)",
-	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	xlabel="time",
+	legendStyle="{at={(0.01,0.99)},anchor=north west}",
 	)
 
 # Save to tikz format

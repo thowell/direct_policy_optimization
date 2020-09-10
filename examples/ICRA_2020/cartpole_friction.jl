@@ -447,7 +447,7 @@ psx_nom_sim_tvlqr = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr...)[1,:],mark=""
 psθ_nom_sim_tvlqr = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr...)[2,:],mark="",
 	style="color=black, line width=2pt, densely dashed",legendentry="ang.")
 
-a = Axis([psx_nom_sim_tvlqr;psθ_nom_sim_tvlqr;psx_nom;psθ_nom],
+a = Axis([psx_nom;psθ_nom;psx_nom_sim_tvlqr;psθ_nom_sim_tvlqr],
     xmin=0., ymin=-1, xmax=sum(H_nominal), ymax=3.5,
     axisEqualImage=false,
     hideAxis=false,

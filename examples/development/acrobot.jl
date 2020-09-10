@@ -15,8 +15,8 @@ ul = -10.0
 tf0 = 5.0
 h0 = tf0/(T-1) # timestep
 
-hu = 2.0*h0
-hl = 0.0*h0
+hu = h0
+hl = h0
 
 # Initial and final states
 x1 = [0.0; 0.0; 0.0; 0.0]
@@ -34,18 +34,18 @@ xl_traj[T] = xT
 xu_traj[T] = xT
 
 # Objective
-Q = [t < T ? 0.0*Diagonal([10.0; 10.0; 10.0; 10.0]) : 0.0*Diagonal([100.0; 100.0; 100.0; 100.0]) for t = 1:T]
-R = [0.0*Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 1.0
+Q = [t < T ? Diagonal([1.0; 1.0; 1.0; 1.0]) : Diagonal([10.0; 10.0; 10.0; 10.0]) for t = 1:T]
+R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+c = 10.0
 
 x_ref = linear_interp(x1,xT,T)
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal(1.0*ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
-R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-H_lqr = [1.0 for t = 1:T-1]
+Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
+R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
+H_lqr = [10.0 for t = 1:T-1]
 
 # Problem
 prob_nom = init_problem(model.nx,model.nu,T,model,obj,
@@ -85,8 +85,8 @@ plot(t_nominal[1:T-1],hcat(U_nominal...)',xlabel="time step",linetype=:steppost,
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-5*ones(model.nx)
-γ = 1.0
+w = 1.0e-2*ones(model.nx)
+γ = 10.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
 xl_traj_sample = [[xl for t = 1:T] for i = 1:N]
