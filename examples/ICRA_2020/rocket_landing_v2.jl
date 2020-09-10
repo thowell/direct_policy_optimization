@@ -438,8 +438,8 @@ xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 
 for i = 1:N
-    xl_traj_sample[i][1] = x1_sample[1]
-    xu_traj_sample[i][1] = x1_sample[1]
+    xl_traj_sample[i][1] = x1_sample[i]
+    xu_traj_sample[i][1] = x1_sample[i]
 
     xl_traj_sample[i][T][1] = -0.25
     xu_traj_sample[i][T][1] = 0.25
