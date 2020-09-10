@@ -233,7 +233,7 @@ p_dpo = PGF.Plots.Linear(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],
 # DPO trajectory
 p_sample = [PGF.Plots.Linear(hcat(X_sample[i]...)[1,:],hcat(X_sample[i]...)[2,:],
     mark="",style="color=gray, line width=1pt, solid") for i = 1:N]
-p_sample[1].legendentry="sample"
+p_sample[6].legendentry="sample"
 
 # obstacles
 p_circle = [PGF.Plots.Circle(circle..., style="color=black,fill=black") for circle in circles]

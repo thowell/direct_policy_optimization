@@ -88,9 +88,10 @@ U0 = [0.1*rand(model_nominal.nu) for t = 1:T-1] # random controls
 Z0 = pack(X0,U0,h0,prob_nominal)
 
 # Solve nominal problem
-@time Z_nominal = solve(prob_nominal_moi,copy(Z0),tol=1.0e-5,c_tol=1.0e-5)
+@time Z_nominal = solve(prob_nominal_moi,copy(Z0),tol=1.0e-5,c_tol=1.0e-5,
+    nlp=:SNOPT7)
 @time Z_friction_nominal = solve(prob_friction_moi,copy(Z0),tol=1.0e-5,
-    c_tol=1.0e-5)
+    c_tol=1.0e-5,nlp=:SNOPT7)
 
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob_nominal)
@@ -138,9 +139,9 @@ plot(hcat(b_friction_nominal...)',linetype=:steppost)
 N = 2*model.nx
 models = [model_friction for i = 1:N]
 
-μ_sample = range(0.0975,stop=0.1025,length=N)
-models_coefficients = [CartpoleFriction(1.0,0.2,0.5,9.81,μ_sample[i],
-    nx_friction,nu_friction,nu_policy_friction) for i = 1:N]
+# μ_sample = range(0.0975,stop=0.1025,length=N)
+# models_coefficients = [CartpoleFriction(1.0,0.2,0.5,9.81,μ_sample[i],
+#     nx_friction,nu_friction,nu_policy_friction) for i = 1:N]
 
 β = 1.0
 w = 1.0e-3*ones(model_friction.nx)
@@ -151,8 +152,8 @@ xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 
 for i = 1:N
-    xl_traj_sample[i][1] = x1_sample[1]
-    xu_traj_sample[i][1] = x1_sample[1]
+    xl_traj_sample[i][1] = x1_sample[i]
+    xu_traj_sample[i][1] = x1_sample[i]
 end
 
 K = TVLQR_gains(model,X_friction_nominal,U_friction_nominal,H_friction_nominal,
@@ -171,18 +172,18 @@ prob_sample = init_sample_problem(prob_friction,models,Q_lqr,R_lqr,H_lqr,
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-prob_sample_coefficients = init_sample_problem(prob_friction,models_coefficients,
-    Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
-    xl=xl_traj_sample,
-    xu=xu_traj_sample,
-    n_policy=1,
-    general_objective=true,
-    sample_general_constraints=true,
-    m_sample_general=prob_friction.m_general*N,
-    sample_general_ineq=vcat([((i-1)*prob_friction.m_general
-        .+ (1:prob_friction.m_general)) for i = 1:N]...))
-
-prob_sample_moi_coefficients = init_MOI_Problem(prob_sample_coefficients)
+# prob_sample_coefficients = init_sample_problem(prob_friction,models_coefficients,
+#     Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+#     xl=xl_traj_sample,
+#     xu=xu_traj_sample,
+#     n_policy=1,
+#     general_objective=true,
+#     sample_general_constraints=true,
+#     m_sample_general=prob_friction.m_general*N,
+#     sample_general_ineq=vcat([((i-1)*prob_friction.m_general
+#         .+ (1:prob_friction.m_general)) for i = 1:N]...))
+#
+# prob_sample_moi_coefficients = init_MOI_Problem(prob_sample_coefficients)
 
 Ū_friction_nominal = deepcopy(U_friction_nominal)
 
@@ -190,7 +191,7 @@ Z0_sample = pack(X_friction_nominal,Ū_friction_nominal,H_friction_nominal[1],
     K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=600)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=60*10)
 # Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),nlp=:SNOPT7)
 
 # Z_sample_sol_coefficients = solve(prob_sample_moi_coefficients,copy(Z0_sample),nlp=:SNOPT7)
@@ -342,7 +343,7 @@ w0 = rand(W0,1)
 
 
 model_sim = model_friction
-μ_sim = .1
+μ_sim = 0.1
 
 t_sim_nominal = range(0,stop=H_nominal[1]*(T-1),length=T_sim)
 t_sim_sample = range(0,stop=H_nom_sample[1]*(T-1),length=T_sim)
@@ -437,14 +438,14 @@ const PGF = PGFPlots
 
 # nominal trajectory
 psx_nom = PGF.Plots.Linear(t_nominal,hcat(X_nominal...)[1,:],mark="",
-	style="color=purple, very thick")
+	style="color=purple, line width=3pt")
 psθ_nom = PGF.Plots.Linear(t_nominal,hcat(X_nominal...)[2,:],mark="",
-	style="color=purple, very thick, densely dashed")
+	style="color=purple, line width=3pt, densely dashed")
 
 psx_nom_sim_tvlqr = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr...)[1,:],mark="",
-	style="color=black, very thick",legendentry="pos.")
+	style="color=black, line width=2pt",legendentry="pos.")
 psθ_nom_sim_tvlqr = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr...)[2,:],mark="",
-	style="color=black, very thick, densely dashed",legendentry="ang.")
+	style="color=black, line width=2pt, densely dashed",legendentry="ang.")
 
 a = Axis([psx_nom_sim_tvlqr;psθ_nom_sim_tvlqr;psx_nom;psθ_nom],
     xmin=0., ymin=-1, xmax=sum(H_nominal), ymax=3.5,
@@ -461,17 +462,17 @@ PGF.save(joinpath(dir,"cartpole_sim_tvlqr_no_friction.tikz"), a, include_preambl
 
 # nominal trajectory
 psx_nom_friction = PGF.Plots.Linear(t_nominal,hcat(X_friction_nominal...)[1,:],mark="",
-	style="color=purple, very thick")
+	style="color=purple, line width=3pt")
 psθ_nom_friction = PGF.Plots.Linear(t_sample,hcat(X_friction_nominal...)[2,:],mark="",
-	style="color=purple, very thick, densely dashed")
+	style="color=purple, line width=3pt, densely dashed")
 
 psx_nom_sim_tvlqr_friction = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr_friction...)[1,:],mark="",
-	style="color=black, very thick",legendentry="pos.")
+	style="color=black, line width=2pt",legendentry="pos.")
 psθ_nom_sim_tvlqr_friction = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr_friction...)[2,:],mark="",
-	style="color=black, very thick, densely dashed",legendentry="ang.")
+	style="color=black, line width=2pt, densely dashed",legendentry="ang.")
 
-a_tvlqr_friction = Axis([psx_nom_sim_tvlqr_friction;psθ_nom_sim_tvlqr_friction;
-    psx_nom_friction;psθ_nom_friction],
+a_tvlqr_friction = Axis([psx_nom_friction;psθ_nom_friction;
+    psx_nom_sim_tvlqr_friction;psθ_nom_sim_tvlqr_friction],
     xmin=0., ymin=-1, xmax=sum(H_nominal), ymax=3.5,
     axisEqualImage=false,
     hideAxis=false,
@@ -486,17 +487,17 @@ PGF.save(joinpath(dir,"cartpole_sim_tvlqr_friction.tikz"), a_tvlqr_friction, inc
 
 # nominal trajectory
 psx_dpo = PGF.Plots.Linear(t_sample,hcat(X_nom_sample...)[1,:],mark="",
-	style="color=orange, very thick")
+	style="color=orange, line width=3pt")
 psθ_dpo = PGF.Plots.Linear(t_sample,hcat(X_nom_sample...)[2,:],mark="",
-	style="color=orange, very thick, densely dashed")
+	style="color=orange, line width=3pt, densely dashed")
 
 psx_sim_dpo = PGF.Plots.Linear(t_sim_sample,hcat(z_sample...)[1,:],mark="",
-	style="color=black, very thick",legendentry="pos.")
+	style="color=black, line width=2pt",legendentry="pos.")
 psθ_sim_dpo = PGF.Plots.Linear(t_sim_sample,hcat(z_sample...)[2,:],mark="",
-	style="color=black, very thick, densely dashed",legendentry="ang.")
+	style="color=black, line width=2pt, densely dashed",legendentry="ang.")
 
-a_dpo = Axis([psx_sim_dpo;
-    psθ_sim_dpo;psx_dpo;psθ_dpo],
+a_dpo = Axis([psx_dpo;psθ_dpo;psx_sim_dpo;
+    psθ_sim_dpo],
     xmin=0., ymin=-1, xmax=sum(H_nom_sample), ymax=3.5,
     axisEqualImage=false,
     hideAxis=false,

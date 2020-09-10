@@ -8,15 +8,15 @@ T = 51
 # Bounds
 
 # ul <= u <= uu
-uu = 100.0
-ul = -100.0
+uu = 10.0
+ul = -10.0
 
 # hl <= h <= hu
-tf0 = 1.0
+tf0 = 5.0
 h0 = tf0/(T-1) # timestep
 
-hu = 1.0*h0
-hl = 1.0*h0
+hu = 2.0*h0
+hl = 0.0*h0
 
 # Initial and final states
 x1 = [0.0; 0.0; 0.0; 0.0]
@@ -34,9 +34,9 @@ xl_traj[T] = xT
 xu_traj[T] = xT
 
 # Objective
-Q = [t<T ? Diagonal(1.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-5*ones(model.nu)) for t = 1:T-1]
-c = 0.0
+Q = [t < T ? 0.0*Diagonal([10.0; 10.0; 10.0; 10.0]) : 0.0*Diagonal([100.0; 100.0; 100.0; 100.0]) for t = 1:T]
+R = [0.0*Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+c = 1.0
 
 x_ref = linear_interp(x1,xT,T)
 obj = QuadraticTrackingObjective(Q,R,c,
@@ -62,7 +62,7 @@ prob_nom_moi = init_MOI_Problem(prob_nom)
 
 # Initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation for states
-U0 = [0.01*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [ones(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob_nom)
@@ -83,19 +83,9 @@ plot(t_nominal[1:T-1],hcat(U_nominal...)',xlabel="time step",linetype=:steppost,
 
 # Samples
 N = 2*model.nx
-# # Models
-# model1 = Acrobot(1.0,1.0,1.0,0.5,1.1,1.0,1.0,0.5,9.81,nx,nu)
-# model2 = Acrobot(1.0,1.0,1.0,0.5,1.075,1.0,1.0,0.5,9.81,nx,nu)
-# model3 = Acrobot(1.0,1.0,1.0,0.5,1.05,1.0,1.0,0.5,9.81,nx,nu)
-# model4 = Acrobot(1.0,1.0,1.0,0.5,1.025,1.0,1.0,0.5,9.81,nx,nu)
-# model5 = Acrobot(1.0,1.0,1.0,0.5,0.975,1.0,1.0,0.5,9.81,nx,nu)
-# model6 = Acrobot(1.0,1.0,1.0,0.5,0.95,1.0,1.0,0.5,9.81,nx,nu)
-# model7 = Acrobot(1.0,1.0,1.0,0.5,0.925,1.0,1.0,0.5,9.81,nx,nu)
-# model8 = Acrobot(1.0,1.0,1.0,0.5,0.9,1.0,1.0,0.5,9.81,nx,nu)
-# models = [model1,model2,model3,model4,model5,model6,model7,model8]
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-2*ones(model.nx)
+w = 1.0e-5*ones(model.nx)
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
@@ -103,11 +93,8 @@ xl_traj_sample = [[xl for t = 1:T] for i = 1:N]
 xu_traj_sample = [[xu for t = 1:T] for i = 1:N]
 
 for i = 1:N
-    xl_traj_sample[i][1] = x1_sample[1]
-    xu_traj_sample[i][1] = x1_sample[1]
-
-    # xl_traj_sample[i][T] = xT
-    # xu_traj_sample[i][T] = xT
+    xl_traj_sample[i][1] = x1_sample[i]
+    xu_traj_sample[i][1] = x1_sample[i]
 end
 
 K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
@@ -255,7 +242,10 @@ Jx_sample
 Ju_tvlqr
 Ju_sample
 
+
+include(joinpath(pwd(),"dynamics/visualize.jl"))
+
 vis = Visualizer()
 open(vis)
-dt_sim = sum(H_nom_sample)/(T_sim-1)
-visualize!(vis,model,[z_sample],Δt=dt_sim)
+dt_sim = sum(H_nominal)/(T-1)
+visualize!(vis,model,[X_nominal],Δt=dt_sim)
