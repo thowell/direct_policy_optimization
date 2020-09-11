@@ -142,7 +142,7 @@ function con!(c,z)
     return c
 end
 
-con!(zeros(m_nom_nlp),rand(n_nom_nlp))
+con!(zeros(m_nlp),rand(n_nlp))
 
 prob_linear = ProblemIpopt(n_nlp,m_nlp)
 
@@ -180,7 +180,16 @@ end
 
 prob_nonlinear = ProblemIpopt(n_nlp,m_nlp)
 
-z_sol_nonlinear = solve(z_sol_linear,prob_nonlinear)
+z0_nonlinear = zeros(n_nlp)
+for t = 1:T-1
+	for i = 1:N
+		z0_nonlinear[idx_x[i][t]] = x_nom[t+1]
+		z0_nonlinear[idx_u[i][t]] = u_nom[t]
+	end
+	z0_nonlinear[idx_θ[t]] = vec(K[t])
+end
+
+z_sol_nonlinear = solve(z0_nonlinear,prob_nonlinear)
 
 Θ_nonlinear = [reshape(z_sol_nonlinear[idx_θ[t]],nu,nx) for t = 1:T-1]
 policy_error_nonlinear = [norm(vec(Θ_nonlinear[t]-K[t]))/norm(vec(K[t]))

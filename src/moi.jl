@@ -1,4 +1,4 @@
-include("/home/taylor/.julia/dev/SNOPT7/src/SNOPT7.jl")
+# include("/home/taylor/.julia/dev/SNOPT7/src/SNOPT7.jl")
 
 struct MOIProblem <: MOI.AbstractNLPEvaluator
     n
