@@ -320,18 +320,18 @@ nx = model.nx
 nu = model.nu
 
 # Horizon
-T = 101
-
+T = 51
+Tm = convert(Int,(T-1)/2 + 1)
 # Initial and final states
-x1_slosh = [3.0; model.l2+10.0; 0*pi/180.0; 0.0*pi/180.0; -1.0; -10.0; -0*pi/180.0; 0.0*pi/180.0]
-x1 = x1_slosh
-xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+x1 = [-1.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+xM = [0.0; model.l2+1.0; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+xT = [1.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
 
 # Bounds
 
 # xl <= x <= xl
 xl = -Inf*ones(model.nx)
-xl[2] = model.l2
+# xl[2] = model.l2
 xu = Inf*ones(model.nx)
 
 xl_traj = [xl for t = 1:T]
@@ -340,27 +340,33 @@ xu_traj = [xu for t = 1:T]
 xl_traj[1] = x1
 xu_traj[1] = x1
 
-# xl_traj[T][1] = -1.0
-# xu_traj[T][1] = 1.0
-# xl_traj[T][2] = xT[2]
-# xu_traj[T][2] = xT[2]
+xl_traj[Tm][1:2] = xM[1:2]
+xu_traj[Tm][1:2] = xM[1:2]
+
+xl_traj[T] = xT
+xu_traj[T] = xT
+
+
 
 # ul <= u <= uu
-uu = [15.0;1.0;10*pi/180.0]
-ul = [0.0;-1.0;-10*pi/180.0]
+# uu = [100.0;1.0;10*pi/180.0]
+# ul = [0.0;-1.0;-10*pi/180.0]
+
+uu = Inf*ones(model.nu)
+ul = -Inf*ones(model.nu)
 
 tf0 = 10.0
 h0 = tf0/(T-1)
 hu = h0
-hl = 0.1*h0
+hl = h0
 #
 # Objective
-Q = [(t != T ? Diagonal([ones(3);1.0;ones(3);1.0])
-    : Diagonal([100.0*ones(3);1.0;100.0*ones(3);1.0])) for t = 1:T]
+Q = [Diagonal(ones(model.nx)) for t= 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
 c = 1.0
+x_ref = [linear_interp(x1,xM,Tm)...,linear_interp(xM,xT,Tm)[2:end]...]
 obj = QuadraticTrackingObjective(Q,R,c,
-    [xT for t=1:T],[zeros(model.nu) for t=1:T])
+    [x_ref[t] for t=1:T],[zeros(model.nu) for t=1:T])
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,model,obj,
@@ -376,7 +382,7 @@ prob = init_problem(model.nx,model.nu,T,model,obj,
 prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
-X0 = linear_interp(x1,xT,T) # linear interpolation on state
+X0 = x_ref # linear interpolation on state
 U0 = [[10*rand(1)[1];0.1*rand(1)[1];0.01*rand(1)[1]] for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
@@ -384,17 +390,17 @@ Z0 = pack(X0,U0,h0,prob)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,time_limit=20)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:ipopt,time_limit=20)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
-plot(hcat(U_nom...)',linetype=:steppost)
+plot(hcat(U_nom...)')
 @show sum(H_nom)
 H_nom
-# vis = Visualizer()
-# open(vis)
-#
-# l1 = Cylinder(Point3f0(0,0,-model.l2),Point3f0(0,0,model.l1),convert(Float32,0.1))
-# setobject!(vis["rocket"],l1,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
+vis = Visualizer()
+open(vis)
+
+l1 = Cylinder(Point3f0(0,0,-model.l2),Point3f0(0,0,model.l1),convert(Float32,0.1))
+setobject!(vis["rocket"],l1,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
 
 anim = MeshCat.Animation(convert(Int,floor(1/H_nom[1])))
 for t = 1:T
@@ -404,7 +410,7 @@ for t = 1:T
 end
 MeshCat.setanimation!(vis,anim)
 
-X_nom[end][2]
+X_nom[end][1]
 # x_pos = [X_nom[t][1] for t = 1:T]
 # z_pos = [X_nom[t][2] for t = 1:T]
 #
@@ -423,12 +429,12 @@ H_lqr = [10.0 for t = 1:T-1]
 
 N = 2*model.nx
 # models = [model for i = 1:N]
-# mf = range(0.95*model.mf,stop=1.05*model.mf,length=N)
-# mr = [1.0-mf[i] for i = 1:N]
-# lf = shuffle(range(0.8*model.l3,stop=1.2*model.l3,length=N))
-# models = [RocketSlosh(mr[i],model.Jr,mf[i],model.g,model.l1,model.l2,
-#     lf[i],model.nx,model.nu) for i = 1:N]
-models = [model for i = 1:N]
+mf = range(0.95*model.mf,stop=1.05*model.mf,length=N)
+mr = [1.0-mf[i] for i = 1:N]
+lf = shuffle(range(0.8*model.l3,stop=1.2*model.l3,length=N))
+models = [RocketSlosh(mr[i],model.Jr,mf[i],model.g,model.l1,model.l2,
+    lf[i],model.nx,model.nu) for i = 1:N]
+# models = [model for i = 1:N]
 β = 1.0
 w = 1.0e-3*ones(model.nx)
 γ = 1.0
@@ -504,11 +510,13 @@ t_sample = range(0,stop=sum(H_nom_sample_),length=T)
 t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
 t_sim_sample = range(0,stop=sum(H_nom_sample_),length=T_sim)
 
+x1_slosh = [5.0; model.l2+10.0; -10*pi/180.0; 0.0*pi/180.0; -2.0; -1.0; -1.0*pi/180.0; 0.0*pi/180.0]
+
 z0_sim = vec(copy(x1_slosh) + w0)
 
-# z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K_slosh_removed,
-#     X_nom_no_slosh,U_nom_no_slosh,model_sim,Q_lqr,R_lqr,T_sim,H_nom_no_slosh[1],z0_sim,w,_norm=2,
-#     ul=ul,uu=uu)
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K_slosh_removed,
+    X_nom_no_slosh,U_nom_no_slosh,model_sim,Q_lqr,R_lqr,T_sim,H_nom_no_slosh[1],z0_sim,w,_norm=2,
+    ul=ul,uu=uu)
 
 z_tvlqr2, u_tvlqr2, J_tvlqr2, Jx_tvlqr2, Ju_tvlqr2 = simulate_linear_controller(K2_slosh,
     X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,H_nom[1],z0_sim,w,_norm=2,
@@ -524,17 +532,20 @@ z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(
 # plt_x = plot!(t_sim_nom,hcat(z_tvlqr...)[[(1:3)...,(5:7)...],:]',color=:purple,label="tvlqr",
 #     width=2.0)
 
-plt_x = plot(t_sample,hcat(X_nom...)[[(1:3)...,(5:7)...],:]',legend=:topright,color=:red,
+plt_x = plot(t_sample,hcat(X_nom...)[1:6,:]',legend=:topright,color=:red,
     label="",width=2.0,xlabel="time (s)",
     title="Rocket",ylabel="state")
 plt_x = plot!(t_sim_sample,hcat(z_tvlqr2...)[[(1:3)...,(5:7)...],:]',linetype=:steppost,color=:cyan,
     label="",width=2.0)
 
-plt_x = plot(t_sample,hcat(X_nom_sample_...)[[(1:3)...,(5:7)...],:]',legend=:topright,color=:red,
+plt_x = plot(t_sample,hcat(X_nom_sample_...)[1:6,:]',legend=:topright,color=:red,
     label="",width=2.0,xlabel="time (s)",
     title="Rocket",ylabel="state")
 plt_x = plot!(t_sim_sample,hcat(z_sample...)[[(1:3)...,(5:7)...],:]',linetype=:steppost,color=:orange,
     label="",width=2.0)
+
+plot(x_pos,z_pos,aspect_ratio=:equal,label="",color=:purple,width=2.0)
+plot!(hcat(z_tvlqr...)[1:1,:]',hcat(z_tvlqr...)[2:2,:]',color=:black)
 
 plot(hcat(X_nom...)[1:1,:]',hcat(X_nom...)[2:2,:]',aspect_ratio=:equal,label="",color=:cyan,width=2.0)
 plot!(hcat(z_tvlqr2...)[1:1,:]',hcat(z_tvlqr2...)[2:2,:]',color=:black)
@@ -542,20 +553,24 @@ plot!(hcat(z_tvlqr2...)[1:1,:]',hcat(z_tvlqr2...)[2:2,:]',color=:black)
 plot(hcat(X_nom_sample_...)[1:1,:]',hcat(X_nom_sample_...)[2:2,:]',aspect_ratio=:equal,label="",color=:orange,width=2.0)
 plot!(hcat(z_sample...)[1:1,:]',hcat(z_sample...)[2:2,:]',color=:black)
 
-plot(hcat(X_nom_sample_...)[1:1,:]',hcat(X_nom_sample_...)[2:2,:]',aspect_ratio=:equal,label="",color=:orange,width=2.0)
+plot(x_pos,z_pos,aspect_ratio=:equal,label="",color=:purple,width=2.0)
+plot!(hcat(X_nom_sample_...)[1:1,:]',hcat(X_nom_sample_...)[2:2,:]',aspect_ratio=:equal,label="",color=:orange,width=2.0)
 plot!(hcat(X_nom...)[1:1,:]',hcat(X_nom...)[2:2,:]',aspect_ratio=:equal,label="",color=:cyan,width=2.0)
 
-plot(hcat(u_sample...)',color=:red)
-plot!(hcat(u_tvlqr2...)',color=:black)
+plot(hcat(u_sample...)')
+plot(hcat(u_tvlqr2...)')
 # objective value
+J_tvlqr
 J_tvlqr2
 J_sample
 
 # state tracking
+Jx_tvlqr
 Jx_tvlqr2
 Jx_sample
 
 # control tracking
+Ju_tvlqr
 Ju_tvlqr2
 Ju_sample
 
