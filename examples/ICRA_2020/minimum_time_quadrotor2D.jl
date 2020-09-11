@@ -80,7 +80,7 @@ models = [model for i = 1:N]
 w = 1.0e-2*ones(model.nx)
 γ = 1.0
 
-α = 1.0e-2
+α = 1.0e-1
 x11 = x1 + α*[1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
 x12 = x1 + α*[-1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
 x13 = x1 + α*[0.0; 1.0; 0.0; 0.0; 0.0; 0.0]
@@ -122,7 +122,7 @@ Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT7,time_limit=60*5.0,
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
-
+Θ = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-1]
 # Plot results
 
 # Time
@@ -205,7 +205,7 @@ psθ_dpo = PGF.Plots.Linear(t_sample,hcat(X_nom_sample...)[2,:],mark="",
 	style="color=orange, line width=3pt, densely dashed",legendentry="ang. (DPO)")
 
 a = Axis([psx_nom;psθ_nom;psx_dpo;psθ_dpo],
-    xmin=0., ymin=-3, xmax=max(sum(H_nom_sample),sum(H_nominal)), ymax=7.0,
+    xmin=0., ymin=-11, xmax=max(sum(H_nom_sample),sum(H_nominal)), ymax=11,
     axisEqualImage=false,
     hideAxis=false,
 	ylabel="state",
@@ -237,3 +237,54 @@ a = Axis([psu_nom;psu_dpo],
 # Save to tikz format
 dir = joinpath(@__DIR__,"results")
 PGF.save(joinpath(dir,"minimum_time_quadrotor2D_control.tikz"), a, include_preamble=false)
+
+# Simualate
+using Distributions
+T_sim = 10T
+
+W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-2*ones(nx)))
+w = rand(W,T_sim)
+
+W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-3*ones(nx)))
+w0 = rand(W0,1)
+
+
+model_sim = model
+
+t_sim_nominal = range(0,stop=H_nominal[1]*(T-1),length=T_sim)
+t_sim_sample = range(0,stop=H_nom_sample[1]*(T-1),length=T_sim)
+
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
+    X_nominal,U_nominal,model_sim,Q_lqr,R_lqr,T_sim,H_nominal[1],
+	vec(X_nominal[1]+w0),w,ul=ul,uu=uu)
+
+plt_tvlqr_nom = plot(t_nominal,hcat(X_nominal...)[1:2,:]',legend=:topleft,color=:red,
+    label="",
+    width=2.0,xlabel="time",title="Quadrotor 2D",ylabel="state")
+plt_tvlqr_nom = plot!(t_sim_nominal,hcat(z_tvlqr...)[1:2,:]',color=:purple,
+    label="",width=2.0)
+savefig(plt_tvlqr_nom,joinpath(@__DIR__,"results/quadrotor2D_tvlqr_nom_sim.png"))
+
+z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(Θ,
+    X_nom_sample,U_nom_sample,
+    model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample[1],vec(X_nom_sample[1]+w0),w,ul=ul,uu=uu,
+	controller=:policy)
+
+plt_sample = plot(t_sample,hcat(X_nom_sample...)[1:2,:]',legend=:bottom,color=:red,
+    label=["nominal (sample)" ""],
+    width=2.0,xlabel="time",title="Cartpole",ylabel="state")
+plt_sample = plot!(t_sim_sample,hcat(z_sample...)[1:2,:]',color=:orange,
+    label=["sample" ""],width=2.0,legend=:topleft)
+savefig(plt_sample,joinpath(@__DIR__,"results/quadrotor2D_sample_sim.png"))
+
+# cost
+J_tvlqr
+J_sample
+
+# state tracking
+Jx_tvlqr
+Jx_sample
+
+# control tracking
+Ju_tvlqr
+Ju_sample

@@ -37,18 +37,18 @@ xu_traj[1] = x1
 
 # xl_traj[T] = xT
 # xu_traj[T] = xT
-xl_traj[T][1] = -0.1
-xu_traj[T][1] = 0.1
-xl_traj[T][2] = xT[2]-0.01
-xu_traj[T][2] = xT[2]+0.01
-xl_traj[T][3] = -1.0*pi/180.0
-xu_traj[T][3] = 1.0*pi/180.0
-xl_traj[T][4] = -0.001
-xu_traj[T][4] = 0.001
-xl_traj[T][5] = -0.001
-xu_traj[T][5] = 0.001
-xl_traj[T][6] = -0.01*pi/180.0
-xu_traj[T][6] = 0.01*pi/180.0
+# xl_traj[T][1] = -0.1
+# xu_traj[T][1] = 0.1
+# xl_traj[T][2] = xT[2]-0.01
+# xu_traj[T][2] = xT[2]+0.01
+# xl_traj[T][3] = -1.0*pi/180.0
+# xu_traj[T][3] = 1.0*pi/180.0
+# xl_traj[T][4] = -0.001
+# xu_traj[T][4] = 0.001
+# xl_traj[T][5] = -0.001
+# xu_traj[T][5] = 0.001
+# xl_traj[T][6] = -0.01*pi/180.0
+# xu_traj[T][6] = 0.01*pi/180.0
 
 # ul <= u <= uu
 uu = [100.0;1.0;10*pi/180.0]
@@ -100,7 +100,7 @@ for t = 1:T
 end
 MeshCat.setanimation!(vis,anim)
 # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
-
+plot(hcat(U_nom...)')
 X_nom[T][2]
 # Simulate TVLQR (no slosh)
 using Distributions
@@ -224,10 +224,9 @@ models = [model_slosh for i = 1:N]
 # dψ = shuffle(range(0,stop=pi/10,length=N))
 
 β = 1.0
-w1 = 1.0e-2*ones(model_slosh.nx)
-w = 1.0e-1*ones(model_slosh.nx)
+w = 1.0e-8*ones(model_slosh.nx)
 γ = 1.0
-x1_sample = resample([x1_slosh for i = 1:N],β=β,w=w1)
+x1_sample = resample([x1_slosh for i = 1:N],β=β,w=w)
 # x1_sample = [x1_slosh for i = 1:N]
 
 # for i = 1:N
