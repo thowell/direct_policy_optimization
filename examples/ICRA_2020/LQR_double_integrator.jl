@@ -6,21 +6,8 @@ nx = model.nx
 nu = model.nu
 A, B = get_dynamics(model)
 
-# LQR solution
+# horizon
 T = 51
-Q_lqr = [Diagonal(ones(nx)) for t = 1:T]
-R_lqr = [Diagonal(ones(nu)) for t = 1:T-1]
-H_lqr = [0.0 for t = 1:T-1]
-
-K = TVLQR([A for t=1:T-1],[B for t=1:T-1],[Q_lqr[t] for t=1:T],[R_lqr[t] for t=1:T-1])
-
-# 4 samples
-α = 1.0
-x11 = α*[1.0; 1.0]
-x12 = α*[1.0; -1.0]
-x13 = α*[-1.0; 1.0]
-x14 = α*[-1.0; -1.0]
-x1_sample = [x11,x12,x13,x14]
 
 xl_traj = [zeros(nx) for t = 1:T]
 xu_traj = [zeros(nx) for t = 1:T]
@@ -59,6 +46,19 @@ Z0 = pack(X0,U0,model.Δt,prob)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
 # Sample
+Q_lqr = [Diagonal(ones(nx)) for t = 1:T]
+R_lqr = [Diagonal(ones(nu)) for t = 1:T-1]
+H_lqr = [0.0 for t = 1:T-1]
+
+K = TVLQR([A for t=1:T-1],[B for t=1:T-1],[Q_lqr[t] for t=1:T],[R_lqr[t] for t=1:T-1])
+
+α = 1.0
+x11 = α*[1.0; 1.0]
+x12 = α*[1.0; -1.0]
+x13 = α*[-1.0; 1.0]
+x14 = α*[-1.0; -1.0]
+x1_sample = [x11,x12,x13,x14]
+
 N = 2*nx
 models = [model for i = 1:N]
 β = 1.0
