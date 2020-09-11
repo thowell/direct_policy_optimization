@@ -1,32 +1,18 @@
 include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
-include(joinpath(pwd(),"tests/ipopt.jl"))
+include(joinpath(pwd(),"dynamics/double_integrator.jl"))
 
-# double-integrator continuous-time dynamics
-nx = 2
-nu = 1
-Ac = [0.0 1.0; 0.0 0.0]
-Bc = [0.0; 1.0]
-
-# double-integrator discrete-time dynamics
-Δt = 0.1
-D = exp(Δt*[Ac Bc; zeros(1,nx+nu)])
-A = D[1:nx,1:nx]
-B = D[1:nx,nx .+ (1:nu)]
-
-function dynamics(x,u,Δt)
-    Δt = 0.1
-    D = exp(Δt*[Ac Bc; zeros(1,nx+nu)])
-    A = D[1:nx,1:nx]
-    B = D[1:nx,nx .+ (1:nu)]
-
-    return A*x + B*u
-end
+model = model_analytical
+nx = model.nx
+nu = model.nu
+A, B = get_dynamics(model)
 
 # LQR solution
 T = 51
-Q = Diagonal(ones(nx))
-R = Diagonal(ones(nu))
-K = TVLQR([A for t=1:T-1],[B for t=1:T-1],[Q for t=1:T],[R for t=1:T-1])
+Q_lqr = [Diagonal(ones(nx)) for t = 1:T]
+R_lqr = [Diagonal(ones(nu)) for t = 1:T-1]
+H_lqr = [0.0 for t = 1:T-1]
+
+K = TVLQR([A for t=1:T-1],[B for t=1:T-1],[Q_lqr[t] for t=1:T],[R_lqr[t] for t=1:T-1])
 
 # 4 samples
 α = 1.0
@@ -34,60 +20,83 @@ x11 = α*[1.0; 1.0]
 x12 = α*[1.0; -1.0]
 x13 = α*[-1.0; 1.0]
 x14 = α*[-1.0; -1.0]
-x1 = [x11,x12,x13,x14]
+x1_sample = [x11,x12,x13,x14]
 
-N = length(x1)
+xl_traj = [zeros(nx) for t = 1:T]
+xu_traj = [zeros(nx) for t = 1:T]
 
-# indices
-n_nlp = N*(nx*(T-1) + nu*(T-1)) + nu*nx*(T-1)
-m_nlp = N*(nx*(T-1) + nu*(T-1))
+ul_traj = [zeros(nu) for t = 1:T]
+uu_traj = [zeros(nu) for t = 1:T]
 
-idx_θ = [(t-1)*(nu*nx) .+ (1:nu*nx) for t = 1:T-1]
-idx_x = [[((T-1)*(nu*nx) + (i-1)*(nx*(T-1) + nu*(T-1))
-    + (t-1)*(nx+nu) .+ (1:nx)) for t = 1:T-1] for i = 1:N]
-idx_u = [[((T-1)*(nu*nx) + (i-1)*(nx*(T-1) + nu*(T-1))
-    + (t-1)*(nx+nu) + nx .+ (1:nu)) for t = 1:T-1] for i = 1:N]
+obj = QuadraticTrackingObjective(
+	[Diagonal(zeros(nx)) for t = 1:T],
+	[Diagonal(zeros(nu)) for t = 1:T-1],
+	0.0,
+    [zeros(nx) for t=1:T],[zeros(nu) for t=1:T])
 
-idx_con_dyn = [[(i-1)*(nx*(T-1)) + (t-1)*nx .+ (1:nx) for t = 1:T-1] for i = 1:N]
-idx_con_ctrl = [[((i-1)*(nu*(T-1)) + N*(nx*(T-1))
-    + (t-1)*nu .+ (1:nu)) for t = 1:T-1] for i = 1:N]
+# Problem
+prob = init_problem(nx,nu,T,model,obj,
+                    xl=[zeros(nx) for t = 1:T],
+                    xu=[zeros(nx) for t = 1:T],
+                    ul=[zeros(nu) for t = 1:T-1],
+                    uu=[zeros(nu) for t = 1:T-1],
+                    hl=[0.0 for t=1:T-1],
+                    hu=[0.0 for t=1:T-1],
+                    )
 
-function obj(z)
-    s = 0
-    for t = 1:T-1
-        for i = 1:N
-            x = view(z,idx_x[i][t])
-            u = view(z,idx_u[i][t])
-            s += x'*Q*x + u'*R*u
-        end
-    end
-    return s
+# MathOptInterface problem
+prob_moi = init_MOI_Problem(prob)
+
+# Trajectory initialization
+X0 = linear_interp(zeros(nx),zeros(nx),T) # linear interpolation on state
+U0 = [zeros(nu) for t = 1:T-1] # random controls
+
+# Pack trajectories into vector
+Z0 = pack(X0,U0,model.Δt,prob)
+
+# Solve nominal problem
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
+X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
+
+# Sample
+N = 2*nx
+models = [model for i = 1:N]
+β = 1.0
+w = 1.0e-1*ones(nx)
+γ = N
+
+xl_traj_sample = [[-Inf*ones(nx) for t = 1:T] for i = 1:N]
+xu_traj_sample = [[Inf*ones(nx) for t = 1:T] for i = 1:N]
+
+ul_traj_sample = [[-Inf*ones(nu) for t = 1:T-1] for i = 1:N]
+uu_traj_sample = [[Inf*ones(nu) for t = 1:T-1] for i = 1:N]
+
+for i = 1:N
+    xl_traj_sample[i][1] = x1_sample[i]
+    xu_traj_sample[i][1] = x1_sample[i]
 end
 
-function con!(c,z)
-    β = 1.0
-    w = 1.0e-1*ones(nx)
-    for t = 1:T-1
-        xs = (t==1 ? [x1[i] for i = 1:N] : [view(z,idx_x[i][t-1]) for i = 1:N])
-        u = [view(z,idx_u[i][t]) for i = 1:N]
-        xs⁺ = sample_dynamics_linear(xs,u,A,B,β=β,w=w,fast_sqrt=true)
-        x⁺ = [view(z,idx_x[i][t]) for i = 1:N]
-        θ = reshape(view(z,idx_θ[t]),nu,nx)
+prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample,
+	ul=ul_traj_sample,
+    uu=uu_traj_sample,
+    β=β,w=w,γ=γ)
 
-        for i = 1:N
-            c[idx_con_dyn[i][t]] = xs⁺[i] - x⁺[i]
-            c[idx_con_ctrl[i][t]] = u[i] + θ*xs[i]
-        end
-    end
-    return c
-end
 
-prob = ProblemIpopt(n_nlp,m_nlp)
+prob_sample_moi = init_MOI_Problem(prob_sample)
 
-z0 = ones(n_nlp)
-z_sol = solve(z0,prob)
+Z0_sample = ones(prob_sample_moi.n)
 
-Θ = [reshape(z_sol[idx_θ[t]],nu,nx) for t = 1:T-1]
+# Solve
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=60,tol=1.0e-6,c_tol=1.0e-6)
+
+# Unpack solutions
+X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+
+X_sample[1]
+U_sample[1]
+Θ = [reshape(Z_sample_sol[prob_sample.idx_K[t]],nu,nx) for t = 1:T-1]
 policy_error = [norm(vec(Θ[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("Policy solution error (avg.): $(sum(policy_error)/T)")
 

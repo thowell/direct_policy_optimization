@@ -423,12 +423,12 @@ H_lqr = [10.0 for t = 1:T-1]
 
 N = 2*model.nx
 # models = [model for i = 1:N]
-# mf = range(0.95*model.mf,stop=1.05*model.mf,length=N)
-# mr = [1.0-mf[i] for i = 1:N]
-# lf = shuffle(range(0.8*model.l3,stop=1.2*model.l3,length=N))
-# models = [RocketSlosh(mr[i],model.Jr,mf[i],model.g,model.l1,model.l2,
-#     lf[i],model.nx,model.nu) for i = 1:N]
-models = [model for i = 1:N]
+mf = range(0.9*model.mf,stop=1.1*model.mf,length=N)
+mr = [1.0-mf[i] for i = 1:N]
+lf = shuffle(range(0.8*model.l3,stop=1.2*model.l3,length=N))
+models = [RocketSlosh(mr[i],model.Jr,mf[i],model.g,model.l1,model.l2,
+    lf[i],model.nx,model.nu) for i = 1:N]
+# models = [model for i = 1:N]
 β = 1.0
 w = 1.0e-3*ones(model.nx)
 γ = 1.0
@@ -558,7 +558,6 @@ Jx_sample
 # control tracking
 Ju_tvlqr2
 Ju_sample
-
 
 anim = MeshCat.Animation(convert(Int,floor(1/H_nom_sample_[1])))
 for t = 1:T

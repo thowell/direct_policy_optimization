@@ -63,3 +63,32 @@ function dynamics(model::DoubleIntegrator2D,x,u)
 end
 
 model_2D = DoubleIntegrator2D(4,2)
+
+# analytical discrete dynamics
+
+struct DoubleIntegratorAnalytical{T}
+    nx::Int
+    nu::Int
+    Δt::T
+end
+
+function get_dynamics(model::DoubleIntegratorAnalytical)
+    nx = model.nx
+    nu = model.nu
+
+    Ac = [0.0 1.0; 0.0 0.0]
+    Bc = [0.0; 1.0]
+
+    D = exp(model.Δt*[Ac Bc; zeros(1,nx+nu)])
+    A = D[1:nx,1:nx]
+    B = D[1:nx,nx .+ (1:nu)]
+
+    A, B
+end
+
+function discrete_dynamics(model::DoubleIntegratorAnalytical,x⁺,x,u,h,t)
+    A, B = get_dynamics(model)
+    x⁺ - A*x - B*u
+end
+
+model_analytical = DoubleIntegratorAnalytical(2,1,0.1)
