@@ -323,7 +323,7 @@ nu = model.nu
 T = 101
 
 # Initial and final states
-x1_slosh = [3.0; model.l2+10.0; 0*pi/180.0; 0.0*pi/180.0; -1.0; -10.0; -0*pi/180.0; 0.0*pi/180.0]
+x1_slosh = [3.0; model.l2+10.0; -10*pi/180.0; 0.0*pi/180.0; -1.0; -10.0; 0*pi/180.0; -1.0*pi/180.0]
 x1 = x1_slosh
 xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
 
@@ -346,7 +346,7 @@ xu_traj[1] = x1
 # xu_traj[T][2] = xT[2]
 
 # ul <= u <= uu
-uu = [15.0;1.0;10*pi/180.0]
+uu = [100.0;1.0;10*pi/180.0]
 ul = [0.0;-1.0;-10*pi/180.0]
 
 tf0 = 10.0
@@ -423,9 +423,9 @@ H_lqr = [10.0 for t = 1:T-1]
 
 N = 2*model.nx
 # models = [model for i = 1:N]
-mf = range(0.9*model.mf,stop=1.1*model.mf,length=N)
+mf = range(0.5*model.mf,stop=1.5*model.mf,length=N)
 mr = [1.0-mf[i] for i = 1:N]
-lf = shuffle(range(0.8*model.l3,stop=1.2*model.l3,length=N))
+lf = shuffle(range(0.5*model.l3,stop=1.5*model.l3,length=N))
 models = [RocketSlosh(mr[i],model.Jr,mf[i],model.g,model.l1,model.l2,
     lf[i],model.nx,model.nu) for i = 1:N]
 # models = [model for i = 1:N]
@@ -490,10 +490,10 @@ end
 
 norm(vec(hcat(K2_slosh...)))
 norm(vec(hcat(Θ2_slosh...)))
-model_sim = model_slosh
+model_sim = models[5]
 T_sim = 10*T
 using Distributions
-W = Distributions.MvNormal(zeros(model_sim.nx),Diagonal(1.0e-5*ones(model_sim.nx)))
+W = Distributions.MvNormal(zeros(model_sim.nx),Diagonal(1.0*ones(model_sim.nx)))
 w = rand(W,T_sim)
 
 W0 = Distributions.MvNormal(zeros(model_sim.nx),Diagonal(1.0e-5*ones(model_sim.nx)))
@@ -504,7 +504,9 @@ t_sample = range(0,stop=sum(H_nom_sample_),length=T)
 t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
 t_sim_sample = range(0,stop=sum(H_nom_sample_),length=T_sim)
 
-z0_sim = vec(copy(x1_slosh) + w0)
+x1_slosh_sim = [3.0; model.l2+10.0; 0.0*pi/180.0; 10.0*pi/180.0; -1.0; -10.0; -0*pi/180.0; 60.0*pi/180.0]
+
+z0_sim = vec(copy(x1_slosh_sim) + w0)
 
 # z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K_slosh_removed,
 #     X_nom_no_slosh,U_nom_no_slosh,model_sim,Q_lqr,R_lqr,T_sim,H_nom_no_slosh[1],z0_sim,w,_norm=2,
@@ -559,10 +561,10 @@ Jx_sample
 Ju_tvlqr2
 Ju_sample
 
-anim = MeshCat.Animation(convert(Int,floor(1/H_nom_sample_[1])))
-for t = 1:T
-    MeshCat.atframe(anim,t) do
-        settransform!(vis["rocket"], compose(Translation(X_nom_sample_[t][1],0.0,X_nom_sample_[t][2]),LinearMap(RotY(-1.0*X_nom_sample_[t][3]))))
-    end
-end
-MeshCat.setanimation!(vis,anim)
+# anim = MeshCat.Animation(convert(Int,floor(1/H_nom_sample_[1])))
+# for t = 1:T
+#     MeshCat.atframe(anim,t) do
+#         settransform!(vis["rocket"], compose(Translation(X_nom_sample_[t][1],0.0,X_nom_sample_[t][2]),LinearMap(RotY(-1.0*X_nom_sample_[t][3]))))
+#     end
+# end
+# MeshCat.setanimation!(vis,anim)

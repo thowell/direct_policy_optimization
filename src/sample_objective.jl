@@ -15,7 +15,7 @@ function sample_objective(z,prob::SampleProblem)
         x_nom = view(z,idx_nom.x[t])
 
         for i = 1:N
-            xi = view(z,idx_sample[i].x[t])
+            xi = output(prob.models[i],view(z,idx_sample[i].x[t]))
             J += (xi - x_nom)'*Q[t]*(xi - x_nom)
         end
 
@@ -48,9 +48,9 @@ function ∇sample_objective!(∇obj,z,prob::SampleProblem)
     for t = 1:T
         x_nom = view(z,idx_nom.x[t])
         for i = 1:N
-            xi = view(z,idx_sample[i].x[t])
+            xi = output(prob.models[i],view(z,idx_sample[i].x[t]))
 
-            ∇obj[idx_sample[i].x[t]] += 2.0*Q[t]*(xi - x_nom)*γ/N
+            ∇obj[output(prob.models[i],idx_sample[i].x[t])] += 2.0*Q[t]*(xi - x_nom)*γ/N
             ∇obj[idx_nom.x[t]] -= 2.0*Q[t]*(xi - x_nom)*γ/N
         end
 

@@ -76,38 +76,36 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,Q,R,H;
         sample_general_ineq=(1:m_sample_general),
         resample_idx=[t for t = 1:T-1])
 
-    nx = prob.nx
-    nu = prob.nu
     u_policy = 1:n_policy
 
     T = prob.T
     N = length(models)
 
-    Nx = N*(nx*T)
-    Nu = N*nu*(T-1)
+    Nx = sum([models[i].nx for i = 1:N])*T
+    Nu = sum([models[i].nu for i = 1:N])*(T-1)
     Nh = N*(T-1)
-    Nxs = N*(nx*(T-1))
+    Nxs = sum([models[i].nx for i = 1:N])*(T-1)
     NK = policy_constraint*n_policy*n_features*(T-1)
-    Nuw = disturbance_ctrl*2*N*nx*(T-1)
+    Nuw = disturbance_ctrl*2*sum([models[i].nx for i = 1:N])*(T-1)
     N_nlp = prob.N + Nx + Nu + Nh + Nxs + NK + Nuw
 
-    M_dynamics = N*(2*nx*(T-1) + (T-2))
+    M_dynamics = 2*sum([models[i].nx for i = 1:N])*(T-1) + N*(T-2)
     M_policy = policy_constraint*N*n_policy*(T-1)
     M_stage = prob.stage_constraints*N*sum(prob.m_stage)
     M_general = sample_general_constraints*m_sample_general
-    M_uw = disturbance_ctrl*2*N*nx*(T-1)
+    M_uw = disturbance_ctrl*2*sum([models[i].nx for i = 1:N])*(T-1)
 
     M_nlp = prob.M + M_dynamics + M_policy + M_stage + M_general + M_uw
 
-    idx_nom = init_indices(nx,nu,T,time=true,shift=0)
+    idx_nom = init_indices(prob.model.nx,prob.model.nu,T,time=true,shift=0)
     idx_nom_z = 1:prob.N
     shift = prob.N
 
-    idx_sample = [init_indices(nx,nu,T,time=true,shift=shift + (i-1)*(prob.N)) for i = 1:N]
-    shift += N*prob.N
+    idx_sample = [init_indices(models[i].nx,models[i].nu,T,time=true,shift=shift + (i-1)*(i==1 ? 0 : models[i-1].nx*T + models[i-1].nu*(T-1) + (T-1))) for i = 1:N]
+    shift += sum([models[i].nx for i = 1:N])*T + sum([models[i].nu for i = 1:N])*(T-1) + N*(T-1)
 
-    idx_x_tmp = [init_indices(nx,0,T-1,time=false,shift=shift + (i-1)*(nx*(T-1))) for i = 1:N]
-    shift += N*(nx*(T-1))
+    idx_x_tmp = [init_indices(models[i].nx,0,T-1,time=false,shift=shift + (i-1)*(i==1 ? 0 : models[i-1].nx*(T-1))) for i = 1:N]
+    shift += sum([models[i].nx for i = 1:N])*(T-1)
 
     if policy_constraint
         idx_K = [shift + (t-1)*(n_policy*n_features) .+ (1:n_policy*n_features) for t = 1:T-1]
@@ -117,10 +115,10 @@ function init_sample_problem(prob::TrajectoryOptimizationProblem,models,Q,R,H;
     end
 
     if disturbance_ctrl
-        idx_uw = [[shift + (i-1)*nx*(T-1) + (t-1)*nx .+ (1:nx)  for t = 1:T-1] for i = 1:N]
-        shift += N*nx*(T-1)
-        idx_slack = [[shift + (i-1)*nx*(T-1) + (t-1)*nx .+ (1:nx)  for t = 1:T-1] for i = 1:N]
-        shift += N*nx*(T-1)
+        idx_uw = [[shift + (i-1)*(i==1 ? 0 : models[i-1].nx)*(T-1) + (t-1)*models[i].nx .+ (1:models[i].nx)  for t = 1:T-1] for i = 1:N]
+        shift += sum([models[i].nx for i = 1:N])*(T-1)
+        idx_slack = [[shift + (i-1)*(i==1 ? 0 : models[i-1].nx)*(T-1) + (t-1)*models[i].nx .+ (1:models[i].nx)  for t = 1:T-1] for i = 1:N]
+        shift += sum([models[i].nx for i = 1:N])*(T-1)
     else
         idx_uw = [[(1:0) for t = 1:T-1] for i = 1:N]
         idx_slack = [[(1:0) for t = 1:T-1] for i = 1:N]
@@ -169,6 +167,40 @@ function pack(X0,U0,h0,K0,prob::SampleProblem;
             Z0[prob.idx_sample[i].u[t]] = U0[t] + r*rand(model.nu)
             Z0[prob.idx_sample[i].h[t]] = h0 + r*rand(1)[1]
             Z0[prob.idx_x_tmp[i].x[t]] = X0[t+1] + r*rand(model.nx)
+
+            if prob.disturbance_ctrl
+                Z0[prob.idx_uw[i][t]] .= uw
+                Z0[prob.idx_slack[i][t]] .= s
+            end
+        end
+    end
+
+    if prob.policy_constraint
+        for t = 1:T-1
+            Z0[prob.idx_K[t]] = vec(K0[t])
+        end
+    end
+    return Z0
+end
+
+function pack(X0,XS,U0,h0,K0,prob::SampleProblem;
+        uw=1.0,s=1.0,r=0.0)
+    model = prob.prob.model
+    models = prob.models
+
+    Z0 = zeros(prob.N_nlp)
+    Z0[prob.idx_nom_z] = pack(X0,U0,h0,prob.prob)
+
+    T = prob.prob.T
+    N = prob.N
+
+    for t = 1:T
+        for i = 1:N
+            Z0[prob.idx_sample[i].x[t]] = XS[t] + r*rand(models[i].nx)
+            t==T && continue
+            Z0[prob.idx_sample[i].u[t]] = U0[t] + r*rand(models[i].nu)
+            Z0[prob.idx_sample[i].h[t]] = h0 + r*rand(1)[1]
+            Z0[prob.idx_x_tmp[i].x[t]] = XS[t+1] + r*rand(models[i].nx)
 
             if prob.disturbance_ctrl
                 Z0[prob.idx_uw[i][t]] .= uw

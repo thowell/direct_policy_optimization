@@ -15,7 +15,7 @@ function sample_dynamics_constraints!(c,z,prob::SampleProblem)
 
     shift = 0
 
-    nx = length(idx_nom.x[1])
+    # nx = length(idx_nom.x[1])
     nu = length(u_policy)
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
@@ -30,16 +30,16 @@ function sample_dynamics_constraints!(c,z,prob::SampleProblem)
 
             xi⁺ = view(z,idx_sample[i].x[t+1])
 
-            c[shift .+ (1:nx)] = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,hi,t)
-            shift += nx
-            c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
+            c[shift .+ (1:models[i].nx)] = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,hi,t)
+            shift += models[i].nx
+            c[shift .+ (1:models[i].nx)] = xs⁺[i] - xi⁺
 
             if disturbance_ctrl
                 uwi = view(z,idx_uw[i][t])
-                c[shift .+ (1:nx)] += uwi
+                c[shift .+ (1:models[i].nx)] += uwi
             end
 
-            shift += nx
+            shift += models[i].nx
 
             if t < T-1
                 hi⁺ = view(z,idx_sample[i].h[t+1])
@@ -69,7 +69,7 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::SampleProblem)
     disturbance_ctrl = prob.disturbance_ctrl
 
     shift = 0
-    nx = length(idx_nom.x[1])
+    # nx = length(idx_nom.x[1])
     nu = length(u_policy)
 
     # dynamics + resampling (x1 is taken care of w/ primal bounds)
@@ -92,14 +92,14 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::SampleProblem)
             dyn_x_tmp(a) = discrete_dynamics(models[i],a,xi,ui,hi,t)
             function resample_x_tmp(a)
                 if t in prob.resample_idx
-                    return resample_vec(a,nx,N,i,β=β,w=w)
+                    return resample_vec(a,models[i].nx,N,i,β=β,w=w)
                 else
-                    return a[(i-1)*nx .+ (1:nx)]
+                    return a[(i-1)*models[i].nx .+ (1:models[i].nx)]
                 end
             end
 
             # c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)
-            r_idx = shift .+ (1:nx)
+            r_idx = shift .+ (1:models[i].nx)
 
             c_idx = idx_sample[i].x[t]
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x,xi)
@@ -125,15 +125,15 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::SampleProblem)
             ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i]))
             s += len
 
-            shift += nx
+            shift += models[i].nx
 
             # c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
-            r_idx = shift .+ (1:nx)
+            r_idx = shift .+ (1:models[i].nx)
 
             c_idx = idx_sample[i].x[t+1]
             # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nx))
             len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)))
+            ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(models[i].nx)))
             s += len
 
             c_idx = idx_x_tmp_vec
@@ -149,11 +149,11 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::SampleProblem)
                 # c[shift .+ (1:nx)] += uwi
                 c_idx = idx_uw[i][t]
                 len = length(r_idx)*length(c_idx)
-                ∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
+                ∇c[s .+ (1:len)] = vec(Diagonal(ones(models[i].nx)))
                 s += len
             end
 
-            shift += nx
+            shift += models[i].nx
 
             if t < T-1
                 r_idx = shift .+ (1:1)
@@ -194,7 +194,7 @@ function sparsity_jacobian_sample_dynamics(prob::SampleProblem;
 
     shift = 0
 
-    nx = length(idx_nom.x[1])
+    # nx = length(idx_nom.x[1])
     nu = length(u_policy)
 
     s = 0
@@ -222,7 +222,7 @@ function sparsity_jacobian_sample_dynamics(prob::SampleProblem;
             # resample_x_tmp(a) = resample_vec(a,nx,N,i,β=β,w=w) # resample
 
             # c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)
-            r_idx = r_shift + shift .+ (1:nx)
+            r_idx = r_shift + shift .+ (1:models[i].nx)
 
             c_idx = idx_sample[i].x[t]
             # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x,xi)
@@ -252,10 +252,10 @@ function sparsity_jacobian_sample_dynamics(prob::SampleProblem;
             # s += len
             row_col!(row,col,r_idx,c_idx)
 
-            shift += nx
+            shift += models[i].nx
 
             # c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
-            r_idx = r_shift + shift .+ (1:nx)
+            r_idx = r_shift + shift .+ (1:models[i].nx)
 
             c_idx = idx_sample[i].x[t+1]
             # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nx))
@@ -281,7 +281,7 @@ function sparsity_jacobian_sample_dynamics(prob::SampleProblem;
                 row_col!(row,col,r_idx,c_idx)
             end
 
-            shift += nx
+            shift += models[i].nx
 
             if t < T-1
                 r_idx = r_shift + shift .+ (1:1)

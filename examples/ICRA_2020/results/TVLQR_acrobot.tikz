@@ -1,0 +1,16 @@
+\begin{tikzpicture}[]
+\begin{axis}[ylabel = {matrix-norm error}, xmin = {1.0}, xmax = {10}, axis equal image = {false}, ymax = {1.0}, ymode = {log}, xlabel = {time step}, hide axis = {false}, ymin = {1.0e-16}]\addplot+ [mark = {}, color=black, very thick]coordinates {
+(1.0, 0.00010049024836372587)
+(2.0, 2.8107379879386255e-5)
+(3.0, 5.547371584027519e-6)
+(4.0, 3.8904844810579245e-5)
+(5.0, 1.4560976714904621e-5)
+(6.0, 2.2078681710312167e-5)
+(7.0, 3.978799269325863e-6)
+(8.0, 2.6300869579503103e-5)
+(9.0, 1.3000130560756473e-5)
+(10.0, 3.5498980568062172e-6)
+};
+\end{axis}
+
+\end{tikzpicture}

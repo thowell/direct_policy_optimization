@@ -29,8 +29,8 @@ function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
         k = searchsortedlast(times,t)
         z = z_rollout[end] + dt_sim*w[:,tt]
 
-        z_cubic = zeros(model.nx)
-        for i = 1:model.nx
+        z_cubic = zero(z_nom[1])
+        for i = 1:length(z_nom[1])
             interp_cubic = CubicSplineInterpolation(t_ctrl, A_state[i,:])
             z_cubic[i] = interp_cubic(t)
         end
@@ -46,18 +46,18 @@ function simulate_linear_controller(Kc,z_nom,u_nom,model,Q,R,T_sim,Δt,z0,w;
         u = max.(u,ul)
         u = min.(u,uu)
 
-        push!(z_rollout,min.(max.(discrete_dynamics(model,z,u,dt_sim,tt),xl),xu))
+        push!(z_rollout,discrete_dynamics(model,z,u,dt_sim,tt))
         push!(u_rollout,u)
 
         if _norm == 2
-            J += (z_rollout[end]-z_cubic)'*Q[k+1]*(z_rollout[end]-z_cubic)
+            J += (output(model,z_rollout[end])-z_cubic)'*Q[k+1]*(output(model,z_rollout[end])-z_cubic)
             J += (u_rollout[end]-u_nom[k])'*R[k]*(u_rollout[end]-u_nom[k])
-            Jx += (z_rollout[end]-z_cubic)'*Q[k+1]*(z_rollout[end]-z_cubic)
+            Jx += (output(model,z_rollout[end])-z_cubic)'*Q[k+1]*(output(model,z_rollout[end])-z_cubic)
             Ju += (u_rollout[end]-u_nom[k])'*R[k]*(u_rollout[end]-u_nom[k])
         else
-            J += norm(sqrt(Q[k+1])*(z_rollout[end]-z_cubic),_norm)
+            J += norm(sqrt(Q[k+1])*(output(model,z_rollout[end])-z_cubic),_norm)
             J += norm(sqrt(R[k])*(u-u_nom[k]),_norm)
-            Jx += norm(sqrt(Q[k+1])*(z_rollout[end]-z_cubic),_norm)
+            Jx += norm(sqrt(Q[k+1])*(output(model,z_rollout[end])-z_cubic),_norm)
             Ju += norm(sqrt(R[k])*(u-u_nom[k]),_norm)
         end
     end

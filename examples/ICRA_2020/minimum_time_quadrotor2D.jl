@@ -1,5 +1,5 @@
 include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
-include(joinpath(pwd(),"dynamics/pendulum.jl"))
+include(joinpath(pwd(),"dynamics/quadrotor2D.jl"))
 using Plots
 
 # Horizon
@@ -8,19 +8,19 @@ T = 51
 # Bounds
 
 # ul <= u <= uu
-uu = 3.0
-ul = -3.0
+uu = 10.0
+ul = 0.0
 
 # hl <= h <= hu
-tf0 = 2.0
+tf0 = 10.0
 h0 = tf0/(T-1) # timestep
 
 hu = h0
 hl = 0.0
 
 # Initial and final states
-x1 = [0.0; 0.0]
-xT = [π; 0.0]
+x1 = [0.0; 1.0; 0.0; 0.0; 0.0; 0.0]
+xT = [5.0; 1.0; 0.0; 0.0; 0.0; 0.0]
 
 xl_traj = [-Inf*ones(model.nx) for t = 1:T]
 xu_traj = [Inf*ones(model.nx) for t = 1:T]
@@ -37,11 +37,6 @@ R = [Diagonal(zeros(model.nu)) for t = 1:T-1]
 c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
-
-# TVLQR cost
-Q_lqr = [t < T ? Diagonal([10.0;10.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
-R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
-H_lqr = [10.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,model,obj,
@@ -69,19 +64,38 @@ Z0 = pack(X0,U0,h0,prob)
 # Unpack solutions
 X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
 
+plot(hcat(X_nominal...)')
+plot(hcat(U_nominal...)')
+
 # Samples
+Q_lqr = [(t < T ? Diagonal([10.0;10.0;10.0;10.0;10.0;10.0])
+	: Diagonal([100.0;100.0;100.0;100.0;100.0;100.0])) for t = 1:T]
+R_lqr = [Diagonal(ones(nu)) for t = 1:T-1]
+H_lqr = [0.0 for t = 1:T-1]
+K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
+
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 2.0e-3*ones(model.nx)
+w = 1.0e-2*ones(model.nx)
 γ = 1.0
 
-α = 1.0e-3
-x11 = α*[1.0; 0.0]
-x12 = α*[-1.0; 0.0]
-x13 = α*[0.0; 1.0]
-x14 = α*[0.0; -1.0]
-x1_sample = resample([x11,x12,x13,x14],β=β,w=w)
+α = 1.0e-2
+x11 = x1 + α*[1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+x12 = x1 + α*[-1.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+x13 = x1 + α*[0.0; 1.0; 0.0; 0.0; 0.0; 0.0]
+x14 = x1 + α*[0.0; -1.0; 0.0; 0.0; 0.0; 0.0]
+x15 = x1 + α*[0.0; 0.0; 1.0; 0.0; 0.0; 0.0]
+x16 = x1 + α*[0.0; 0.0; -1.0; 0.0; 0.0; 0.0]
+x17 = x1 + α*[0.0; 0.0; 0.0; 1.0; 0.0; 0.0]
+x18 = x1 + α*[0.0; 0.0; 0.0; -1.0; 0.0; 0.0]
+x19 = x1 + α*[0.0; 0.0; 0.0; 0.0; 1.0; 0.0]
+x110 = x1 + α*[0.0; 0.0; 0.0; 0.0; -1.0; 0.0]
+x111 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; 1.0]
+x112 = x1 + α*[0.0; 0.0; 0.0; 0.0; 0.0; -1.0]
+
+x1_sample = [x11,x12,x13,x14,x15,x16,x17,x18,x19,x110,x111,x112]
+
 
 xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
@@ -90,8 +104,6 @@ for i = 1:N
     xl_traj_sample[i][1] = x1_sample[i]
     xu_traj_sample[i][1] = x1_sample[i]
 end
-
-K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
 prob_sample = init_sample_problem(prob,models,
     Q_lqr,R_lqr,H_lqr,
@@ -105,7 +117,8 @@ Z0_sample = pack(X_nominal,U_nominal,H_nominal[1],K,prob_sample)
 
 # Solve
 #NOTE: Ipopt finds different solution compared to SNOPT
-Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT7,time_limit=30)
+Z_sample_sol = solve(prob_sample_moi,Z0_sample,nlp=:SNOPT7,time_limit=60*5.0,
+	c_tol=1.0e-2,tol=1.0e-2)
 
 # Unpack solution
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -125,21 +138,21 @@ display("time (sample nominal): $(sum(H_nom_sample))s")
 
 # Control
 plt = plot(t_nominal[1:T-1],Array(hcat(U_nominal...))',
-    color=:purple,width=2.0,title="Pendulum",xlabel="time (s)",
+    color=:purple,width=2.0,title="Quadrotor2D",xlabel="time (s)",
     ylabel="control",label="nominal",linelegend=:topleft,
     linetype=:steppost)
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',
     color=:orange,width=2.0,label="sample",linetype=:steppost)
-savefig(plt,joinpath(@__DIR__,"results/pendulum_control_noise.png"))
+savefig(plt,joinpath(@__DIR__,"results/quadrotor2D_control.png"))
 
 # States
 plt = plot(t_nominal,hcat(X_nominal...)[1,:],
     color=:purple,width=2.0,xlabel="time (s)",ylabel="state",
-    label="θ (nominal)",title="Pendulum",legend=:topleft)
+    label="θ (nominal)",title="Quadrotor 2D",legend=:topleft)
 plt = plot!(t_nominal,hcat(X_nominal...)[2,:],color=:purple,width=2.0,label="x (nominal)")
 plt = plot!(t_sample,hcat(X_nom_sample...)[1,:],color=:orange,width=2.0,label="θ (sample)")
 plt = plot!(t_sample,hcat(X_nom_sample...)[2,:],color=:orange,width=2.0,label="x (sample)")
-savefig(plt,joinpath(@__DIR__,"results/pendulum_state_noise.png"))
+savefig(plt,joinpath(@__DIR__,"results/quadrotor2D_state.png"))
 
 # State samples
 plt1 = plot(t_sample,hcat(X_nom_sample...)[1,:],color=:red,width=2.0,title="",
@@ -161,7 +174,7 @@ for i = 1:N
     plt2 = plot!(t_sample,hcat(X_sample[i]...)[2,:],label="");
 end
 plt12 = plot(plt1,plt2,layout=(2,1),title=["θ" "x"],xlabel="time (s)")
-savefig(plt,joinpath(@__DIR__,"results/pendulum_sample_state.png"))
+savefig(plt,joinpath(@__DIR__,"results/quadrotor2D_sample_state.png"))
 
 # Control samples
 plt3 = plot(t_sample[1:end-1],hcat(U_nom_sample...)[1,:],color=:red,width=2.0,
@@ -174,7 +187,7 @@ for i = 1:N
     plt3 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)[1,:],label="");
 end
 display(plt3)
-savefig(plt,joinpath(@__DIR__,"results/pendulum_sample_control.png"))
+savefig(plt,joinpath(@__DIR__,"results/quadrotor2D_sample_control.png"))
 
 using PGFPlots
 const PGF = PGFPlots
@@ -202,7 +215,7 @@ a = Axis([psx_nom;psθ_nom;psx_dpo;psθ_dpo],
 
 # Save to tikz format
 dir = joinpath(@__DIR__,"results")
-PGF.save(joinpath(dir,"minimum_time_pendulum_state.tikz"), a, include_preamble=false)
+PGF.save(joinpath(dir,"minimum_time_quadrotor2D_state.tikz"), a, include_preamble=false)
 
 # nominal trajectory
 psu_nom = PGF.Plots.Linear(t_nominal[1:end-1],hcat(U_nominal...)[1,:],mark="",
@@ -223,4 +236,4 @@ a = Axis([psu_nom;psu_dpo],
 
 # Save to tikz format
 dir = joinpath(@__DIR__,"results")
-PGF.save(joinpath(dir,"minimum_time_pendulum_control.tikz"), a, include_preamble=false)
+PGF.save(joinpath(dir,"minimum_time_quadrotor2D_control.tikz"), a, include_preamble=false)

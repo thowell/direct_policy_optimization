@@ -15,7 +15,7 @@ function policy_constraints!(c,z,prob::SampleProblem)
 
     shift = 0
 
-    nx = length(idx_nom.x[1])
+    # nx = length(idx_nom.x[1])
     nu = length(idx_nom.u[1])
     nu_policy = length(u_policy)
 
@@ -52,7 +52,7 @@ function ∇policy_constraints!(∇c,z,prob::SampleProblem)
     disturbance_ctrl = prob.disturbance_ctrl
 
     shift = 0
-    nx = length(idx_nom.x[1])
+    # nx = length(idx_nom.x[1])
     nu = length(idx_nom.u[1])
     nu_policy = length(u_policy)
 
@@ -126,7 +126,7 @@ function sparsity_jacobian_policy(prob::SampleProblem;
 
     shift = 0
 
-    nx = length(idx_nom.x[1])
+    # nx = length(idx_nom.x[1])
     nu = length(idx_nom.u[1])
     nu_policy = length(u_policy)
 
