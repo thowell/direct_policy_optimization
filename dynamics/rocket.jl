@@ -60,9 +60,9 @@ function dynamics(model::RocketSlosh,x,u)
 					 x[6],
 					 x[7],
 					 x[8],
-					 (-FT*cos(θ) - FE*cos(φ)*sin(θ) + FE*cos(θ)*sin(φ))/model.mr,
-					 (-FT*sin(θ) + FE*cos(φ)*cos(θ) + FE*sin(φ)*sin(θ) - (model.mr + model.mf)*model.g)/model.mr,
-					 (FT*model.l2 - FE*sin(φ)*model.l1 - model.mf*model.g*sin(ψ)*model.l3)/model.Jr,
+					 (-FT*cos(θ) - FE*cos(φ)*sin(θ) + FE*cos(θ)*sin(φ))/(model.mr + model.mf),
+					 (-FT*sin(θ) + FE*cos(φ)*cos(θ) + FE*sin(φ)*sin(θ) - (model.mr + model.mf)*model.g)/(model.mr + model.mf),
+					 (FT*model.l2 - FE*sin(φ)*model.l1 - model.mf*model.g*sin(ψ)*model.l3)/(model.Jr + model.mf*model.l3*model.l3),
 					 (-model.mf*model.g*sin(ψ)*model.l3)/(model.mf*model.l3*model.l3)]
 end
 

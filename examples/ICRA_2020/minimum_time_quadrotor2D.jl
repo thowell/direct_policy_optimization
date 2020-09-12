@@ -71,7 +71,7 @@ plot(hcat(U_nominal...)')
 Q_lqr = [(t < T ? Diagonal([10.0;10.0;10.0;10.0;10.0;10.0])
 	: Diagonal([100.0;100.0;100.0;100.0;100.0;100.0])) for t = 1:T]
 R_lqr = [Diagonal(ones(nu)) for t = 1:T-1]
-H_lqr = [0.0 for t = 1:T-1]
+H_lqr = [10.0 for t = 1:T-1]
 K = TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr)
 
 N = 2*model.nx

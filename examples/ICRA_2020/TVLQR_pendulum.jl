@@ -183,10 +183,10 @@ using Distributions
 model_sim = model
 T_sim = 10*T
 
-W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-3*ones(nx)))
+W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-1*ones(nx)))
 w = rand(W,T_sim)
 
-W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-3*ones(nx)))
+W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0*ones(nx)))
 w0 = rand(W0,1)
 
 z0_sim = vec(copy(X_nom[1]) + w0)
