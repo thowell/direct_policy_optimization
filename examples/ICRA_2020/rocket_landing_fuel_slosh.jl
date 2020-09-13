@@ -474,3 +474,24 @@ display(plot_traj)
 
 sum(H_sample[1])
 sum(H_sample[7])
+
+using PGFPlots
+const PGF = PGFPlots
+
+p_traj_nom = PGF.Plots.Linear(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],
+	mark="",style="color=purple, line width = 2pt",legendentry="TO")
+p_traj_sample = PGF.Plots.Linear(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],
+	mark="",style="color=orange, line width = 2pt",legendentry="DPO")
+
+a = Axis([p_traj_nom;p_traj_sample],
+    xmin=-0.5, ymin=-0.1, xmax=16, ymax=11,
+    axisEqualImage=false,
+    hideAxis=false,
+	ylabel="z",
+	xlabel="y",
+	legendStyle="{at={(0.01,0.99)},anchor=north west}",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"rocket_traj.tikz"), a, include_preamble=false)
