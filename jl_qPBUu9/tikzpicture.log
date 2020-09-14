@@ -1,7 +1,7 @@
-This is LuaTeX, Version 1.10.0 (TeX Live 2019)  (format=lualatex 2019.7.31)  12 SEP 2020 17:08
+This is LuaTeX, Version 1.10.0 (TeX Live 2019)  (format=lualatex 2019.7.31)  14 SEP 2020 14:23
  system commands enabled.
-**./jl_WCVEGc/tikzpicture.tex
-(./jl_WCVEGc/tikzpicture.tex
+**./jl_qPBUu9/tikzpicture.tex
+(./jl_qPBUu9/tikzpicture.tex
 LaTeX2e <2018-12-01>
 Lua module: luaotfload-main 2019-07-04 2.98 luaotfload entry point
 Lua module: luaotfload-init 2019-07-04 2.98 luaotfload submodule / initializatio
@@ -51,7 +51,7 @@ Inserting `luaotfload.aux.set_capheight' at position 3 in `luaotfload.patch_font
 Inserting `luaotfload.aux.set_xheight' at position 4 in `luaotfload.patch_font'.
 Inserting `luaotfload.rewrite_fontname' at position 5 in `luaotfload.patch_font'
 .
-luaotfload | main : initialization completed in 0.059 seconds
+luaotfload | main : initialization completed in 0.046 seconds
 (/usr/local/texlive/2019/texmf-dist/tex/latex/standalone/standalone.cls
 Document Class: standalone 2018/03/26 v1.3a Class to compile TeX sub-files stand
 alone
@@ -643,32 +643,32 @@ Package pgfplots notification 'compat/show suggested version=true': document has
  been generated with the most recent feature set (\pgfplotsset{compat=1.16}).
 
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <7> on input line 36.
+(Font)              <7> on input line 19.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <5> on input line 36.
+(Font)              <5> on input line 19.
 ! Missing $ inserted.
 <inserted text> 
 $
-l.36 \end{axis}
+l.19 \end{axis}
              
 ? 
 ! Emergency stop.
 <inserted text> 
 $
-l.36 \end{axis}
+l.19 \end{axis}
              
 End of file on the terminal!
 
 
 
 Here is how much of LuaTeX's memory you used:
- 23640 strings out of 494291
- 125017,794899 words of node,token memory allocated 5309 words of node memory still in use:
-   75 hlist, 1 rule, 13 dir, 20 math, 214 glue, 3 kern, 2 unset, 19 glyph, 4 ali
-gn_record, 408 attribute, 53 glue_spec, 408 attribute_list, 17 temp, 1 align_sta
-ck, 1 if_stack, 1 write, 224 pdf_literal, 10 pdf_colorstack nodes
-   avail lists: 1:2,2:22,8:2
- 27123 multiletter control sequences out of 65536+600000
+ 23616 strings out of 494291
+ 125017,794899 words of node,token memory allocated 5219 words of node memory still in use:
+   75 hlist, 1 rule, 13 dir, 20 math, 215 glue, 3 kern, 2 unset, 24 glyph, 4 ali
+gn_record, 390 attribute, 53 glue_spec, 390 attribute_list, 17 temp, 1 align_sta
+ck, 1 if_stack, 1 write, 204 pdf_literal, 10 pdf_colorstack nodes
+   avail lists: 1:2,2:22,8:4
+ 27099 multiletter control sequences out of 65536+600000
  25 fonts using 1345351 bytes
- 78i,14n,136p,745b,2118s stack positions out of 5000i,500n,10000p,200000b,100000s
+ 78i,14n,136p,745b,2131s stack positions out of 5000i,500n,10000p,200000b,100000s
 !  ==> Fatal error occurred, no output PDF file produced!

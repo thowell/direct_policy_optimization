@@ -9,6 +9,17 @@ function matrix_sqrt(A)
     return e.vectors*Diagonal(sqrt.(e.values))*inv(e.vectors)
 end
 
+function matrix_sqrt_axis(A)
+    e = eigen(A)
+
+    for (i,ee) in enumerate(e.values)
+        if ee < 0.0
+            e.values[i] = 1.0e-3
+        end
+    end
+    return e.vectors*Diagonal(sqrt.(e.values))
+end
+
 function fastsqrt(A)
     #FASTSQRT computes the square root of a matrix A with Denman-Beavers iteration
     n = size(A,1)

@@ -102,7 +102,7 @@ X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-3*[1.0;1.0;0.1]
+w = 1.0e-5*[1.0;1.0;0.1]
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=0.1,w=[1.0;1.0;0.1])
 
