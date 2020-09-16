@@ -529,6 +529,9 @@ z0_sim = vec(copy(x1_slosh_sim) + w0)
 t_nom_sample = range(0,stop=sum(H_nom_sample),length=T)
 t_sim_nom_sample = range(0,stop=sum(H_nom_sample),length=T_sim)
 
+dt_sim_nom = sum(H_nom)/(T_sim-1)
+dt_sim_sample = sum(H_nom_sample)/(T_sim-1)
+
 W = Distributions.MvNormal(zeros(model_sim.nx),Diagonal(0.0*ones(model_sim.nx)))
 w = rand(W,T_sim)
 
@@ -591,3 +594,109 @@ for i = 1:N
 	plot_traj = plot!(hcat(X_sample[i]...)[1,:],hcat(X_sample[i]...)[2,:],label="")
 end
 display(plot_traj)
+
+# orientation tracking
+plt_x = plot(t_nom,hcat(X_nom...)[3,:],legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Rocket",ylabel="state")
+plt_x = plot!(t_sim_nom,hcat(z_tvlqr...)[3,:],color=:black,label="",
+    width=1.0)
+
+plt_x = plot(t_nom_sample,hcat(X_nom_sample...)[3,:],legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Rocket",ylabel="state")
+plt_x = plot!(t_sim_nom_sample,hcat(z_sample...)[3,:],color=:black,label="",
+    width=1.0)
+
+sum(H_nom_sample)
+sum(H_nom)
+
+using PGFPlots
+const PGF = PGFPlots
+
+p_traj_nom = PGF.Plots.Linear(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],
+	mark="",style="color=cyan, line width = 2pt",legendentry="TO")
+p_traj_sample = PGF.Plots.Linear(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],
+	mark="",style="color=orange, line width = 2pt",legendentry="DPO")
+
+a = Axis([p_traj_nom;p_traj_sample],
+    axisEqualImage=false,
+    hideAxis=false,
+	ylabel="z",
+	xlabel="y",
+	legendStyle="{at={(0.01,0.99)},anchor=north west}",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"rocket_traj.tikz"), a, include_preamble=false)
+
+
+# orientation tracking
+plt_x = plot(t_nom,hcat(X_nom...)[3,:],legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Rocket",ylabel="state")
+plt_x = plot!(t_sim_nom,hcat(z_tvlqr...)[3,:],color=:black,label="",
+    width=1.0)
+
+plt_x = plot(t_nom_sample,hcat(X_nom_sample...)[3,:],legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Rocket",ylabel="state")
+plt_x = plot!(t_sim_nom_sample,hcat(z_sample...)[3,:],color=:black,label="",
+    width=1.0)
+
+
+p_nom_orientation = PGF.Plots.Linear(t_nom,hcat(X_nom...)[3,:],
+	mark="",style="color=cyan, line width = 2pt",legendentry="TO")
+p_nom_sim_orientation = PGF.Plots.Linear(t_sim_nom,hcat(z_tvlqr...)[3,:],
+	mark="",style="color=black, line width = 1pt")
+
+p_sample_orientation = PGF.Plots.Linear(t_nom_sample,hcat(X_nom_sample...)[3,:],
+	mark="",style="color=orange, line width = 2pt",legendentry="DPO")
+p_sample_sim_orientation = PGF.Plots.Linear(t_sim_nom_sample,hcat(z_sample...)[3,:],
+	mark="",style="color=black, line width = 1pt")
+
+a = Axis([p_nom_orientation;p_nom_sim_orientation],
+    axisEqualImage=false,
+    hideAxis=false,
+	ylabel="orientation",
+	xlabel="time",
+	legendStyle="{at={(0.5,0.99)},anchor=north}",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"rocket_tvlqr_orientation.tikz"), a, include_preamble=false)
+
+a = Axis([p_sample_orientation;p_sample_sim_orientation],
+    axisEqualImage=false,
+    hideAxis=false,
+	ylabel="orientation",
+	xlabel="time",
+	legendStyle="{at={(0.5,0.99)},anchor=north}",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"rocket_dpo_orientation.tikz"), a, include_preamble=false)
+
+
+anim = MeshCat.Animation(convert(Int,floor(1/dt_sim_nom)))
+for t = 1:T_sim
+    MeshCat.atframe(anim,t) do
+        settransform!(vis["rocket"], compose(Translation(z_tvlqr[t][1],0.0,z_tvlqr[t][2]),LinearMap(RotY(-1.0*z_tvlqr[t][3]))))
+    end
+end
+MeshCat.setanimation!(vis,anim)
+
+anim = MeshCat.Animation(convert(Int,floor(1/dt_sim_sample)))
+for t = 1:T_sim
+    MeshCat.atframe(anim,t) do
+        settransform!(vis["rocket"], compose(Translation(z_sample[t][1],0.0,z_sample[t][2]),LinearMap(RotY(-1.0*z_sample[t][3]))))
+    end
+end
+MeshCat.setanimation!(vis,anim)
+
+
+landing_pad = Cylinder(Point3f0(0,0,-0.1),Point3f0(0,0,0),convert(Float32,0.25))
+setobject!(vis["landing_pad"],landing_pad,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))

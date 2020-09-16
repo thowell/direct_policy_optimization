@@ -498,7 +498,7 @@ for t = 1:T-1
 end
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*5,tol=1.0e-2,c_tol=1.0e-2)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=100,nlp=:SNOPT7,time_limit=60*5,tol=1.0e-2,c_tol=1.0e-2)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 sum(H_nom_sample)
