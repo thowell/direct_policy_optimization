@@ -38,7 +38,7 @@ x12 = x0 + α*[-1.0; 1.0]
 x13 = x0 + α*[1.0; -1.0]
 x14 = x0 + α*[-1.0; -1.0]
 
-shift = 4.0 # x shift for visualization
+shift = 5.0 # x shift for visualization
 
 # resampling parameters
 β = 1.0
@@ -81,6 +81,8 @@ for i = 1:N
 end
 display(plt)
 
+μ⁺ + [shift;0]
+
 # PGFplots version
 using PGFPlots
 const PGF = PGFPlots
@@ -89,18 +91,18 @@ const PGF = PGFPlots
 px1= PGF.Plots.Scatter([x1[i][1] for i = 1:N],
 					   [x1[i][2] for i = 1:N],
 					   mark="*",
-					   style="color=purple, line width=3pt",
+					   style="color=magenta, line width=3pt",
 					   )
 pμ1= PGF.Plots.Scatter([μ1[1]],
 					   [μ1[2]],
 					   mark="square*",
-					   style="color=purple, line width=3pt",
+					   style="color=magenta, line width=3pt",
 					   )
 ee1 = hcat(error_ellipse(μ1,Σ1,p=0.395)...)
 pe1= PGF.Plots.Linear(ee1[1,:],
 					   ee1[2,:],
 					   mark="",
-					   style="color=purple, densely dashed, line width=2pt",
+					   style="color=magenta, densely dashed, line width=2pt",
 					   )
 
 px̂⁺= PGF.Plots.Scatter([x̂⁺[i][1]+shift for i = 1:N],

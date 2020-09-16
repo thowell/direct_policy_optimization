@@ -1,18 +1,27 @@
 include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
 include(joinpath(pwd(),"dynamics/rocket.jl"))
-using Plots
+include(joinpath(pwd(),"dynamics/visualize.jl"))
+
+vis = Visualizer()
+open(vis)
+
+l1 = Cylinder(Point3f0(0,0,-model.l2),Point3f0(0,0,model.l1),convert(Float32,0.1))
+setobject!(vis["rocket"],l1,MeshPhongMaterial(color=RGBA(1,1,1,1.0)))
+
+using Plots, Random
 
 # Model
-model = model_slosh
+model = model
+model.Jr = 0.1
 nx = model.nx
 nu = model.nu
 
 # Horizon
-T = 51
+T = 21
 
 # Initial and final states
-x1 = [5.0; model.l2+10.0; -5*pi/180.0; 0.0; -1.0; -1.0; -0.5*pi/180.0; 0.0]
-xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+x1 = [15.0; model.l2+10.0; -45.0*pi/180.0; -10.0; -10.0; -1.0*pi/180.0]
+xT = [0.0; model.l2; 0.0; 0.0; 0.0; 0.0]
 
 # Bounds
 
@@ -21,32 +30,41 @@ xl = -Inf*ones(model.nx)
 xl[2] = model.l2
 xu = Inf*ones(model.nx)
 
-xl_traj = [xl for t = 1:T]
-xu_traj = [xu for t = 1:T]
+xl_traj = [copy(xl) for t = 1:T]
+xu_traj = [copy(xu) for t = 1:T]
 
-xl_traj[1] = x1
-xu_traj[1] = x1
+xl_traj[1] = copy(x1)
+xu_traj[1] = copy(x1)
 
-xl_traj[T] = xT
-xu_traj[T] = xT
-xl_traj[T][1] = -0.5
-xu_traj[T][1] = 0.5
-
+xl_traj[T] = copy(xT)
+xu_traj[T] = copy(xT)
+xl_traj[T][1] = -0.25
+xu_traj[T][1] = 0.25
+xl_traj[T][2] = xT[2]-0.01
+xu_traj[T][2] = xT[2]+0.01
+xl_traj[T][3] = -1.0*pi/180.0
+xu_traj[T][3] = 1.0*pi/180.0
+xl_traj[T][4] = -0.001
+xu_traj[T][4] = 0.001
+xl_traj[T][5] = -0.001
+xu_traj[T][5] = 0.001
+xl_traj[T][6] = -0.01*pi/180.0
+xu_traj[T][6] = 0.01*pi/180.0
 
 # ul <= u <= uu
-uu = [25.0;5.0;10*pi/180.0]
-ul = [0.0;-5.0;-10*pi/180.0]
+uu = [20.0;0.2;10*pi/180.0]
+ul = [0.0;-0.2;-10*pi/180.0]
 
-tf0 = 10.0
-h0 = tf0/(T-1)
-hu = 10*h0
-hl = 0*h0
+hu = 1.0
+hl = 0.01
+h0 = 0.5
+tf0 = hu*(T-1)
 
 # Objective
-Q = [(t != T ? Diagonal([1.0*ones(4);1.0*ones(4)])
-    : Diagonal([100.0*ones(4);100.0*ones(4)])) for t = 1:T]
+Q = [(t != T ? Diagonal([1.0;10.0;1.0;1.0;10.0;1.0])
+    : Diagonal([10.0;100.0;10.0;10.0;100.0;10.0])) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 1.0
+c = 100.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
 
@@ -65,261 +83,415 @@ prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [1.0e-1*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,time_limit=20)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 
-@show sum(H_nom)
-x_pos = [X_nom[t][1] for t = 1:T]
-z_pos = [X_nom[t][2] for t = 1:T]
+anim = MeshCat.Animation(convert(Int,floor(1/H_nom[1])))
+for t = 1:T
+    MeshCat.atframe(anim,t) do
+        settransform!(vis["rocket"], compose(Translation(X_nom[t][1],0.0,X_nom[t][2]),LinearMap(RotY(-1.0*X_nom[t][3]))))
+    end
+end
+MeshCat.setanimation!(vis,anim)
 
-plot(x_pos,z_pos,xlabel="x",ylabel="z",title="Rocket trajectory",
-    aspect_ratio=:equal)
-
-plot(x_pos)
-plot(z_pos)
+# settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
 plot(hcat(U_nom...)',linetype=:steppost)
+sum(H_nom)
+H_nom[1]
+X_nom[T][2]
 
-# TVLQR policy
-Q_lqr = [(t < T ? Diagonal([10.0*ones(4);10.0*ones(4)])
-   : Diagonal([100.0*ones(4);100.0*ones(4)])) for t = 1:T]
+# Simulate TVLQR (no slosh)
+using Distributions
+
+model_sim = model
+x1_sim = [15.0; model.l2+10.0; -45.0*pi/180.0; -10.0; -10.0; -1.0*pi/180.0]
+
+Q_lqr = [(t < T ? Diagonal([100.0*ones(3); 10.0*ones(3)])
+   : Diagonal([1000.0*ones(3); 1000.0*ones(3)])) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
 H_lqr = [10.0 for t = 1:T-1]
 
-K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
+K = TVLQR_gains(model,X_nom,U_nom,[H_nom[1] for t = 1:T-1],Q_lqr,R_lqr)
 
-K_unobserved = []
-for t = 1:T-1
-    K_tmp = copy(K[t])
-    K_tmp[:,4] .= 0.0
-    K_tmp[:,8] .= 0.0
+T_sim = 10*T
 
-    push!(K_unobserved,K_tmp)
-end
+W = Distributions.MvNormal(zeros(model_sim.nx),Diagonal(1.0e-5*ones(model_sim.nx)))
+w = rand(W,T_sim)
 
-Q_unobserved = []
-for t = 1:T
-    Q_tmp = copy(Q[t])
-    Q_tmp[:,4] .= 0.0
-	Q_tmp[4,:] .= 0.0
-    Q_tmp[:,8] .= 0.0
-	Q_tmp[8,:] .= 0.0
+W0 = Distributions.MvNormal(zeros(model_sim.nx),Diagonal(1.0e-5*ones(model_sim.nx)))
+w0 = rand(W0,1)
 
-    push!(Q_unobserved,Q_tmp)
-end
+z0_sim = vec(copy(x1_sim) + w0)
 
-K_reduced = []
-for t = 1:T-1
-     push!(K_reduced,K[t][:,[(1:3)...,(5:7)...]])
-end
+t_nom = range(0,stop=sum(H_nom),length=T)
+t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
 
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
+    X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,H_nom[1],z0_sim,w,_norm=2,
+	ul=ul,uu=uu)
 
+plt_x = plot(t_nom,hcat(X_nom...)[1:model.nx,:]',legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Rocket",ylabel="state")
+plt_x = plot!(t_sim_nom,hcat(z_tvlqr...)[1:model.nx,:]',color=:black,label="",
+    width=1.0)
 
-N = 2*model.nx
-mf = range(0.9*model.mf,stop=1.1*model.mf,length=N)
-lf = range(0.9*model.l3,stop=1.1*model.l3,length=N)
-models = [RocketSlosh(model.mr,model.Jr,mf[i],model.g,model.l1,model.l2,
-    lf[i],model.nx,model.nu) for i = 1:N]
+plot_traj = plot(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],legend=:topright,color=:red,
+    label="",width=2.0,xlabel="y",ylabel="z",
+    title="Rocket")
+plot_traj = plot!(hcat(z_tvlqr...)[1,:],hcat(z_tvlqr...)[2,:],color=:black,
+    label="",width=1.0)
 
-β = 1.0
-w = 5.0e-3*ones(model.nx)
-γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+# objective value
+J_tvlqr
 
-xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
-xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+# state tracking
+Jx_tvlqr
 
-for i = 1:N
-    xl_traj_sample[i][1] = x1_sample[1]
-    xu_traj_sample[i][1] = x1_sample[1]
-end
+# control tracking
+Ju_tvlqr
+
+# Simulate TVLQR with fuel slosh
+model_sim = RocketSlosh(0.5,0.1,0.5,9.81,0.5,0.5,0.1,nx_slosh,nu_slosh)
+
+x1_slosh = [15.0; model.l2+10.0; -45.0*pi/180.0;0.0; -10.0; -10.0; -1.0*pi/180.0;0.0]
+xT_slosh = [xT[1:3];0.0;xT[4:6]...;0.0]
 
 function policy(model::RocketSlosh,K,x,u,x_nom,u_nom)
-	u_nom - reshape(K,model.nu,model.nx-2)*(x - x_nom)[[(1:3)...,(5:7)...]]
+	u_nom - reshape(K,model.nu,model.nx-2)*(output(model,x) - x_nom)
 end
 
-prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
-    xl=xl_traj_sample,
-    xu=xu_traj_sample,
-    n_policy=model.nu,
-	n_features=model.nx-2)
-
-prob_sample_moi = init_MOI_Problem(prob_sample)
-
-# Z0_sample = pack(X0,U0,h0,K0,prob_sample)
-Z0_sample = pack(X_nom,U_nom,h0,K_reduced,prob_sample)
-
-# Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
-Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),max_iter=500,nlp=:SNOPT7,time_limit=60*20)
-
-# Unpack solutions
-X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
-Θ = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-1]
-# Time trajectories
-t_nominal = zeros(T)
-t_sample = zeros(T)
-for t = 2:T
-    t_nominal[t] = t_nominal[t-1] + H_nom[t-1]
-    t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
+function output(model::RocketSlosh,x)
+	x[[(1:3)...,(5:7)...]]
 end
 
-display("time (nominal): $(sum(H_nom))s")
-display("time (sample): $(sum(H_nom_sample))s")
+# optimize slosh model
 
-# Plots results
-plot(x_pos,z_pos,xlabel="x",ylabel="z",title="Rocket trajectory",
-    aspect_ratio=:equal,color=:purple,width=2.0,label="nominal (tf=$(round(sum(H_nom),digits=3))s)")
-x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
-z_sample_pos = [X_nom_sample[t][2] for t = 1:T]
-plt = plot!(x_sample_pos,z_sample_pos,aspect_ratio=:equal,width=2.0,label="sample  (tf=$(round(sum(H_nom_sample),digits=3))s)",color=:orange,legend=:bottomright)
-savefig(plt,joinpath(@__DIR__,"results/rocket_trajectory.png"))
+# xl <= x <= xl
+xl_slosh = -Inf*ones(model_slosh.nx)
+xl_slosh[2] = model_slosh.l2
+xu_slosh = Inf*ones(model_slosh.nx)
 
-plt = plot(t_nominal,z_pos,xlabel="time s(s)",ylabel="z",
-    color=:purple,width=2.0,label="nominal")
-plt = plot!(t_sample,z_sample_pos,label="sample",
-    color=:orange,width=2.0)
-savefig(plt,joinpath(@__DIR__,"results/rocket_z_traj.png"))
+xl_traj_slosh = [copy(xl_slosh) for t = 1:T]
+xu_traj_slosh = [copy(xu_slosh) for t = 1:T]
 
-# Control
-plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',width=2.0,
-    title="Rocket",xlabel="time (s)",ylabel="control",
-    label=["FE (nominal)" "FT (nominal)" "φ (nominal)"],color=:purple,
-    legend=:top,linetype=:steppost)
-plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',color=:orange,
-    width=2.0,label=["FE (sample nominal)" "FT (sample nominal)" "φ (sample nominal)"],linetype=:steppost)
-savefig(plt,joinpath(@__DIR__,"results/rocket_control.png"))
+xl_traj_slosh[1] = copy(x1_slosh)
+xu_traj_slosh[1] = copy(x1_slosh)
 
-# Samples
+xl_traj_slosh[T] = copy(xT_slosh)
+xu_traj_slosh[T] = copy(xT_slosh)
 
-# State samples
-plt1 = plot(title="Sample states",legend=:topright,xlabel="time (s)");
-for i = 1:N
-    plt1 = plot!(t_sample,hcat(X_sample[i]...)[1:3,:]',label="");
-end
-plt1 = plot!(t_sample,hcat(X_nom_sample...)[1:3,:]',color=:red,width=2.0,
-    label=label=["x" "z" "θ"])
-display(plt1)
-savefig(plt1,joinpath(@__DIR__,"results/rocket_sample_states.png"))
+xl_traj_slosh[T][4] = -Inf
+xu_traj_slosh[T][4] = Inf
 
-# Control samples
-plt2 = plot(title="Sample controls",xlabel="time (s)",legend=:topleft);
-for i = 1:N
-    plt2 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)',label="",
-        linetype=:steppost);
-end
-plt2 = plot!(t_sample[1:end-1],hcat(U_nom_sample...)',color=:red,width=2.0,
-    label=["FE (sample nominal)" "FT (sample nominal)" "φ (sample nominal)"],linetype=:steppost)
-display(plt2)
-savefig(plt2,joinpath(@__DIR__,"results/rocket_sample_controls.png"))
+xl_traj_slosh[T][8] = -Inf
+xu_traj_slosh[T][8] = Inf
 
-using Colors
-using CoordinateTransformations
-using FileIO
-using GeometryTypes
-using LinearAlgebra
-using MeshCat
-using MeshIO
-using Rotations
+xl_traj_slosh[T][1] = -0.25
+xu_traj_slosh[T][1] = 0.25
+xl_traj_slosh[T][2] = xT[2]-0.01
+xu_traj_slosh[T][2] = xT[2]+0.01
+xl_traj_slosh[T][3] = -1.0*pi/180.0
+xu_traj_slosh[T][3] = 1.0*pi/180.0
+xl_traj_slosh[T][5] = -0.001
+xu_traj_slosh[T][5] = 0.001
+xl_traj_slosh[T][6] = -0.001
+xu_traj_slosh[T][6] = 0.001
+xl_traj_slosh[T][7] = -0.01*pi/180.0
+xu_traj_slosh[T][7] = 0.01*pi/180.0
 
-vis = Visualizer()
-open(vis)
+Q_slosh = [(t != T ? Diagonal([1.0;10.0;1.0;0.1;1.0;10.0;1.0;0.1])
+    : Diagonal([10.0;100.0;10.0;0.1;10.0;100.0;10.0;0.1])) for t = 1:T]
+obj_slosh = QuadraticTrackingObjective(Q_slosh,R,c,
+    [xT_slosh for t=1:T],[zeros(model.nu) for t=1:T])
 
-l1 = Cylinder(Point3f0(0,0,-model.l2),Point3f0(0,0,model.l1),convert(Float32,0.1))
-setobject!(vis["rocket"],l1,MeshPhongMaterial(color=RGBA(1,1,1,1.0)))
+# Problem
+prob_slosh = init_problem(model_slosh.nx,model_slosh.nu,T,model_slosh,obj_slosh,
+                    xl=xl_traj_slosh,
+                    xu=xu_traj_slosh,
+                    ul=[ul for t=1:T-1],
+                    uu=[uu for t=1:T-1],
+                    hl=[hl for t=1:T-1],
+                    hu=[hu for t=1:T-1],
+                    )
 
-anim = MeshCat.Animation(convert(Int,floor(1/H_nom[1])))
-H_nom[1]
+# MathOptInterface problem
+prob_moi_slosh = init_MOI_Problem(prob_slosh)
+
+# Trajectory initialization
+X0_slosh = linear_interp(x1_slosh,xT_slosh,T) # linear interpolation on state
+U0_slosh = [rand(model.nu) for t = 1:T-1] # random controls
+
+# Pack trajectories into vector
+Z0_slosh = pack(X0_slosh,U0_slosh,h0,prob_slosh)
+
+#NOTE: may need to run examples multiple times to get good trajectories
+# Solve nominal problem
+@time Z_nominal_slosh = solve(prob_moi_slosh,copy(Z0_slosh),nlp=:SNOPT7,time_limit=20)
+X_nom_slosh, U_nom_slosh, H_nom_slosh = unpack(Z_nominal_slosh,prob_slosh)
+
+anim = MeshCat.Animation(convert(Int,floor(1/H_nom_slosh[1])))
 for t = 1:T
     MeshCat.atframe(anim,t) do
-        settransform!(vis["rocket"], compose(Translation(X_nom[t][1],0.0,X_nom[t][2]),LinearMap(RotY(X_nom[t][3]))))
+        settransform!(vis["rocket"], compose(Translation(X_nom_slosh[t][1],0.0,X_nom_slosh[t][2]),LinearMap(RotY(-1.0*X_nom_slosh[t][3]))))
     end
 end
 MeshCat.setanimation!(vis,anim)
 # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
+plot(hcat(U_nom_slosh...)',linetype=:steppost)
+sum(H_nom_slosh)
+X_nom_slosh[T][2]
 
-# Simulate policy
-using Distributions
-model_sim = model
-T_sim = 10*T
-
-W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-3*ones(nx)))
+# simulate slosh with TVLQR controller from nominal model
+model_sim = model_slosh
+W = Distributions.MvNormal(zeros(model_sim.nx),Diagonal(0.0*ones(model_sim.nx)))
 w = rand(W,T_sim)
 
-W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-3*ones(nx)))
+W0 = Distributions.MvNormal(zeros(model_sim.nx),Diagonal(0.0*ones(model_sim.nx)))
 w0 = rand(W0,1)
 
-z0_sim = vec(copy(X_nom[1]) + w0)
+x1_slosh_sim = [15.0; model.l2+10.0; -45.0*pi/180.0; 0.0; -10.0; -10.0; -1.0*pi/180.0; 0.0]
+
+z0_sim = vec(copy(x1_slosh_sim) + w0)
 
 t_nom = range(0,stop=sum(H_nom),length=T)
 t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
-t_sim_sample = range(0,stop=sum(H_nom_sample),length=T_sim)
 
-z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K_unobserved,
-    X_nom,U_nom,model_sim,Q_unobserved,R,T_sim,H_nom[1],z0_sim,w,_norm=2)
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
+    X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,H_nom[1],z0_sim,w,_norm=2,
+	controller=:policy,ul=ul,uu=uu)
 
-z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(Θ,
-    X_nom_sample,U_nom_sample,model_sim,Q_unobserved,R,T_sim,H_nom_sample[1],z0_sim,w,_norm=2,
-	controller=:policy)
-
-plt_x = plot(t_nom,hcat(X_nom...)[1:nx,:]',legend=:topright,color=:red,
+plt_x = plot(t_nom,hcat(X_nom...)[1:model.nx,:]',legend=:topright,color=:red,
     label="",width=2.0,xlabel="time (s)",
     title="Rocket",ylabel="state")
-plt_x = plot!(t_sim_nom,hcat(z_tvlqr...)[1:nx,:]',color=:purple,label="tvlqr",
-    width=2.0)
+plt_x = plot!(t_sim_nom,hcat(z_tvlqr...)[[(1:3)...,(5:7)...],:]',color=:black,label="",
+    width=1.0)
 
-plt_x = plot(t_sample,hcat(X_nom_sample...)[1:nx,:]',legend=:topright,color=:red,
-    label="",width=2.0,xlabel="time (s)",
-    title="Rocket",ylabel="state")
-plt_x = plot!(t_sim_sample,hcat(z_sample...)[1:nx,:]',linetype=:steppost,color=:orange,
-    label="",width=2.0)
-
-# plt_u = plot(t_nom[1:T-1],hcat(u_nom...)[1:1,:]',legend=:topright,color=:red,
-#     label=["nominal"],width=2.0,xlabel="time (s)",
-#     title="Pendulum",ylabel="control",linetype=:steppost)
-# plt_u = plot!(t_sim[1:T_sim-1],hcat(u_tvlqr...)[1:1,:]',color=:purple,label="tvlqr",
-#     width=2.0)
-# plt_u = plot!(t_sim[1:T_sim-1],hcat(u_nonlin...)[1:1,:]',color=:orange,label="nonlinear",
-#     width=2.0)
+plot_traj = plot(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],legend=:topright,color=:red,
+    label="",width=2.0,xlabel="y",ylabel="z",
+    title="Rocket")
+plot_traj = plot!(hcat(z_tvlqr...)[1,:],hcat(z_tvlqr...)[2,:],color=:black,
+    label="",width=1.0)
 
 # objective value
 J_tvlqr
-J_sample
 
 # state tracking
 Jx_tvlqr
-Jx_sample
 
 # control tracking
 Ju_tvlqr
+
+# DPO
+
+N = 2*model_slosh.nx
+# mf = range(0.9*model_slosh.mf,stop=1.1*model_slosh.mf,length=N)
+# mr = [1.0-mf[i] for i = 1:N]
+# lf = shuffle(range(0.9*model_slosh.l3,stop=1.1*model_slosh.l3,length=N))
+# models = [RocketSlosh(mr[i],model_slosh.Jr,mf[i],model_slosh.g,model_slosh.l1,model_slosh.l2,
+#     lf[i],model_slosh.nx,model_slosh.nu) for i = 1:N]
+
+models = [model_slosh for i = 1:N]
+# ψ = shuffle(range(-pi/2,stop=pi/2,length=N))
+# dψ = shuffle(range(-pi/10,stop=pi/10,length=N))
+
+β = 1.0
+w = 1.0e-1*ones(model_slosh.nx)
+γ = N
+x1_sample = resample([x1_slosh for i = 1:N],β=1.0e-1,w=ones(model_slosh.nx))
+# x1_sample = [x1_slosh for i = 1:N]
+#
+# for i = 1:N
+# 	x1_sample[i][4] = ψ[i]
+# 	x1_sample[i][8] = dψ[i]
+# end
+
+xl_traj_sample = [[-Inf*ones(model_slosh.nx) for t = 1:T] for i = 1:N]
+xu_traj_sample = [[Inf*ones(model_slosh.nx) for t = 1:T] for i = 1:N]
+
+for i = 1:N
+    xl_traj_sample[i][1] = copy(x1_sample[i])
+    xu_traj_sample[i][1] = copy(x1_sample[i])
+
+	# xl_traj_sample[i][T] = copy(xT_slosh)
+	# xu_traj_sample[i][T] = copy(xT_slosh)
+
+	# xl_traj_sample[i][T][4] = -Inf
+	# xu_traj_sample[i][T][4] = Inf
+	#
+	# xl_traj_sample[i][T][8] = -Inf
+	# xu_traj_sample[i][T][8] = Inf
+	#
+	# xl_traj_sample[i][T][1] = -0.25
+	# xu_traj_sample[i][T][1] = 0.25
+	# xl_traj_sample[i][T][2] = xT[2]-0.01
+	# xu_traj_sample[i][T][2] = xT[2]+0.01
+	# xl_traj_sample[i][T][3] = -1.0*pi/180.0
+	# xu_traj_sample[i][T][3] = 1.0*pi/180.0
+	# xl_traj_sample[i][T][5] = -0.001
+	# xu_traj_sample[i][T][5] = 0.001
+	# xl_traj_sample[i][T][6] = -0.001
+	# xu_traj_sample[i][T][6] = 0.001
+	# xl_traj_sample[i][T][7] = -0.01*pi/180.0
+	# xu_traj_sample[i][T][7] = 0.01*pi/180.0
+end
+
+ul_traj_sample = [[-Inf*ones(model_slosh.nu) for t = 1:T-1] for i = 1:N]
+uu_traj_sample = [[Inf*ones(model_slosh.nu) for t = 1:T-1] for i = 1:N]
+
+prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+    xl=xl_traj_sample,
+    xu=xu_traj_sample,
+	ul=ul_traj_sample,
+    uu=uu_traj_sample,
+    n_features=model_slosh.nx-2,
+	policy_constraint=true
+    )
+
+prob_sample_moi = init_MOI_Problem(prob_sample)
+
+Z0_sample = zeros(prob_sample_moi.n)
+
+Z0_sample[prob_sample.idx_nom_z] = pack(X_nom,U_nom,H_nom[1],prob)
+
+for t = 1:T
+	for i = 1:N
+		Z0_sample[prob_sample.idx_sample[i].x[t]] = X_nom_slosh[t]
+		t==T && continue
+		Z0_sample[prob_sample.idx_sample[i].u[t]] = U_nom_slosh[t]
+		Z0_sample[prob_sample.idx_sample[i].h[t]] = H_nom_slosh[1]
+		Z0_sample[prob_sample.idx_x_tmp[i].x[t]] = X_nom_slosh[t+1]
+	end
+end
+
+for t = 1:T-1
+	Z0_sample[prob_sample.idx_K[t]] = vec(K[t])
+end
+
+# Solve
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*20,tol=1.0e-2,c_tol=1.0e-2)
+
+X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+sum(H_nom_sample)
+sum(H_nom)
+
+# prob_sample2 = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+#     xl=xl_traj_sample,
+#     xu=xu_traj_sample,
+#     n_features=model_slosh.nx-2,
+# 	policy_constraint=false
+#     )
+# prob_sample_moi2 = init_MOI_Problem(prob_sample2)
+#
+# X_tmp = []
+# for t = 1:T
+# 	push!(X_tmp,[X_nom_sample[t][1:3]...;0.0;X_nom_sample[t][4:6]...;0.0])
+# end
+# Z0_sample2 = pack(X_nom_sample,X_tmp,U_nom_sample,H_nom_sample[1],[vec(K[t]) for t = 1:T-1],prob_sample2)
+#
+# Z_sample_sol = solve(prob_sample_moi2,copy(Z0_sample2),max_iter=500,nlp=:SNOPT7,time_limit=60*5,tol=1.0e-2,c_tol=1.0e-2)
+# X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample2)
+# Θ = [Z_sample_sol[prob_sample2.idx_K[t]] for t = 1:T-1]
+
+Θ = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-1]
+
+x1_slosh = [15.0; model.l2+10.0; -45.0*pi/180.0; 0.0*pi/180.0; -5.0; -5.0; -1.0*pi/180.0; -0.0*pi/180.0]
+
+z0_sim = vec(copy(x1_slosh_sim) + w0)
+
+t_nom_sample = range(0,stop=sum(H_nom_sample),length=T)
+t_sim_nom_sample = range(0,stop=sum(H_nom_sample),length=T_sim)
+
+W = Distributions.MvNormal(zeros(model_sim.nx),Diagonal(0.0*ones(model_sim.nx)))
+w = rand(W,T_sim)
+
+W0 = Distributions.MvNormal(zeros(model_sim.nx),Diagonal(0.0*ones(model_sim.nx)))
+w0 = rand(W0,1)
+
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
+    X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,H_nom[1],z0_sim,w,_norm=2,
+	controller=:policy,ul=ul,uu=uu)
+
+plt_x = plot(t_nom,hcat(X_nom...)[1:model.nx,:]',legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Rocket",ylabel="state")
+plt_x = plot!(t_sim_nom,hcat(z_tvlqr...)[[(1:3)...,(5:7)...],:]',color=:black,label="",
+    width=1.0)
+
+plot_traj = plot(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],legend=:topright,color=:red,
+    label="",width=2.0,xlabel="y",ylabel="z",
+    title="Rocket")
+plot_traj = plot!(hcat(z_tvlqr...)[1,:],hcat(z_tvlqr...)[2,:],color=:black,
+    label="",width=1.0)
+
+z_sample, u_sample, J_sample, Jx_sample, Ju_sample= simulate_linear_controller(Θ,
+    X_nom_sample,U_nom_sample,model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample[1],z0_sim,w,_norm=2,
+	controller=:policy,ul=ul,uu=uu)
+
+plt_x = plot(t_nom_sample,hcat(X_nom_sample...)[1:model.nx,:]',legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Rocket",ylabel="state")
+plt_x = plot!(t_sim_nom_sample,hcat(z_sample...)[[(1:3)...,(5:7)...],:]',color=:black,label="",
+    width=1.0)
+
+plot_traj = plot(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],legend=:topright,color=:red,
+    label="",width=2.0,xlabel="y",ylabel="z",
+    title="Rocket")
+plot_traj = plot!(hcat(z_sample...)[1,:],hcat(z_sample...)[2,:],color=:black,
+    label="",width=1.0)
+
+# objective value
+J_sample
+J_tvlqr
+
+# state tracking
+Jx_sample
+Jx_tvlqr
+
+# control tracking
 Ju_sample
+Ju_tvlqr
+
+plot_traj = plot(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],legend=:topright,color=:purple,
+    label="",width=2.0,xlabel="y",ylabel="z",
+    title="Rocket")
+
+plot_traj = plot!(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],legend=:topright,color=:orange,
+    label="",width=2.0,xlabel="y",ylabel="z",
+    title="Rocket")
+
+for i = 1:N
+	plot_traj = plot!(hcat(X_sample[i]...)[1,:],hcat(X_sample[i]...)[2,:],label="")
+end
+display(plot_traj)
+
+sum(H_sample[1])
+sum(H_sample[7])
 
 using PGFPlots
 const PGF = PGFPlots
 
-# nominal trajectory
-p_traj_nom = PGF.Plots.Linear(x_pos,z_pos,mark="",
-	style="color=purple, very thick",legendentry="nominal (tf=$(round(sum(H_nom),digits=3))s)")
+p_traj_nom = PGF.Plots.Linear(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],
+	mark="",style="color=purple, line width = 2pt",legendentry="TO")
+p_traj_sample = PGF.Plots.Linear(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],
+	mark="",style="color=orange, line width = 2pt",legendentry="DPO")
 
-# DPO trajectory
-p_traj_dpo = PGF.Plots.Linear(x_sample_pos,z_sample_pos,mark="",
-	style="color=orange, very thick",legendentry="DPO (tf=$(round(sum(H_nom_sample),digits=3))s)")
-
-a = Axis([p_traj_nom; p_traj_dpo],
-    xmin=-0.5, ymin=0, xmax=6, ymax=11.0,
-    axisEqualImage=true,
+a = Axis([p_traj_nom;p_traj_sample],
+    xmin=-0.5, ymin=-0.1, xmax=16, ymax=11,
+    axisEqualImage=false,
     hideAxis=false,
 	ylabel="z",
-	xlabel="x",
-	legendStyle="{at={(0.0,1.0)},anchor=north west}",
+	xlabel="y",
+	legendStyle="{at={(0.01,0.99)},anchor=north west}",
 	)
 
 # Save to tikz format
 dir = joinpath(@__DIR__,"results")
-PGF.save(joinpath(dir,"rocket_trajectory.tikz"), a, include_preamble=false)
+PGF.save(joinpath(dir,"rocket_traj.tikz"), a, include_preamble=false)
