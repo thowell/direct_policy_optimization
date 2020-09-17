@@ -112,7 +112,7 @@ function pack(X0,U0,h0,prob::TrajectoryOptimizationProblem)
     T = prob.T
     idx = prob.idx
 
-    Z0 = zeros(prob.N)
+    Z0 = rand(prob.N)
 
     for t = 1:T-2
         Z0[idx.x[t]] = X0[t]
