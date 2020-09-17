@@ -69,7 +69,7 @@ function dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProbl
 
         c_idx = idx.h[t]
         s = length(r_idx)*length(c_idx)
-        ∇c[shift .+ (1:s)] = vec(ForwardDiff.jacobian(dyn_h,view(Z,idx.h[t])))
+        ∇c[shift .+ (1:s)] = vec(ForwardDiff.jacobian(dyn_h,[h]))#vec(ForwardDiff.jacobian(dyn_h,view(Z,idx.h[t])))
         shift += s
 
         if t < T-2
