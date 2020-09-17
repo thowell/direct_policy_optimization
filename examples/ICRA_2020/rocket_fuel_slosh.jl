@@ -355,7 +355,7 @@ for t = 1:T-1
 end
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*5,tol=1.0e-2,c_tol=1.0e-2)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*20,tol=1.0e-2,c_tol=1.0e-2)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 sum(H_nom_sample) # should be 2.9
@@ -524,24 +524,3 @@ a = Axis([p_sample_orientation;p_sample_sim_orientation],
 # Save to tikz format
 dir = joinpath(@__DIR__,"results")
 PGF.save(joinpath(dir,"rocket_dpo_orientation.tikz"), a, include_preamble=false)
-
-
-anim = MeshCat.Animation(convert(Int,floor(1/dt_sim_nom)))
-for t = 1:T_sim
-    MeshCat.atframe(anim,t) do
-        settransform!(vis["rocket"], compose(Translation(z_tvlqr[t][1],0.0,z_tvlqr[t][2]),LinearMap(RotY(-1.0*z_tvlqr[t][3]))))
-    end
-end
-MeshCat.setanimation!(vis,anim)
-
-anim = MeshCat.Animation(convert(Int,floor(1/dt_sim_sample)))
-for t = 1:T_sim
-    MeshCat.atframe(anim,t) do
-        settransform!(vis["rocket"], compose(Translation(z_sample[t][1],0.0,z_sample[t][2]),LinearMap(RotY(-1.0*z_sample[t][3]))))
-    end
-end
-MeshCat.setanimation!(vis,anim)
-
-
-landing_pad = Cylinder(Point3f0(0,0,-0.1),Point3f0(0,0,0),convert(Float32,0.25))
-setobject!(vis["landing_pad"],landing_pad,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
