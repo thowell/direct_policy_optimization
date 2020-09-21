@@ -117,16 +117,18 @@ P(x0)
 
 # exponential surface
 
-a = 1.0
-t = range(-3,stop=1,length=100)
-plot(t .+ 3,exp.(a.*t),aspect_ratio=:equal)
+a = 2.0
+shift = 3.0
+t = range(-1,stop=3,length=100)
+plot(t,exp.(a.*(t .- shift)),aspect_ratio=:equal)
 
+exp(a*(2-shift))
 function ϕ(x)
-	[x[3] - exp(a*x[1])]
+	[x[3] - exp(a*(x[1]-shift))]
 end
 
 function N(x)
-	[-a*exp(a*x[1]) 0.0 1.0]
+	[-a*exp(a*(x[1]-shift)) 0.0 1.0]
 end
 
 ForwardDiff.jacobian(ϕ,x0) - N(x0)
@@ -135,7 +137,7 @@ function P(x)
 	y0 = [0.0; 1.0; 0.0]
 
 	[transpose(y0);
-	 transpose(cross(y0,[-a*exp(a*x[1]); 0.0; 1.0]))]
+	 transpose(cross(y0,[-a*exp(a*(x[1]-shift)); 0.0; 1.0]))]
 end
 
 P(x0)
@@ -154,12 +156,12 @@ vis = Visualizer()
 open(vis)
 
 using Meshing
-f = x -> x[3] - exp(a*x[1])
-sdf = SignedDistanceField(f, HyperRectangle(Vec(-5, -6, -1), Vec(10, 6, 4)))
+f = x -> x[3] - exp(a*(x[1]-shift))
+sdf = SignedDistanceField(f, HyperRectangle(Vec(-3, -6, -1), Vec(10, 6, 4)))
 mesh = HomogenousMesh(sdf, MarchingTetrahedra())
 setobject!(vis["slope"], mesh,
            MeshPhongMaterial(color=RGBA{Float32}(86/255, 125/255, 70/255, 1.0)))
-settransform!(vis["slope"], compose(Translation(-3.0,3.0,0.0),LinearMap(RotZ(pi/2))))
+settransform!(vis["slope"], compose(Translation(0.0,3.0,0.0)))
 
 circle1 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.5),convert(Float32,rx1))
 	setobject!(vis["circle1"],circle1,
@@ -169,9 +171,9 @@ setobject!(vis["ball"], HyperSphere(Point3f0(0),
 	        convert(Float32,0.1)),
 	        MeshPhongMaterial(color=RGBA(1,1,1,1.0)))
 
-settransform!(vis["ball"], compose(Translation(-2.0,0.0,0.15)))
+settransform!(vis["ball"], compose(Translation(0.0,2.0,0.15)))
 
-hole = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.085),convert(Float32,0.15))
+hole = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.01),convert(Float32,0.15))
 	setobject!(vis["hole"],hole,
 	MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
-settransform!(vis["hole"], compose(Translation(2.0,0.0,0.0)))
+settransform!(vis["hole"], compose(Translation(0.0,-2.0,0.0)))
