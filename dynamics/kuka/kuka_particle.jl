@@ -478,7 +478,7 @@ tf = 1.0
 Δt = tf/T
 
 px_init = [0.5;0.5;0.0]
-px_goal = [1.0;1.0;0.0]
+px_goal = [1.5;1.5;0.0]
 
 x1 = [q_res1;px_init]
 xT = [q_res2;px_goal]
@@ -515,7 +515,7 @@ hu = Δt
 hl = Δt
 
 # Objective
-Q = [t<T ? Diagonal(1.0*ones(model.nx)) : Diagonal([1.0*ones(7);1000*ones(3)]) for t = 1:T]
+Q = [t<T ? Diagonal(1.0*ones(model.nx)) : Diagonal([1.0*ones(7);10*ones(3)]) for t = 1:T]
 R = [Diagonal(1.0e-2*ones(model.nu_ctrl)) for t = 1:T-2]
 c = 0.0
 x_ref = [x1,linear_interp(x1,xT,T-1)...]
@@ -571,6 +571,7 @@ plot(hcat(ψ_nom...)',linetype=:steppost)
 plot(hcat(η_nom...)',linetype=:steppost)
 plot(hcat(U_nom...)',linetype=:steppost)
 
+using Rotations
 # Visualization
 function visualize!(mvis,model::KukaParticle,q;
 		verbose=false,rp=0.1,Δt=0.1)
@@ -587,10 +588,13 @@ function visualize!(mvis,model::KukaParticle,q;
 
         MeshCat.atframe(anim,t) do
 			set_configuration!(mvis,q_kuka)
-            settransform!(mvis["particle"], Translation(q_particle))
+            settransform!(mvis["particle"], compose(Translation(q_particle),LinearMap(RotZ(pi/4))))
         end
     end
     MeshCat.setanimation!(vis,anim)
 end
 
 visualize!(mvis,model,X_nom,Δt=Δt,rp=r_p)
+r_p
+X_nom[T-1]
+X_nom[T]
