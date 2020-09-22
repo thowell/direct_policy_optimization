@@ -15,7 +15,6 @@ mutable struct Particle{T}
     idx_λ
     idx_b
     idx_ψ
-    idx_η
     idx_s
 
     α
@@ -25,18 +24,17 @@ end
 nq = 3 # configuration dim
 nu_ctrl = 3
 nc = 1 # number of contact points
-nf = 4 # number of faces for friction cone pyramid
+nf = 2 # number of faces for friction cone pyramid
 nb = nc*nf
 
 nx = nq
-nu = nu_ctrl + nc + nb + nc + nb + 1
+nu = nu_ctrl + nc + nb + nc + 1
 
 idx_u = (1:nu_ctrl)
 idx_λ = nu_ctrl .+ (1:nc)
 idx_b = nu_ctrl + nc .+ (1:nb)
 idx_ψ = nu_ctrl + nc + nb .+ (1:nc)
-idx_η = nu_ctrl + nc + nb + nc .+ (1:nb)
-idx_s = nu_ctrl + nc + nb + nc + nb + 1
+idx_s = nu_ctrl + nc + nb + nc + 1
 
 # Parameters
 Δt = 0.1 # time step
@@ -65,9 +63,7 @@ B_func(::Particle,q) = @SMatrix [1. 0. 0.;
 N_func(::Particle,q) = @SMatrix [0. 0. 1.]
 
 P_func(::Particle,q) = @SMatrix [1. 0. 0.;
-                                 -1. 0. 0.;
-                                 0. 1. 0.;
-                                 0. -1. 0.]
+                                 0. 1. 0.]
 
 function output(model,x1,x2,x3,u,h)
    u_ctrl = u[model.idx_u]
@@ -82,13 +78,15 @@ function output(model,x1,x2,x3,u,h)
 end
 
 function friction_cone(model,u)
-    @SVector [model.μ*u[model.idx_λ[1]] - sum(u[model.idx_b])]
+    λ = u[model.idx_λ]
+    b = u[model.idx_b]
+    @SVector [(model.μ*λ[1])^2 - b'*b]
 end
 
 function maximum_energy_dissipation(model,x2,x3,u,h)
-    ψ_stack = u[model.idx_ψ][1]*ones(model.nb)
-    η = u[model.idx_η]
-    P_func(model,x3)*(x3-x2)/h[1] + ψ_stack - η
+    ψ = u[model.idx_ψ]
+    b = u[model.idx_b]
+    P_func(model,x3)*(x3-x2)/h[1] + 2.0*b*ψ[1]
 end
 
 α_particle = 1.0
@@ -100,7 +98,6 @@ model = Particle(m,μ,Δt,
                  idx_λ,
                  idx_b,
                  idx_ψ,
-                 idx_η,
                  idx_s,
                  α_particle)
 

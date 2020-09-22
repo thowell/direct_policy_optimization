@@ -37,9 +37,9 @@ function contact_dynamics_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
         x3 = Z[idx.x[t+2]]
         u = Z[idx.u[t]]
 
-        c[m_sdf+m_med+m_fc + (t-1)*3 + 1] = u[model.idx_s] - u[model.idx_λ]'*ϕ_func(model,x3)
-        c[m_sdf+m_med+m_fc + (t-1)*3 + 2] = u[model.idx_s] - u[model.idx_ψ]'*friction_cone(model,u)
-        c[m_sdf+m_med+m_fc + (t-1)*3 + 3] = u[model.idx_s] - u[model.idx_b]'*u[model.idx_η]
+        c[m_sdf+m_med+m_fc + (t-1)*2 + 1] = u[model.idx_s] - u[model.idx_λ]'*ϕ_func(model,x3)
+        c[m_sdf+m_med+m_fc + (t-1)*2 + 2] = u[model.idx_s] - u[model.idx_ψ]'*friction_cone(model,u)
+        # c[m_sdf+m_med+m_fc + (t-1)*3 + 3] = u[model.idx_s] - u[model.idx_b]'*u[model.idx_η]
     end
 
     return nothing
@@ -121,7 +121,7 @@ function contact_dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizat
 
         comp1_x3(z) = u[model.idx_s] - u[model.idx_λ]'*ϕ_func(model,z)
         comp1_u(z) = z[model.idx_s] - z[model.idx_λ]'*ϕ_func(model,x3)
-        r_idx = m_sdf + m_med + m_fc + (t-1)*3 + 1
+        r_idx = m_sdf + m_med + m_fc + (t-1)*2 + 1
 
         c_idx = idx.x[t+2]
         len = length(r_idx)*length(c_idx)
@@ -134,20 +134,20 @@ function contact_dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizat
         shift += len
 
         comp2_u(z) = z[model.idx_s] - z[model.idx_ψ]'*friction_cone(model,z)
-        r_idx = m_sdf + m_med + m_fc + (t-1)*3 + 2
+        r_idx = m_sdf + m_med + m_fc + (t-1)*2 + 2
 
         c_idx = idx.u[t]
         len = length(r_idx)*length(c_idx)
         ∇c[shift .+ (1:len)] = ForwardDiff.gradient(comp2_u,u)
         shift += len
 
-        comp3_u(z) = z[model.idx_s] - z[model.idx_b]'*z[model.idx_η]
-        r_idx = m_sdf + m_med + m_fc + (t-1)*3 + 3
-
-        c_idx = idx.u[t]
-        len = length(r_idx)*length(c_idx)
-        ∇c[shift .+ (1:len)] = ForwardDiff.gradient(comp3_u,u)
-        shift += len
+        # comp3_u(z) = z[model.idx_s] - z[model.idx_b]'*z[model.idx_η]
+        # r_idx = m_sdf + m_med + m_fc + (t-1)*3 + 3
+        #
+        # c_idx = idx.u[t]
+        # len = length(r_idx)*length(c_idx)
+        # ∇c[shift .+ (1:len)] = ForwardDiff.gradient(comp3_u,u)
+        # shift += len
     end
 
     return nothing
@@ -198,7 +198,7 @@ function sparsity_contact_dynamics_jacobian(prob::TrajectoryOptimizationProblem;
     m_fc = model.nc*(T-2)
 
     for t = 1:T-2
-        r_idx = r_shift + m_sdf + m_med + m_fc + (t-1)*3 + 1
+        r_idx = r_shift + m_sdf + m_med + m_fc + (t-1)*2 + 1
 
         c_idx = idx.x[t+2]
         row_col!(row,col,r_idx,c_idx)
@@ -206,15 +206,15 @@ function sparsity_contact_dynamics_jacobian(prob::TrajectoryOptimizationProblem;
         c_idx = idx.u[t]
         row_col!(row,col,r_idx,c_idx)
 
-        r_idx = r_shift + m_sdf + m_med + m_fc + (t-1)*3 + 2
+        r_idx = r_shift + m_sdf + m_med + m_fc + (t-1)*2 + 2
 
         c_idx = idx.u[t]
         row_col!(row,col,r_idx,c_idx)
 
-        r_idx = r_shift + m_sdf + m_med + m_fc + (t-1)*3 + 3
-
-        c_idx = idx.u[t]
-        row_col!(row,col,r_idx,c_idx)
+        # r_idx = r_shift + m_sdf + m_med + m_fc + (t-1)*3 + 3
+        #
+        # c_idx = idx.u[t]
+        # row_col!(row,col,r_idx,c_idx)
     end
 
     return collect(zip(row,col))

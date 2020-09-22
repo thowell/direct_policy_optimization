@@ -78,36 +78,36 @@ mvis = MechanismVisualizer(kuka, kuka_visuals, vis[:base])
 
 open(vis)
 
-# course
-include("../golf_particle.jl")
-m = model
-r_ball = 0.1
-f = x -> x[3] - exp(m.a_exp*(x[1]-m.shift_exp))
-
-sdf = SignedDistanceField(f, HyperRectangle(Vec(-3, -6, -1), Vec(10, 6, 4)))
-mesh = HomogenousMesh(sdf, MarchingTetrahedra())
-setobject!(vis["slope"], mesh,
-		   MeshPhongMaterial(color=RGBA{Float32}(86/255, 125/255, 70/255, 1.0)))
-settransform!(vis["slope"], compose(Translation(0.0,3.0,0.0)))
-
-circle1 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.25),convert(Float32,m.rx1-r_ball))
-	setobject!(vis["circle1"],circle1,
-	MeshPhongMaterial(color=RGBA(86/255,125/255,20/255,1.0)))
-
-# circle2 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.25),convert(Float32,m.rx1*0.5))
-# 	setobject!(vis["circle2"],circle2,
-# 	MeshPhongMaterial(color=RGBA(0,0,0,0.5)))
-
-setobject!(vis["ball"], HyperSphere(Point3f0(0),
-			convert(Float32,r_ball)),
-			MeshPhongMaterial(color=RGBA(1,1,1,1.0)))
-
-settransform!(vis["ball"], compose(Translation(0.0,2.0,0.05)))
-
-hole = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.01),convert(Float32,r_ball*1.5))
-	setobject!(vis["hole"],hole,
-	MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
-settransform!(vis["hole"], compose(Translation(0.0,-2.0,0.0)))
+# # course
+# include("../golf_particle.jl")
+# m = model
+# r_ball = 0.1
+# f = x -> x[3] - exp(m.a_exp*(x[1]-m.shift_exp))
+#
+# sdf = SignedDistanceField(f, HyperRectangle(Vec(-3, -6, -1), Vec(10, 6, 4)))
+# mesh = HomogenousMesh(sdf, MarchingTetrahedra())
+# setobject!(vis["slope"], mesh,
+# 		   MeshPhongMaterial(color=RGBA{Float32}(86/255, 125/255, 70/255, 1.0)))
+# settransform!(vis["slope"], compose(Translation(0.0,3.0,0.0)))
+#
+# circle1 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.25),convert(Float32,m.rx1-r_ball))
+# 	setobject!(vis["circle1"],circle1,
+# 	MeshPhongMaterial(color=RGBA(86/255,125/255,20/255,1.0)))
+#
+# # circle2 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.25),convert(Float32,m.rx1*0.5))
+# # 	setobject!(vis["circle2"],circle2,
+# # 	MeshPhongMaterial(color=RGBA(0,0,0,0.5)))
+#
+# setobject!(vis["ball"], HyperSphere(Point3f0(0),
+# 			convert(Float32,r_ball)),
+# 			MeshPhongMaterial(color=RGBA(1,1,1,1.0)))
+#
+# settransform!(vis["ball"], compose(Translation(0.0,2.0,0.05)))
+#
+# hole = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.01),convert(Float32,r_ball*1.5))
+# 	setobject!(vis["hole"],hole,
+# 	MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
+# settransform!(vis["hole"], compose(Translation(0.0,-2.0,0.0)))
 
 nq = num_positions(kuka)
 q_init = zeros(nq)
@@ -202,9 +202,9 @@ mutable struct KukaParticle{T}
 end
 
 # Dimensions
-nq = 7 + 3 # configuration dim
+nq = 7 + 3# configuration dim
 nu_ctrl = 7 # control dim
-nc = 4 # number of contact points
+nc = 2 # number of contact points
 nf = 2 # number of faces for friction cone
 nb = nc*nf
 
@@ -310,15 +310,15 @@ function friction_cone(model::KukaParticle,u)
 	b = u[model.idx_b]
 
     @SVector [(model.μ_ee_p*λ[1])^2 - b[1:2]'*b[1:2],
-			  (model.μ1*λ[2])^2 - b[3:4]'*b[3:4],
-			  (model.μ2*λ[3])^2 - b[5:6]'*b[5:6],
-			  (model.μ3*λ[4])^2 - b[7:8]'*b[7:8]]
+			  (model.μ1*λ[2])^2 - b[3:4]'*b[3:4]]#,
+			  # (model.μ2*λ[3])^2 - b[5:6]'*b[5:6],
+			  # (model.μ3*λ[4])^2 - b[7:8]'*b[7:8]]
 end
 
 function maximum_energy_dissipation(model::KukaParticle,x2,x3,u,h)
 	ψ = u[model.idx_ψ]
 	b = u[model.idx_b]
-    ψ_stack = [ψ[1]*b[1:2];ψ[2]*b[3:4];ψ[3]*b[5:6];ψ[4]*b[7:8]]
+    ψ_stack = [ψ[1]*b[1:2];ψ[2]*b[3:4]]#;ψ[3]*b[5:6];ψ[4]*b[7:8]]
     P_func(model,x3)*(x3-x2)/h[1] + 2.0*ψ_stack
 end
 
@@ -351,9 +351,9 @@ function ϕ_func(m::KukaParticle,q::Vector{T}) where T
 	diff = (p_ee - p_p)
 	d_ee_p = diff'*diff
     @SVector [d_ee_p - m.rp^2,
-		      ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1),
-	          -1.0*ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2),
-	          p_p[3] - exp(m.a_exp*(p_p[1]-m.shift_exp))]
+		      # ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1),
+	          # -1.0*ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2),
+	          p_p[3]]# - exp(m.a_exp*(p_p[1]-m.shift_exp))]
 end
 
 function N_func(m::KukaParticle,q::AbstractVector{T}) where T
@@ -379,9 +379,9 @@ function N_func(m::KukaParticle,q::AbstractVector{T}) where T
 	# d_ee_p = diff'*diff
 
     return [2.0*diff'*[pj1.J[1:3,:] -Diagonal(ones(3))];#;
-			zeros(1,7) transpose(∇ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1));
-			zeros(1,7) -1.0*transpose(∇ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2));
-			zeros(1,7) -m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp)) 0.0 1.0]
+			# zeros(1,7) transpose(∇ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1));
+			# zeros(1,7) -1.0*transpose(∇ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2));
+			zeros(1,7) -m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp))*0.0 0.0 1.0]
 	# ϕ_tmp(y) = ϕ_func(model,y)
 	# ForwardDiff.jacobian(ϕ_tmp,q)
 end
@@ -408,9 +408,9 @@ function P_func(m::KukaParticle,q::AbstractVector{T}) where T
 	z0 = [0.0; 0.0; 1.0]
 	p_p = particle_q(q)
     return [map*pj1.J[2:3,:] zeros(2,3);
-			zeros(2,7) map*[transpose(z0);transpose(cross(z0,∇ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1)))];
-			zeros(2,7) map*[transpose(z0); transpose(cross(z0,∇ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2)))];
-			zeros(2,7) map*[transpose(y0);transpose(cross(y0,[-m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp)); 0.0; 1.0]))]]
+			# zeros(2,7) map*[transpose(z0);transpose(cross(z0,∇ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1)))];
+			# zeros(2,7) map*[transpose(z0); transpose(cross(z0,∇ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2)))];
+			zeros(2,7) map*[transpose(y0);transpose(cross(y0,[-m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp))*0.0; 0.0; 1.0]))]]
 
 end
 
@@ -503,8 +503,8 @@ T_tenth = convert(Int,floor(T/10))
 tf = 2.0
 Δt = tf/T
 
-px_init = [0.0; 2.0; exp(model.a_exp*(0.0 - model.shift_exp))]
-px_goal = [1.0; 2.0; exp(model.a_exp*(1.0 - model.shift_exp))]
+px_init = [0.0; 2.0; 0.0]
+px_goal = [1.0; 2.0; 0.0]
 
 
 # q1 = copy(q_init)
@@ -545,8 +545,8 @@ hu = Δt
 hl = Δt
 
 # Objective
-Q = [t<T ? Diagonal([1.0*ones(7);1.0*ones(3)]) : Diagonal([1.0*ones(7);100.0*ones(3)]) for t = 1:T]
-R = [Diagonal(100.0*ones(model.nu_ctrl)) for t = 1:T-2]
+Q = [t<T ? Diagonal([1.0*ones(7);1.0*ones(3)]) : Diagonal([1.0*ones(7);10.0*ones(3)]) for t = 1:T]
+R = [Diagonal(1.0e-1*ones(model.nu_ctrl)) for t = 1:T-2]
 c = 0.0
 x_kuka = [kuka_q(x1),linear_interp(kuka_q(x1),kuka_q(xT),T_tenth)...,[kuka_q(xT) for t = 1:(T-T_tenth)-1]...]
 x_ball = [particle_q(x1) for t = 1:T]
@@ -561,7 +561,8 @@ x_ball = [particle_q(x1) for t = 1:T]
 # 	x_ball[t] = px_ref[t-T_tenth]
 # end
 
-x_ref = [[x_kuka[t];x_ball[t]] for t = 1:T]
+# x_ref = [[x_kuka[t];x_ball[t]] for t = 1:T]
+x_ref = linear_interp(x1,xT,T)
 
 set_configuration!(state,q_res1)
 u_ref = Δt*Array(RigidBodyDynamics.dynamics_bias(state))
@@ -619,17 +620,17 @@ plot(hcat(U_nom...)',linetype=:steppost)
 function visualize!(mvis,model::KukaParticle,q;
 		verbose=false,r_ball=0.1,Δt=0.1)
 
-	f = x -> x[3] - exp(model.a_exp*(x[1]-model.shift_exp))
-
-	sdf = SignedDistanceField(f, HyperRectangle(Vec(-3, -6, -1), Vec(10, 6, 4)))
-	mesh = HomogenousMesh(sdf, MarchingTetrahedra())
-	setobject!(vis["slope"], mesh,
-	           MeshPhongMaterial(color=RGBA{Float32}(86/255, 125/255, 70/255, 1.0)))
-	settransform!(vis["slope"], compose(Translation(0.0,3.0,0.0)))
-
-	circle1 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.35),convert(Float32,model.rx1-r_ball))
-		setobject!(vis["circle1"],circle1,
-		MeshPhongMaterial(color=RGBA(86/255,125/255,20/255,1.0)))
+	# f = x -> x[3] - exp(model.a_exp*(x[1]-model.shift_exp))
+	#
+	# sdf = SignedDistanceField(f, HyperRectangle(Vec(-3, -6, -1), Vec(10, 6, 4)))
+	# mesh = HomogenousMesh(sdf, MarchingTetrahedra())
+	# setobject!(vis["slope"], mesh,
+	#            MeshPhongMaterial(color=RGBA{Float32}(86/255, 125/255, 70/255, 1.0)))
+	# settransform!(vis["slope"], compose(Translation(0.0,3.0,0.0)))
+	#
+	# circle1 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.35),convert(Float32,model.rx1-r_ball))
+	# 	setobject!(vis["circle1"],circle1,
+	# 	MeshPhongMaterial(color=RGBA(86/255,125/255,20/255,1.0)))
 
 	# circle2 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.25),convert(Float32,m.rx1*0.5))
 	# 	setobject!(vis["circle2"],circle2,
@@ -641,10 +642,10 @@ function visualize!(mvis,model::KukaParticle,q;
 
 	settransform!(vis["ball"], compose(Translation(0.0,2.0,0.15)))
 
-	hole = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.01),convert(Float32,r_ball*1.5))
-		setobject!(vis["hole"],hole,
-		MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
-	settransform!(vis["hole"], compose(Translation(0.0,-2.0,0.0)))
+	# hole = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.01),convert(Float32,r_ball*1.5))
+	# 	setobject!(vis["hole"],hole,
+	# 	MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
+	# settransform!(vis["hole"], compose(Translation(0.0,-2.0,0.0)))
 
 	anim = MeshCat.Animation(convert(Int,floor(1/Δt)))
 

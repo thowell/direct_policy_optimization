@@ -70,7 +70,7 @@ function init_problem(nx,nu,T,model,obj;
     M_contact_sdf = model.nc*T
     M_contact_med = model.nb*(T-2)
     M_contact_fc = model.nc*(T-2)
-    M_contact_comp = 3*(T-2)
+    M_contact_comp = 2*(T-2)
     M_contact_dynamics = M_contact_sdf + M_contact_med + M_contact_fc + M_contact_comp
     M_stage = stage_constraints*sum(m_stage)
     M_general = general_constraints*m_general
