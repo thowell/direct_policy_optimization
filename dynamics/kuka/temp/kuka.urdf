@@ -41,7 +41,7 @@
   <!--iiwa-->
   <!--joint between {parent} and link_0-->
   <joint name="base_joint" type="fixed">
-    <origin rpy="0 0 0" xyz="-2.66 0 0.0"/>
+    <origin rpy="0 0 0" xyz="0.0 2.5 0.0"/>
     <parent link="base"/>
     <child link="iiwa_link_0"/>
   </joint>
