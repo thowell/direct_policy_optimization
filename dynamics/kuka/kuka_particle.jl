@@ -109,7 +109,6 @@ hole = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.01),convert(Float32,r_ball*1.5))
 	MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
 settransform!(vis["hole"], compose(Translation(0.0,-2.0,0.0)))
 
-
 nq = num_positions(kuka)
 q_init = zeros(nq)
 q_init[1] = -pi/2
@@ -118,11 +117,11 @@ q_init[2] = pi/4
 q_init[4] = -pi/2
 q_init[5] = 0
 q_init[6] = -pi/4
-q_init[7] = 0#pi/2
+q_init[7] = 0
 set_configuration!(state,q_init)
 set_configuration!(mvis, q_init)
 ee = findbody(kuka, "iiwa_link_7")
-ee_point = Point3D(default_frame(ee), 0.374, 0.0, 0.0)
+ee_point = Point3D(default_frame(ee), 0.374-exp(model.a_exp*(0.0-model.shift_exp)), 0.0, 0.0)
 setelement!(mvis, ee_point, 0.05)
 
 ee_jacobian_frame = ee_point.frame
@@ -130,17 +129,21 @@ ee_jacobian_path = path(kuka, root_body(kuka), ee)
 
 world = root_frame(kuka)
 ee_in_world = transform(state, ee_point, world).v
-desired = Point3D(world,-0.25,2.1,0.0)
+desired = Point3D(world,0.0,2.0 + 0.627/10,0.05)
 q_res1 = jacobian_transpose_ik!(state,ee,ee_point,desired,
     visualize=true,mvis=mvis)
 q_res1 = Array(q_res1)
 set_configuration!(mvis, q_res1)
+set_configuration!(state,q_res1)
+ee_in_world = transform(state, ee_point, world).v
 
-desired = Point3D(world,0.25,2.1,0.0)
+desired = Point3D(world,0.0,2.0,exp(model.a_exp*(0.0-model.shift_exp)))
 q_res2 = jacobian_transpose_ik!(state,ee,ee_point,desired,
     visualize=true,mvis=mvis)
 q_res2 = Array(q_res2)
 set_configuration!(mvis, q_res2)
+set_configuration!(state,q_res2)
+ee_in_world = transform(state, ee_point, world).v
 
 using StaticArrays
 
@@ -202,7 +205,7 @@ end
 # Dimensions
 nq = 7 + 3 # configuration dim
 nu_ctrl = 7 # control dim
-nc = 4 # number of contact points
+nc = 2 # number of contact points
 nf = 4 # number of faces for friction cone
 nb = nc*nf
 
@@ -217,10 +220,10 @@ idx_ψ = nu_ctrl + nc + nb .+ (1:nc)
 idx_η = nu_ctrl + nc + nb + nc .+ (1:nb)
 idx_s = nu_ctrl + nc + nb + nc + nb + 1
 
-mp = 1.0
+mp = 0.1
 rp = 0.1
 α_kuka = 1.0
-μ_ee_p = 0.1
+μ_ee_p = 0.5
 μ1 = 0.1
 μ2 = 0.1
 μ3 = 0.1
@@ -253,13 +256,13 @@ end
 
 function C_func(m::KukaParticle,qk,qn,h)
     if eltype(kuka_q(qk)) <: ForwardDiff.Dual
-		return [dynamics_bias_qk(m,kuka_q(qk),kuka_q(qn),h)...,0,0,0]
+		return [dynamics_bias_qk(m,kuka_q(qk),kuka_q(qn),h)...,0,0,m.mp*9.81]
 	elseif eltype(kuka_q(qn)) <: ForwardDiff.Dual
-		return [dynamics_bias_qn(m,kuka_q(qk),kuka_q(qn),h)...,0,0,0]
+		return [dynamics_bias_qn(m,kuka_q(qk),kuka_q(qn),h)...,0,0,m.mp*9.81]
 	elseif eltype(h) <: ForwardDiff.Dual
-		return [dynamics_bias_h(m,kuka_q(qk),kuka_q(qn),h)...,0,0,0]
+		return [dynamics_bias_h(m,kuka_q(qk),kuka_q(qn),h)...,0,0,m.mp*9.81]
 	else
-		return [_dynamics_bias(m,kuka_q(qk),kuka_q(qn),h)...,0,0,0]
+		return [_dynamics_bias(m,kuka_q(qk),kuka_q(qn),h)...,0,0,m.mp*9.81]
 	end
 end
 
@@ -308,15 +311,15 @@ function friction_cone(model::KukaParticle,u)
 	λ = u[model.idx_λ]
 	b = u[model.idx_b]
 
-    @SVector [model.μ_ee_p*λ[1] - sum(b[1:4]),
-			  model.μ1*λ[2] - sum(b[5:8]),
-			  model.μ2*λ[3] - sum(b[9:12]),
-			  model.μ3*λ[4] - sum(b[13:16])]
+    @SVector [model.μ_ee_p*λ[1] - sum(b[1:4]),#,
+			  model.μ1*λ[2] - sum(b[5:8])]
+			  # # model.μ2*λ[3] - sum(b[9:12]),
+			  # model.μ3*λ[3] - sum(b[9:12])]
 end
 
 function maximum_energy_dissipation(model::KukaParticle,x2,x3,u,h)
 	ψ = u[model.idx_ψ]
-    ψ_stack = [ψ[1]*ones(4);ψ[2]*ones(4);ψ[3]*ones(4);ψ[4]*ones(4)]
+    ψ_stack = [ψ[1]*ones(4);ψ[2]*ones(4)]#;ψ[3]*ones(4)]#;ψ[4]*ones(4)]
     η = u[model.idx_η]
     P_func(model,x3)*(x3-x2)/h[1] + ψ_stack - η
 end
@@ -349,10 +352,10 @@ function ϕ_func(m::KukaParticle,q::Vector{T}) where T
 	p_p = q[8:10]
 	diff = (p_ee - p_p)
 	d_ee_p = diff'*diff
-    @SVector [d_ee_p - m.rp^2,
-		      ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1),
-	          -1.0*ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2),
-	          p_p[3] - exp(m.a_exp*(p_p[1]-m.shift_exp))]
+    @SVector [d_ee_p - m.rp^2,#,
+		      # ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1),
+	          # # -1.0*ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2),
+	          p_p[3]]# - exp(m.a_exp*(p_p[1]-m.shift_exp))]
 end
 
 function N_func(m::KukaParticle,q::AbstractVector{T}) where T
@@ -377,13 +380,16 @@ function N_func(m::KukaParticle,q::AbstractVector{T}) where T
 	diff = (p_ee - p_p)
 	# d_ee_p = diff'*diff
 
-    return [2.0*diff'*[pj1.J[1:3,:] -Diagonal(ones(3))];
-			zeros(1,7) transpose(∇ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1));
-			zeros(1,7) -1.0*transpose(∇ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2));
-			zeros(1,7) -m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp)) 0.0 1.0]
+    return [2.0*diff'*[pj1.J[1:3,:] -Diagonal(ones(3))];#;
+			# zeros(1,7) transpose(∇ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1));
+			# # zeros(1,7) -1.0*transpose(∇ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2));
+			zeros(1,7) -0.0*m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp)) 0.0 1.0]
 	# ϕ_tmp(y) = ϕ_func(model,y)
 	# ForwardDiff.jacobian(ϕ_tmp,q)
 end
+
+# tmp(x) = ϕ_func(model,x)
+# vec(ForwardDiff.jacobian(tmp,x1)) - vec(N_func(model,x1))
 
 function P_func(m::KukaParticle,q::AbstractVector{T}) where T
     state = m.state_cache3[T]
@@ -406,9 +412,9 @@ function P_func(m::KukaParticle,q::AbstractVector{T}) where T
 	z0 = [0.0; 0.0; 1.0]
 	p_p = particle_q(q)
     return [map*pj1.J[2:3,:] zeros(4,3);
-			zeros(4,7) map*[transpose(z0);transpose(cross(z0,∇ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1)))];
-			zeros(4,7) map*[transpose(z0); transpose(cross(z0,∇ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2)))];
-			zeros(4,7) map*[transpose(y0);transpose(cross(y0,[-m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp)); 0.0; 1.0]))]]
+			# zeros(4,7) map*[transpose(z0);transpose(cross(z0,∇ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1)))];
+			# # zeros(4,7) map*[transpose(z0); transpose(cross(z0,∇ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2)))];
+			zeros(4,7) map*[transpose(y0);transpose(cross(y0,[-m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp))*0.0; 0.0; 1.0]))]]
 
 end
 
@@ -495,15 +501,23 @@ using Plots
 
 # Horizon
 T = 40
+T_half = convert(Int,floor(T/2))
+T_tenth = convert(Int,floor(T/10))
+
 
 tf = 2.0
 Δt = tf/T
 
-px_init = [0.0; 2.0; 0.0]
-px_goal = [0.0; -2.0; 0.0]
+px_init = [0.0; 2.0; 0.0]# exp(model.a_exp*(0.0 - model.shift_exp))]
+px_goal = [0.0; 2.0; 0.0]# exp(model.a_exp*(0.0 - model.shift_exp))]
 
-x1 = [q_res1;px_init]
-xT = [q_res2;px_goal]
+
+q1 = copy(q_init)
+q1[7] = -pi/6
+qT = copy(q_init)
+qT[7] = pi/6
+x1 = [q1;px_init]
+xT = [qT;px_goal]
 
 # Bounds
 # xl <= x <= xu
@@ -520,7 +534,7 @@ xu_traj[2] = copy(x1)
 
 # xu_traj = [q_res for t=1:T]
 # xl_traj = [q_res for t=1:T]
-
+ϕ_func(model,[q_init;px_init])
 # ul <= u <= uu
 uu = Inf*ones(model.nu)
 ul = -Inf*ones(model.nu)
@@ -537,26 +551,29 @@ hu = Δt
 hl = Δt
 
 # Objective
-Q = [t<T ? Diagonal(1.0*ones(model.nx)) : Diagonal([1.0*ones(7);1000.0*ones(3)]) for t = 1:T]
+Q = [t<T ? Diagonal([10.0*ones(7);0.0*ones(3)]) : Diagonal([10.0*ones(7);0.0*ones(3)]) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu_ctrl)) for t = 1:T-2]
 c = 0.0
-x_ref = [x1,linear_interp(x1,xT,T-1)...]
+x_kuka = [kuka_q(x1),linear_interp(kuka_q(x1),kuka_q(xT),T_tenth)...,[kuka_q(xT) for t = 1:(T-T_tenth)-1]...]
+x_ball = [particle_q(x1) for t = 1:T]
+#
+# px2_ref = range(2.0,stop=-2.0,length=T - T_tenth)
+# px1_ref = get_y.(px2_ref,2.0,2.0)
+# px3_ref = exp.(model.a_exp.*(px1_ref .- model.shift_exp))
+#
+# px_ref = [[px1_ref[t];px2_ref[t];px3_ref[t]] for t = 1:T-T_tenth]
+#
+# for t = T_tenth+1:T
+# 	x_ball[t] = px_ref[t-T_tenth]
+# end
 
-px2_ref = range(2.0,stop=-2.0,length=T-1)
-px1_ref = get_y.(px2_ref,2.0,2.0)
-px3_ref = exp.(model.a_exp.*(px1_ref .- model.shift_exp))
+x_ref = [[x_kuka[t];x_ball[t]] for t = 1:T]
 
-px_ref = [[px1_ref[t];px2_ref[t];px3_ref[t]] for t = 1:T-1]
-
-for t = 2:T
-	x_ref[t][8:10] = px_ref[t-1]
-end
-
-set_configuration!(state,kuka_q(xT))
+set_configuration!(state,q_init)
 u_ref = Δt*Array(RigidBodyDynamics.dynamics_bias(state))
 
 obj = QuadraticTrackingObjective(Q,R,c,
-    [xT for t=1:T],[u_ref for t=1:T-2])
+    [x_ref[t] for t=1:T],[u_ref for t=1:T-2])
 model.α = 1000.0
 penalty_obj = PenaltyObjective(model.α)
 multi_obj = MultiObjective([obj,penalty_obj])
@@ -581,30 +598,29 @@ U0 = [[u_ref;1.0e-5*rand(nu_contact)] for t = 1:T-2] # random controls
 # Pack trajectories into vector
 Z0 = pack(X0,U0,Δt,prob)
 @time Z_nominal = solve(prob_moi,copy(Z0),nlp=:ipopt,
-	c_tol=1.0e-2,tol=1.0e-2,max_iter=500)
+	c_tol=1.0e-2,tol=1.0e-2,max_iter=1000,time_limit=60*5)
 # @time Z_nominal = solve(prob_moi,copy(Z_nominal),nlp=:SNOPT)
 
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
-#
-# [ϕ_func(model,X_nom[t]) for t = 1:T]
+
+[ϕ_func(model,X_nom[t]) for t = 1:T]
 # x_nom = [X_nom[t][1] for t = 1:T]
 # z_nom = [X_nom[t][2] for t = 1:T]
 # u_nom = [U_nom[t][model.idx_u] for t = 1:T-2]
-# λ_nom = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
+λ_nom = [U_nom[t][model.idx_λ[1]] for t = 1:T-2]
 # b_nom = [U_nom[t][model.idx_b] for t = 1:T-2]
 # ψ_nom = [U_nom[t][model.idx_ψ[1]] for t = 1:T-2]
 # η_nom = [U_nom[t][model.idx_η] for t = 1:T-2]
-# s_nom = [U_nom[t][model.idx_s] for t = 1:T-2]
-# @show sum(s_nom)
+s_nom = [U_nom[t][model.idx_s] for t = 1:T-2]
+@show sum(s_nom)
 #
 # plot(hcat(u_nom...)')
-# plot(hcat(λ_nom...)',linetype=:steppost)
+plot(hcat(λ_nom...)',linetype=:steppost)
 # plot(hcat(b_nom...)',linetype=:steppost)
 # plot(hcat(ψ_nom...)',linetype=:steppost)
 # plot(hcat(η_nom...)',linetype=:steppost)
 # plot(hcat(U_nom...)',linetype=:steppost)
 
-using Rotations
 # Visualization
 function visualize!(mvis,model::KukaParticle,q;
 		verbose=false,r_ball=0.1,Δt=0.1)
@@ -645,10 +661,12 @@ function visualize!(mvis,model::KukaParticle,q;
 
         MeshCat.atframe(anim,t) do
 			set_configuration!(mvis,q_kuka)
-            settransform!(mvis["ball"], compose(Translation(q_particle),LinearMap(RotZ(0))))
+            settransform!(vis["ball"], compose(Translation(q_particle),LinearMap(RotZ(0))))
         end
     end
     MeshCat.setanimation!(vis,anim)
 end
 
 visualize!(mvis,model,X_nom,Δt=Δt,r_ball=rp)
+
+particle_q(X_nom[T])
