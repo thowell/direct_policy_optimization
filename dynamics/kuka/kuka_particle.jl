@@ -355,7 +355,7 @@ function ϕ_func(m::KukaParticle,q::Vector{T}) where T
     @SVector [d_ee_p - m.rp^2,#,
 		      # ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1),
 	          # # -1.0*ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2),
-	          p_p[3]]# - exp(m.a_exp*(p_p[1]-m.shift_exp))]
+	          p_p[3] - exp(m.a_exp*(p_p[1]-m.shift_exp))]
 end
 
 function N_func(m::KukaParticle,q::AbstractVector{T}) where T
@@ -383,7 +383,7 @@ function N_func(m::KukaParticle,q::AbstractVector{T}) where T
     return [2.0*diff'*[pj1.J[1:3,:] -Diagonal(ones(3))];#;
 			# zeros(1,7) transpose(∇ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1));
 			# # zeros(1,7) -1.0*transpose(∇ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2));
-			zeros(1,7) -0.0*m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp)) 0.0 1.0]
+			zeros(1,7) -m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp)) 0.0 1.0]
 	# ϕ_tmp(y) = ϕ_func(model,y)
 	# ForwardDiff.jacobian(ϕ_tmp,q)
 end
@@ -414,7 +414,7 @@ function P_func(m::KukaParticle,q::AbstractVector{T}) where T
     return [map*pj1.J[2:3,:] zeros(4,3);
 			# zeros(4,7) map*[transpose(z0);transpose(cross(z0,∇ellipsoid(p_p[1],p_p[2],m.rx1,m.ry1)))];
 			# # zeros(4,7) map*[transpose(z0); transpose(cross(z0,∇ellipsoid(p_p[1],p_p[2],m.rx2,m.ry2)))];
-			zeros(4,7) map*[transpose(y0);transpose(cross(y0,[-m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp))*0.0; 0.0; 1.0]))]]
+			zeros(4,7) map*[transpose(y0);transpose(cross(y0,[-m.a_exp*exp(m.a_exp*(p_p[1]-m.shift_exp)); 0.0; 1.0]))]]
 
 end
 
@@ -508,14 +508,14 @@ T_tenth = convert(Int,floor(T/10))
 tf = 2.0
 Δt = tf/T
 
-px_init = [0.0; 2.0; 0.0]# exp(model.a_exp*(0.0 - model.shift_exp))]
-px_goal = [0.0; 2.0; 0.0]# exp(model.a_exp*(0.0 - model.shift_exp))]
+px_init = [0.0; 2.0; exp(model.a_exp*(0.0 - model.shift_exp))]
+px_goal = [2.0; 1.0; exp(model.a_exp*(2.0 - model.shift_exp))]
 
 
 q1 = copy(q_init)
 q1[7] = -pi/6
 qT = copy(q_init)
-qT[7] = pi/6
+qT[7] = 0.0
 x1 = [q1;px_init]
 xT = [qT;px_goal]
 
@@ -551,11 +551,11 @@ hu = Δt
 hl = Δt
 
 # Objective
-Q = [t<T ? Diagonal([10.0*ones(7);0.0*ones(3)]) : Diagonal([10.0*ones(7);0.0*ones(3)]) for t = 1:T]
+Q = [t<T ? Diagonal([10.0*ones(7);0.0*ones(3)]) : Diagonal([10.0*ones(7);100.0*ones(3)]) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu_ctrl)) for t = 1:T-2]
 c = 0.0
 x_kuka = [kuka_q(x1),linear_interp(kuka_q(x1),kuka_q(xT),T_tenth)...,[kuka_q(xT) for t = 1:(T-T_tenth)-1]...]
-x_ball = [particle_q(x1) for t = 1:T]
+x_ball = [particle_q(xT) for t = 1:T]
 #
 # px2_ref = range(2.0,stop=-2.0,length=T - T_tenth)
 # px1_ref = get_y.(px2_ref,2.0,2.0)
