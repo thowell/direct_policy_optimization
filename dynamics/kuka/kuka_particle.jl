@@ -80,30 +80,31 @@ open(vis)
 
 nq = num_positions(kuka)
 q_init = zeros(nq)
-q_init[1] = pi/4
+q_init[1] = 0
 q_init[2] = pi/4
 
 q_init[4] = -pi/2
-# q[6] = pi/2
-# q[7] = pi/2
+q_init[5] = 0
+q_init[6] = -pi/4
+q_init[7] = 0#pi/2
 set_configuration!(state,q_init)
 set_configuration!(mvis, q_init)
 ee = findbody(kuka, "iiwa_link_7")
-ee_point = Point3D(default_frame(ee), 0.0, 0.0, 0.0)
-setelement!(mvis, ee_point, 0.055)
+ee_point = Point3D(default_frame(ee), 0.374, 0.0, 0.0)
+setelement!(mvis, ee_point, 0.03)
 
 ee_jacobian_frame = ee_point.frame
 ee_jacobian_path = path(kuka, root_body(kuka), ee)
 
 world = root_frame(kuka)
 ee_in_world = transform(state, ee_point, world).v
-desired = Point3D(world,0.25,0.25,0.0)
+desired = Point3D(world,-2.1,-0.25,0.0)
 q_res1 = jacobian_transpose_ik!(state,ee,ee_point,desired,
     visualize=true,mvis=mvis)
 q_res1 = Array(q_res1)
 set_configuration!(mvis, q_res1)
 
-desired = Point3D(world,0.75,0.75,0.0)
+desired = Point3D(world,-2.1,0.25,0.0)
 q_res2 = jacobian_transpose_ik!(state,ee,ee_point,desired,
     visualize=true,mvis=mvis)
 q_res2 = Array(q_res2)
