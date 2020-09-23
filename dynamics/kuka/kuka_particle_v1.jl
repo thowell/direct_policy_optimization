@@ -131,7 +131,7 @@ set_configuration!(state,q_init)
 set_configuration!(mvis, q_init)
 ee = findbody(kuka, "iiwa_link_7")
 ee_point = Point3D(default_frame(ee), 0.374, 0.0, 0.0)
-setelement!(mvis, ee_point, 0.05)
+setelement!(mvis, ee_point, 0.01)
 ee_jacobian_frame = ee_point.frame
 ee_jacobian_path = path(kuka, root_body(kuka), ee)
 
@@ -628,36 +628,71 @@ plot(hcat(λ_nom...)',linetype=:steppost)
 # plot(hcat(η_nom...)',linetype=:steppost)
 # plot(hcat(U_nom...)',linetype=:steppost)
 
+
+function cable_transform(y,z)
+    v1 = [0,0,1]
+    v2 = y[1:3,1] - z[1:3,1]
+    normalize!(v2)
+    ax = cross(v1,v2)
+    ang = acos(v1'v2)
+    R = AngleAxis(ang,ax...)
+
+    if any(isnan.(R))
+        R = I
+    else
+        nothing
+    end
+
+    compose(Translation(z),LinearMap(R))
+end
+
 # Visualization
 function visualize!(mvis,model::KukaParticle,q;
 		verbose=false,r_ball=0.1,Δt=0.1)
 
-	# f = x -> x[3] - exp(model.a_exp*(x[1]-model.shift_exp))
-	#
-	# sdf = SignedDistanceField(f, HyperRectangle(Vec(-3, -6, -1), Vec(10, 6, 4)))
-	# mesh = HomogenousMesh(sdf, MarchingTetrahedra())
-	# setobject!(vis["slope"], mesh,
-	#            MeshPhongMaterial(color=RGBA{Float32}(86/255, 125/255, 70/255, 1.0)))
-	# settransform!(vis["slope"], compose(Translation(0.0,3.0,0.0)))
-	#
-	# circle1 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.35),convert(Float32,model.rx1-r_ball))
-	# 	setobject!(vis["circle1"],circle1,
-	# 	MeshPhongMaterial(color=RGBA(86/255,125/255,20/255,1.0)))
-	#
-	# # circle2 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.25),convert(Float32,m.rx1*0.5))
-	# # 	setobject!(vis["circle2"],circle2,
-	# # 	MeshPhongMaterial(color=RGBA(0,0,0,0.5)))
+	p_hole = [0.66; -3.0; 0.0]
+	f = x -> x[3] - softplus(x[1])
+
+	sdf = SignedDistanceField(f, HyperRectangle(Vec(-5, -10, -1), Vec(10, 10, 4)))
+	mesh = HomogenousMesh(sdf, MarchingTetrahedra())
+	setobject!(vis["slope"], mesh,
+			   MeshPhongMaterial(color=RGBA{Float32}(86/255, 125/255, 70/255, 1.0)))
+	settransform!(vis["slope"], compose(Translation(0.0,5.0,0.0)))
+
+	circle1 = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.25),convert(Float32,1.0-r_ball))
+		setobject!(vis["circle1"],circle1,
+		MeshPhongMaterial(color=RGBA(86/255,125/255,20/255,1.0)))
+	settransform!(vis["circle1"], compose(Translation(0.25,-1.5,0.0)))
+
 
 	setobject!(vis["ball"], HyperSphere(Point3f0(0),
-		        convert(Float32,r_ball)),
-		        MeshPhongMaterial(color=RGBA(1,1,1,1.0)))
+				convert(Float32,r_ball)),
+				MeshPhongMaterial(color=RGBA(1,1,1,1.0)))
 
-	settransform!(vis["ball"], compose(Translation(0.0,2.0,0.15)))
+	settransform!(vis["ball"], compose(Translation(0.66,3.0,0.0)))
 
-	# hole = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.01),convert(Float32,r_ball*1.5))
-	# 	setobject!(vis["hole"],hole,
-	# 	MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
-	# settransform!(vis["hole"], compose(Translation(0.0,-2.0,0.0)))
+	hole = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.01),convert(Float32,r_ball*1.5))
+		setobject!(vis["hole"],hole,
+		MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
+	settransform!(vis["hole"], compose(Translation(p_hole...)))
+
+	club = Cylinder(Point3f0(0,0,0),Point3f0(0,0,0.374),convert(Float32,0.025))
+   	setobject!(vis["club"],club,MeshPhongMaterial(color=RGBA(0,0,0,1.0)))
+
+	#
+	state = model.state_cache1[Float64]
+
+	ee = findbody(kuka, "iiwa_link_7")
+	ee_body = Point3D(default_frame(ee), 0.0, 0.0, 0.0)
+	ee_end = Point3D(default_frame(ee), 0.374, 0.0, 0.0)
+	ee_body_jacobian_frame = ee_body.frame
+	ee_body_jacobian_path = path(kuka, root_body(kuka), ee)
+	ee_end_jacobian_frame = ee_end.frame
+	ee_end_jacobian_path = path(kuka, root_body(kuka), ee)
+
+	world = root_frame(kuka)
+	ee_body_in_world = transform(state, ee_body, world).v
+	ee_end_in_world = transform(state, ee_end, world).v
 
 	anim = MeshCat.Animation(convert(Int,floor(1/Δt)))
 
@@ -665,15 +700,23 @@ function visualize!(mvis,model::KukaParticle,q;
     for t = 1:T
         q_kuka = kuka_q(q[t])
 		q_particle = particle_q(q[t])
+		set_configuration!(state,kuka_q(q[t]))
+		ee_body_in_world = transform(state, ee_body, world).v
+		ee_end_in_world = transform(state, ee_end, world).v
 
         MeshCat.atframe(anim,t) do
 			set_configuration!(mvis,q_kuka)
-            settransform!(vis["ball"], compose(Translation(q_particle),LinearMap(RotZ(0))))
-        end
+            settransform!(vis["ball"], compose(Translation(q_particle + [0.0;0.0;0.5*r_ball]),LinearMap(RotZ(0))))
+			settransform!(vis["club"], cable_transform(ee_body_in_world,ee_end_in_world))
+
+			if norm(particle_q(q[t])[1:2] - p_hole[1:2]) < 1.0e-2
+				setvisible!(vis["ball"],false)
+			else
+				setvisible!(vis["ball"],true)
+			end
+		end
     end
     MeshCat.setanimation!(vis,anim)
 end
 
 visualize!(mvis,model,X_nom,Δt=Δt,r_ball=rp)
-
-hcat(X_nom...)[10,:]

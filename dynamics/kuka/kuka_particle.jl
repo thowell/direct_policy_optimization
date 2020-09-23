@@ -205,7 +205,7 @@ end
 # Dimensions
 nq = 7 + 3 # configuration dim
 nu_ctrl = 7 # control dim
-nc = 2 # number of contact points
+nc = 3 # number of contact points
 nf = 4 # number of faces for friction cone
 nb = nc*nf
 
