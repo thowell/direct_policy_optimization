@@ -168,6 +168,10 @@ ellipsoid(x,y,rx,ry) = (x^2)/(rx^2) + (y^2)/(ry^2) - 1
 ∇ellipsoid(x,y,rx,ry) = [2.0*x/(rx^2); 2.0*y/(ry^2); 0.0]
 get_y(x,rx,ry) = sqrt((1.0 - ((x)^2)/((rx)^2))*(ry^2))
 
+ellipsoid(x,y,xc,yc,rx,ry) = ((x-xc)^2)/(rx^2) + ((y-yc)^2)/(ry^2) - 1
+∇ellipsoid(x,y,xc,yc,rx,ry) = [2.0*(x-xc)/(rx^2); 2.0*(y-yc)/(ry^2); 0.0]
+get_y(x,xc,yc,rx,ry) = sqrt((1.0 - ((x-xc)^2)/((rx)^2))*(ry^2)) + yc
+
 rx1 = 1.5
 ry1 = 1.5
 
