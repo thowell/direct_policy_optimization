@@ -1,3 +1,5 @@
+using Rotations
+
 # Box
 mutable struct Box{T}
     m::T
@@ -26,24 +28,6 @@ mutable struct Box{T}
     α
 end
 
-# MRP
-function skew(v)
-    ss = zeros(eltype(v),3,3)
-    ss[1,2] = -v[3]
-    ss[1,3] = v[2]
-    ss[2,1] = v[3]
-    ss[2,3] = -v[1]
-    ss[3,1] = -v[2]
-    ss[3,2] = v[1]
-
-    ss
-end
-
-function rotmat(p)
-    P = skew(p)
-    R2 = I + 4*((1-p'p)*I + 2*P )*P/(1+p'p)^2
-end
-
 # Dimensions
 nq = 6 # configuration dim
 nu_ctrl = 3
@@ -62,9 +46,9 @@ idx_η = nu_ctrl + nc + nb + nc .+ (1:nb)
 idx_s = nu_ctrl + nc + nb + nc + nb + 1
 
 # Parameters
-μ = 0.5  # coefficient of friction
+μ = 1.0  # coefficient of friction
 m = 1.   # mass
-J = 1.
+J = 1.0/12.0*m*((2.0*r)^2 + (2.0*r)^2)
 
 
 # Kinematics
@@ -89,14 +73,14 @@ C_func(::Box,qk,qn) = @SVector zeros(nq)
 
 function ϕ_func(m::Box,q)
     v = q[4:6]
-    ss = zeros(eltype(v),3,3)
-    ss[1,2] = -v[3]
-    ss[1,3] = v[2]
-    ss[2,1] = v[3]
-    ss[2,3] = -v[1]
-    ss[3,1] = -v[2]
-    ss[3,2] = v[1]
-    tmp = (I + 4*((1-v'*v)*I + 2*ss)*ss/(1+v'*v)^2)
+    # ss = zeros(eltype(v),3,3)
+    # ss[1,2] = -v[3]
+    # ss[1,3] = v[2]
+    # ss[2,1] = v[3]
+    # ss[2,3] = -v[1]
+    # ss[3,1] = -v[2]
+    # ss[3,2] = v[1]
+    tmp = MRP(v...)
 
     @SVector [(q[1:3]+tmp*m.corner_offset[1])[3],
               (q[1:3]+tmp*m.corner_offset[2])[3],
@@ -108,9 +92,15 @@ function ϕ_func(m::Box,q)
               (q[1:3]+tmp*m.corner_offset[8])[3]]
 end
 
-B_func(::Box,q) = @SMatrix [0. 0. 0. 1. 0. 0.;
-                            0. 0. 0. 0. 1. 0.;
-                            0. 0. 0. 0. 0. 1.]
+function B_func(::Box,q)
+    mrp = MRP(q[4:6]...)
+    @SMatrix [0. 0. 0. mrp[1,1] mrp[1,2] mrp[1,3];
+              0. 0. 0. mrp[2,1] mrp[2,2] mrp[2,3];
+              0. 0. 0. mrp[3,1] mrp[3,2] mrp[3,3]]
+#     @SMatrix [0. 0. 0. 1. 0. 0.;
+#               0. 0. 0. 0. 1. 0.;
+#               0. 0. 0. 0. 0. 1.]
+end
 
 function N_func(m::Box,q)
     tmp(z) = ϕ_func(m,z)
@@ -120,20 +110,21 @@ end
 
 function P_func(m::Box,q)
     map = [1. 0.;
-           -1. 0.;
            0. 1.;
+           -1. 0.;
            0. -1.]
 
     function p(x)
         v = x[4:6]
-        ss = zeros(eltype(v),3,3)
-        ss[1,2] = -v[3]
-        ss[1,3] = v[2]
-        ss[2,1] = v[3]
-        ss[2,3] = -v[1]
-        ss[3,1] = -v[2]
-        ss[3,2] = v[1]
-        tmp = (I + 4*((1-v'*v)*I + 2*ss)*ss/(1+v'*v)^2)
+        # ss = zeros(eltype(v),3,3)
+        # ss[1,2] = -v[3]
+        # ss[1,3] = v[2]
+        # ss[2,1] = v[3]
+        # ss[2,3] = -v[1]
+        # ss[3,1] = -v[2]
+        # ss[3,2] = v[1]
+        # tmp = (I + 4*((1-v'*v)*I + 2*ss)*ss/(1+v'*v)^2)
+        tmp = MRP(v...)
 
         [map*(x[1:3]+tmp*m.corner_offset[1])[1:2];
          map*(x[1:3]+tmp*m.corner_offset[2])[1:2];
@@ -150,6 +141,7 @@ end
 function friction_cone(model,u)
     λ = u[model.idx_λ]
     b = u[model.idx_b]
+
     @SVector [model.μ*λ[1] - sum(b[1:4]),
               model.μ*λ[2] - sum(b[5:8]),
               model.μ*λ[3] - sum(b[9:12]),
@@ -164,12 +156,13 @@ function maximum_energy_dissipation(model,x2,x3,u,h)
     ψ = u[model.idx_ψ]
     ψ_stack = [ψ[1]*ones(4);
                ψ[2]*ones(4);
-               ψ[1]*ones(4);
-               ψ[1]*ones(4);
-               ψ[1]*ones(4);
-               ψ[1]*ones(4);
-               ψ[1]*ones(4);
-               ψ[1]*ones(4)]
+               ψ[3]*ones(4);
+               ψ[4]*ones(4);
+               ψ[5]*ones(4);
+               ψ[6]*ones(4);
+               ψ[7]*ones(4);
+               ψ[8]*ones(4)]
+
     η = u[model.idx_η]
 
     P_func(model,x3)*(x3-x2)/h[1] + ψ_stack - η
@@ -190,32 +183,11 @@ model = Box(m,J,μ,
              idx_s,
              α_Box)
 
-function visualize!(vis,p::Box,q;
-        r=0.25,color=[RGBA(1, 0, 0, 1.0) for i = 1:length(q)])
 
-    for (i,q_traj) in enumerate(q)
-        setobject!(vis["Box_$i"], HyperRectangle(Vec(0,0,0),Vec(2r,2r,2r)),
-            MeshPhongMaterial(color=color[i]))
-    end
-    anim = MeshCat.Animation(convert(Int,floor(1/p.Δt)))
-
-    T = length(q[1])
-    for t = 1:T
-        MeshCat.atframe(anim,t) do
-            for (i,q_traj) in enumerate(q)
-                settransform!(vis["Box_$i"], Translation(q_traj[t][1:3]...))
-            end
-        end
-    end
-    # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
-    MeshCat.setanimation!(vis,anim)
-end
-
-function visualize_box!(vis,m,q;
+function visualize!(vis,m::Box,q;
         Δt=0.1)
 
     setobject!(vis["box"], HyperRectangle(Vec(-r,-r,-r),Vec(2r,2r,2r)))
-
 
     for i = 1:m.n_corners
         setobject!(vis["corner$i"],HyperSphere(Point3f0(0),
@@ -228,11 +200,12 @@ function visualize_box!(vis,m,q;
     for t = 1:length(q)
         MeshCat.atframe(anim,t) do
 
-            settransform!(vis["block"], compose(Translation(q[t][1:3]...),LinearMap(RotMatrix(SMatrix{3,3}(rotmat(X_nom[1][4:6]))))))
+            settransform!(vis["box"], compose(Translation(q[t][1:3]...),LinearMap(MRP(q[t][4:6]...))))
 
             for i = 1:m.n_corners
                 settransform!(vis["corner$i"],
-                    Translation((q[t][1:3]+rotmat(q[t][4:6])*(corner_offset[i]))...))
+                    Translation((q[t][1:3]+MRP(q[t][4:6]...)*(corner_offset[i]))...))
+
             end
         end
     end
