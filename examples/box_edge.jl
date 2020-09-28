@@ -3,27 +3,25 @@ include("../dynamics/box.jl")
 using Plots
 
 # Horizon
-tf = 2.5
-T = 25
+tf = 2.0
+T = 20
 Δt = tf/T
 
 # Initial and final states
 _mrp_corner = MRP(UnitQuaternion(RotY(-1.0*atan(1/sqrt(2.0)))*RotX(pi/4)))
-_mrp_edge = MRP(UnitQuaternion(RotY(0)*RotX(pi/4)))
-
+_mrp_edge = MRP(UnitQuaternion(RotY(pi/2)*RotX(pi/2)))
 _mrp = MRP(UnitQuaternion(RotY(0)*RotX(0)))
-MRP(xT[4:6]...)
+
 x1 = [model.r; model.r; model.r;_mrp.x;_mrp.y;_mrp.z]
-xM = [model.r; 0.0; sqrt(2*model.r^2); _mrp_edge.x;_mrp_edge.y;_mrp_edge.z]
-xT = [0.0; 0.0; model.r*sqrt(3.0); _mrp_corner.x;_mrp_corner.y;_mrp_corner.z]
+xT = [2*model.r; -1.0*model.r; model.r; _mrp_edge.x;_mrp_edge.y;_mrp_edge.z]
+# xT = [0.0; 0.0; model.r; _mrp_corner.x;_mrp_corner.y;_mrp_corner.z]
 x_ref = [x1, linear_interp(x1,xT,T-1)...]
-x_ref2 = [[xM for t = 1:10]...,[xT for t = 1:10]...]
+
 # x_ref = [x1, linear_interp(x1,xM,11)[1:end-1]..., linear_interp(xM,xT,9)...]
 # vis = Visualizer()
 # open(vis)
-ϕ_func(model,xT)
 
-visualize!(vis,model,x_ref,Δt=Δt)
+visualize_box!(vis,model,x_ref,Δt=Δt)
 
 # Bounds
 # xl <= x <= xu
@@ -39,12 +37,13 @@ xl_traj[2] = x1
 # xu_traj[T] = xT
 # xl_traj[T] = xT
 
-# ul <= u <= uu
-uu_traj = [[1000.0*ones(model.nu_ctrl);Inf*ones(model.nu-model.nu_ctrl)] for t = 1:T-2]
-ul_traj = [[-1000.0*ones(model.nu_ctrl);zeros(model.nu-model.nu_ctrl)] for t = 1:T-2]
 
-# uu_traj[1][1:3] .= 1.0
-# ul_traj[1][1:3] .= -1.0
+# ul <= u <= uu
+uu_traj = [[Inf*ones(model.nu_ctrl);Inf*ones(model.nu-model.nu_ctrl)] for t = 1:T-2]
+ul_traj = [[-Inf*ones(model.nu_ctrl);zeros(model.nu-model.nu_ctrl)] for t = 1:T-2]
+
+# uu_traj[1][1:3] .= 0.0
+# ul_traj[1][1:3] .= 0.0
 
 # h = h0 (fixed timestep)
 hu = Δt
@@ -84,7 +83,7 @@ U0 = [1.0e-5*rand(model.nu) for t = 1:T-2] # random controls
 Z0 = pack(X0,U0,Δt,prob)
 @time Z_nominal = solve(prob_moi,copy(Z0),c_tol=1.0e-2,tol=1.0e-2)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
-model.idx_u
+
 x_nom = [X_nom[t][1] for t = 1:T]
 y_nom = [X_nom[t][2] for t = 1:T]
 z_nom = [X_nom[t][3] for t = 1:T]
@@ -97,5 +96,18 @@ s_nom = [U_nom[t][model.idx_s] for t = 1:T-2]
 @show sum(s_nom)
 
 plot(hcat(u_nom...)',linetype=:steppost)
+
+using Colors
+using CoordinateTransformations
+using FileIO
+using GeometryTypes
+using LinearAlgebra
+using MeshCat
+using MeshIO
+using Rotations
+using Meshing
+
+vis = Visualizer()
+open(vis)
 
 visualize!(vis,model,X_nom,Δt=H_nom[1])

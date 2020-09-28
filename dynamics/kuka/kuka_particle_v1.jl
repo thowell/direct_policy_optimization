@@ -1,5 +1,5 @@
 using MeshCat,MeshCatMechanisms,RigidBodyDynamics
-using FileIO, MeshIO, GeometryTypes, CoordinateTransformations, MeshCat
+using FileIO, MeshIO, GeometryTypes, CoordinateTransformations, MeshCat, Rotations
 
 t = range(-1,stop=3,length=100)
 k = 10.0

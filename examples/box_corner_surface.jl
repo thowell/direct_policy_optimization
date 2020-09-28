@@ -2,22 +2,34 @@ include("../src/sample_trajectory_optimization.jl")
 include("../dynamics/box.jl")
 using Plots
 
+mx = 0.0
+my = 0.0
+mz = 1.0
+
+f = x -> mx*x[1] + my*x[2] + mz*x[3]
+
+sdf = SignedDistanceField(f, HyperRectangle(Vec(-5, -5, -5), Vec(10, 10, 10)))
+mesh = HomogenousMesh(sdf, MarchingTetrahedra())
+setobject!(vis["slope"], mesh,
+		   MeshPhongMaterial(color=RGBA{Float32}(86/255, 125/255, 70/255, 1.0)))
+settransform!(vis["slope"], compose(Translation(0.0,0.0,0.0)))
+
+
 # Horizon
-tf = 2.5
-T = 25
+tf = 2.0
+T = 20
 Δt = tf/T
 
 # Initial and final states
 _mrp_corner = MRP(UnitQuaternion(RotY(-1.0*atan(1/sqrt(2.0)))*RotX(pi/4)))
-_mrp_edge = MRP(UnitQuaternion(RotY(0)*RotX(pi/4)))
-
+_mrp_edge = MRP(UnitQuaternion(RotY(pi/2)*RotX(pi/2)))
 _mrp = MRP(UnitQuaternion(RotY(0)*RotX(0)))
-MRP(xT[4:6]...)
+
 x1 = [model.r; model.r; model.r;_mrp.x;_mrp.y;_mrp.z]
-xM = [model.r; 0.0; sqrt(2*model.r^2); _mrp_edge.x;_mrp_edge.y;_mrp_edge.z]
-xT = [0.0; 0.0; model.r*sqrt(3.0); _mrp_corner.x;_mrp_corner.y;_mrp_corner.z]
+xT = [2*model.r; -1.0*model.r; model.r; _mrp_edge.x;_mrp_edge.y;_mrp_edge.z]
+# xT = [0.0; 0.0; model.r; _mrp_corner.x;_mrp_corner.y;_mrp_corner.z]
 x_ref = [x1, linear_interp(x1,xT,T-1)...]
-x_ref2 = [[xM for t = 1:10]...,[xT for t = 1:10]...]
+
 # x_ref = [x1, linear_interp(x1,xM,11)[1:end-1]..., linear_interp(xM,xT,9)...]
 # vis = Visualizer()
 # open(vis)
@@ -35,15 +47,16 @@ xl_traj[1] = x1
 xu_traj[2] = x1
 xl_traj[2] = x1
 
-xu_traj[T] = xT
-xl_traj[T] = xT
+# xu_traj[T] = xT
+# xl_traj[T] = xT
+
 
 # ul <= u <= uu
-uu_traj = [[10.0*ones(model.nu_ctrl);Inf*ones(model.nu-model.nu_ctrl)] for t = 1:T-2]
-ul_traj = [[-10.0*ones(model.nu_ctrl);zeros(model.nu-model.nu_ctrl)] for t = 1:T-2]
+uu_traj = [[Inf*ones(model.nu_ctrl);Inf*ones(model.nu-model.nu_ctrl)] for t = 1:T-2]
+ul_traj = [[-Inf*ones(model.nu_ctrl);zeros(model.nu-model.nu_ctrl)] for t = 1:T-2]
 
-# uu_traj[1][1:3] .= 1.0
-# ul_traj[1][1:3] .= -1.0
+# uu_traj[1][1:3] .= 0.0
+# ul_traj[1][1:3] .= 0.0
 
 # h = h0 (fixed timestep)
 hu = Δt
@@ -58,7 +71,7 @@ c = 0.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[zeros(model.nu_ctrl) for t=1:T-2])
 
-model.α = 1000.0
+model.α = 100.0
 penalty_obj = PenaltyObjective(model.α)
 multi_obj = MultiObjective([obj,penalty_obj])
 
@@ -81,7 +94,7 @@ U0 = [1.0e-5*rand(model.nu) for t = 1:T-2] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,Δt,prob)
-@time Z_nominal = solve(prob_moi,copy(Z0),c_tol=1.0e-3,tol=1.0e-3)
+@time Z_nominal = solve(prob_moi,copy(Z0),c_tol=1.0e-2,tol=1.0e-2)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 model.idx_u
 x_nom = [X_nom[t][1] for t = 1:T]
