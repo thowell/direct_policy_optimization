@@ -42,7 +42,7 @@ shift = 5.0 # x shift for visualization
 
 # resampling parameters
 β = 1.0
-w = 0.0*ones(nx)
+w = 0.1*ones(nx)
 
 # initial distribution
 x1 = [x11,x12,x13,x14]
@@ -64,15 +64,13 @@ x̂⁺ = [discrete_dynamics(model,x1[i],u1,Δt,0) for i = 1:N]
 
 μ⁺ = sample_mean(x̂⁺)
 Σ⁺ = sample_covariance(x̂⁺,β=β,w=w)
-x⁺ = resample_axis(x̂⁺,β=β,w=w)
+x⁺ = resample_axis(deepcopy(x̂⁺),β=2.0*β,w=w)
 
-cholesky(Σ⁺)
-sqrt(Σ⁺)
-matrix_sqrt(Σ⁺)
+Σμ_alt = sample_covariance(deepcopy(x̂⁺),β=2.0*β,w=w)
 
 plt = plot!([μ⁺[1]+shift],[μ⁺[2]],marker=:square,color=:cyan,markersize=10.0,
     label="")
-plot_error_ellipse(μ⁺+[shift;0.0],Σ⁺,plt=plt,p=0.395,color=:cyan)
+plot_error_ellipse(μ⁺+[shift;0.0],Σμ_alt,plt=plt,p=0.865,color=:cyan)
 for i = 1:N
     plt = scatter!([x̂⁺[i][1]+shift] ,[x̂⁺[i][2]],color=:red,label="",
         markersize=10.0)
@@ -117,7 +115,7 @@ pμ⁺= PGF.Plots.Scatter([μ⁺[1]+shift],
 					   [μ⁺[2]],
 					   mark="square*",
 					   style="color=orange, line width=3pt",)
-ee⁺ = hcat(error_ellipse(μ⁺+[shift;0.0],Σ⁺,p=0.395)...)
+ee⁺ = hcat(error_ellipse(μ⁺+[shift;0.0],Σμ_alt,p=0.865)...)
 pe⁺= PGF.Plots.Linear(ee⁺[1,:],
 					   ee⁺[2,:],
 					   mark="",

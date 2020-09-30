@@ -88,7 +88,7 @@ Z0 = pack(X0,U0,h0,prob_nom)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nom = solve(prob_nom_moi,copy(Z0),nlp=:SNOPT7,time_limit=20)
+@time Z_nom = solve(prob_nom_moi,copy(Z0),nlp=:ipopt,time_limit=20)
 X_nom, U_nom, H_nom = unpack(Z_nom,prob_nom)
 
 visualize!(vis,model_nom,X_nom,Δt=H_nom[1],
@@ -228,7 +228,7 @@ Z0_slosh = pack(X0_slosh,U0_slosh,h0,prob_slosh)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal_slosh = solve(prob_moi_slosh,copy(Z0_slosh),nlp=:SNOPT7,time_limit=20)
+@time Z_nominal_slosh = solve(prob_moi_slosh,copy(Z0_slosh),nlp=:ipopt,time_limit=20)
 X_nom_slosh, U_nom_slosh, H_nom_slosh = unpack(Z_nominal_slosh,prob_slosh)
 
 plot(hcat(U_nom_slosh...)',linetype=:steppost)
@@ -355,7 +355,7 @@ for t = 1:T-1
 end
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*20,tol=1.0e-2,c_tol=1.0e-2)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:ipopt,time_limit=60*20,tol=1.0e-2,c_tol=1.0e-2)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 sum(H_nom_sample) # should be 2.9

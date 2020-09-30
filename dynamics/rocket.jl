@@ -35,6 +35,7 @@ l2 = 0.1 # length from COM to pendulum
 l3 = 0.1 # length of pendulum
 
 # nominal model
+nu = 2
 nx_nom = 6
 model_nom = RocketNominal(g,m1,l1,J,nx_nom,nu)
 
@@ -113,12 +114,16 @@ function dynamics(model::Rocket,x,u)
 		+ jacobian_thruster(model,q)'*u)]
 end
 
-function policy(model::Rocket,K,x,u,x_nom,u_nom)
+function policy(model::RocketSlosh,K,x,u,x_nom,u_nom)
 	u_nom - reshape(K,model.nu,model.nx-2)*(output(model,x) - x_nom)
 end
 
-function output(model::Rocket,x)
+function output(model::RocketSlosh,x)
 	x[[(1:3)...,(5:7)...]]
+end
+
+function output(model::RocketNominal,x)
+	x
 end
 
 function visualize!(vis,model::Rocket,q;
