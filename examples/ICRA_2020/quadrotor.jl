@@ -12,26 +12,26 @@ Tm = convert(Int,floor(T/2)+1)
 # Bounds
 
 # ul <= u <= uu
-uu = 10.0*ones(model.nu)
+uu = 2.0*ones(model.nu)
 ul = zeros(model.nu)
 
 uu_traj = [copy(uu) for t = 1:T-1]
 ul_traj = [copy(ul) for t = 1:T-1]
 
-for t = 1:T-1
-    # uu_traj[t][3] = 1.0
-end
+# for t = Tm:T-1
+#     uu_traj[t][1] = 0.0
+# end
 
 # Circle obstacle
 r_cyl = 0.5
 r = r_cyl + model.L
 xc1 = 2.5
 yc1 = 1.0
-xc2 = 1.0
+xc2 = 2.0
 yc2 = 2.75
 xc3 = 4.0
-yc3 = 2.0
-xc4 = 4.75
+yc3 = 1.85
+xc4 = 5.0
 yc4 = 1.0
 
 xc = [xc1,xc2,xc3,xc4]
@@ -50,7 +50,7 @@ end
 m_stage = 4
 
 # h = h0 (fixed timestep)
-tf0 = 3.0
+tf0 = 10.0
 h0 = tf0/(T-1)
 hu = h0
 hl = 0.0*h0
@@ -60,7 +60,7 @@ x1 = zeros(model.nx)
 x1[3] = 1.0
 xT = copy(x1)
 xT[1] = 5.0
-xT[2] = 2.0
+xT[2] = 2.25
 
 xl = -Inf*ones(model.nx)
 xl[1] = -1.0
@@ -69,7 +69,7 @@ xl[3] = 0.0
 
 xu = Inf*ones(model.nx)
 xu[1] = 6.0
-xu[2] = 3.0
+xu[2] = 3.25
 xl_traj = [copy(xl) for t = 1:T]
 xu_traj = [copy(xu) for t = 1:T]
 
@@ -82,16 +82,16 @@ xu_traj[T] = copy(xT)
 u_ref = -1.0*model.m*model.g[3]/4.0*ones(model.nu)
 
 # Objective
-Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
-c = 1.0
+Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(1.0*ones(model.nx)) for t = 1:T]
+R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+c = 10.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[u_ref for t=1:T-1])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
+Q_lqr = [t < T ? Diagonal(100.0*ones(model.nx)) : Diagonal(1000.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-H_lqr = [1.0 for t = 1:T-1]
+H_lqr = [10.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,model,obj,
@@ -123,8 +123,8 @@ sum(H_nom)
 plot(hcat(X_nom...)[1:3,:]',linetype=:steppost)
 plot(hcat(U_nom...)',linetype=:steppost)
 
-# vis = Visualizer()
-# open(vis)
+vis = Visualizer()
+open(vis)
 visualize!(vis,model,X_nom,Δt=H_nom[1])
 
 for i = 1:m_stage
@@ -136,16 +136,16 @@ end
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-5*[1.0;1.0;0.1]
-γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=0.1,w=[1.0;1.0;0.1])
+w = 1.0e-2*ones(model.nx)
+γ = N
+x1_sample = resample([x1 for i = 1:N],β=β,w=w)
 
-xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
-xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+xl_traj_sample = [[copy(xl) for t = 1:T] for i = 1:N]
+xu_traj_sample = [[copy(xu) for t = 1:T] for i = 1:N]
 
 for i = 1:N
-    xl_traj_sample[i][1] = x1_sample[i]
-    xu_traj_sample[i][1] = x1_sample[i]
+    xl_traj_sample[i][1] = copy(x1_sample[i])
+    xu_traj_sample[i][1] = copy(x1_sample[i])
 end
 
 K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
@@ -158,10 +158,10 @@ prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample)
+Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample,r=0.01)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=60)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=7*60*60,tol=1.0e-2,c_tol=1.0e-2)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -207,12 +207,14 @@ for i = 1:N
     plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,
         color=:cyan,label= i != 1 ? "" : "sample")
 end
+display(plt)
+
 plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="TO",color=:purple,legend=:topleft)
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
 plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=4.0,label="DPO",color=:orange,legend=:bottomright)
 
-savefig(plt,joinpath(@__DIR__,"results/car_trajectory.png"))
+savefig(plt,joinpath(@__DIR__,"results/quadrotor_trajectory.png"))
 
 # Control
 plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',color=:purple,width=2.0,
@@ -220,7 +222,7 @@ plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',color=:purple,width=2.0,
     legend=:bottom,linetype=:steppost)
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',color=:orange,
     width=2.0,label=["v (sample)" "ω (sample)"],linetype=:steppost)
-savefig(plt,joinpath(@__DIR__,"results/car_control.png"))
+savefig(plt,joinpath(@__DIR__,"results/quadrotor_control.png"))
 
 # Samples
 
@@ -236,7 +238,7 @@ end
 plt1 = plot!(t_sample,hcat(X_nom_sample...)',color=:red,width=2.0,
     label=["nominal" "" ""])
 display(plt1)
-savefig(plt1,joinpath(@__DIR__,"results/car_sample_states.png"))
+savefig(plt1,joinpath(@__DIR__,"results/quadrotor_sample_states.png"))
 
 # Control samples
 plt2 = plot(title="Sample controls",xlabel="time (s)",legend=:bottom);
@@ -251,127 +253,127 @@ end
 plt2 = plot!(t_sample[1:end-1],hcat(U_nom_sample...)',color=:red,width=2.0,
     label=["nominal" ""],linetype=:steppost)
 display(plt2)
-savefig(plt2,joinpath(@__DIR__,"results/car_sample_controls.png"))
+savefig(plt2,joinpath(@__DIR__,"results/quadrotor_sample_controls.png"))
 
-using PGFPlots
-const PGF = PGFPlots
-
-# TO trajectory
-p_nom = PGF.Plots.Linear(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],
-    mark="",style="color=purple, line width=3pt, solid",legendentry="TO")
-
-# DPO trajectory
-p_dpo = PGF.Plots.Linear(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],
-    mark="",style="color=orange, line width=3pt, solid",legendentry="DPO")
-
-# DPO trajectory
-p_sample = [PGF.Plots.Linear(hcat(X_sample[i]...)[1,:],hcat(X_sample[i]...)[2,:],
-    mark="",style="color=gray, line width=1pt, solid") for i = 1:N]
-p_sample[6].legendentry="sample"
-
-# obstacles
-p_circle = [PGF.Plots.Circle(circle..., style="color=black,fill=black") for circle in circles]
-
-a = Axis([p_circle;
-    p_sample[1];
-    p_sample[2];
-    p_sample[3];
-    p_sample[4];
-    p_sample[5];
-    p_sample[6];
-    p_nom;
-    p_dpo
-    ],
-    xmin=-0.4, ymin=-0.1, xmax=1.4, ymax=1.1,
-    axisEqualImage=true,
-    hideAxis=false,
-	ylabel="y",
-	xlabel="x",
-	legendStyle="{at={(0.01,0.99)},anchor=north west}",
-	)
-
-# Save to tikz format
-dir = joinpath(@__DIR__,"results")
-PGF.save(joinpath(dir,"car_obstacles.tikz"), a, include_preamble=false)
-
-
-# visualize
-
-function visualize!(vis,p,q; Δt=0.1,r=0.25)
-
-    obj_path = joinpath(pwd(),"/home/taylor/Research/contact_implicit_trajectory_optimization/models/cybertruck/cybertruck.obj")
-    mtl_path = joinpath(pwd(),"/home/taylor/Research/contact_implicit_trajectory_optimization/models/cybertruck/cybertruck.mtl")
-
-    ctm = ModifiedMeshFileObject(obj_path,mtl_path,scale=0.05)
-    setobject!(vis["cybertruck"],ctm,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
-    settransform!(vis["cybertruck"], LinearMap(RotZ(pi)*RotX(pi/2.0)))
-
-    anim = MeshCat.Animation(convert(Int,floor(1/Δt)))
-
-    for t = 1:length(q)
-
-        MeshCat.atframe(anim,t) do
-            x = [q[t][1];q[t][2];0.0]
-            settransform!(vis["cybertruck"], compose(Translation(x),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
-        end
-    end
-    # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
-    MeshCat.setanimation!(vis,anim)
-end
-
-function ModifiedMeshFileObject(obj_path::String, material_path::String; scale::T=0.1) where {T}
-    obj = MeshFileObject(obj_path)
-    rescaled_contents = rescale_contents(obj_path, scale=scale)
-    material = select_material(material_path)
-    mod_obj = MeshFileObject(
-        rescaled_contents,
-        obj.format,
-        material,
-        obj.resources,
-        )
-    return mod_obj
-end
-
-function rescale_contents(obj_path::String; scale::T=0.1) where T
-    lines = readlines(obj_path)
-    rescaled_lines = copy(lines)
-    for (k,line) in enumerate(lines)
-        if length(line) >= 2
-            if line[1] == 'v'
-                stringvec = split(line, " ")
-                vals = map(x->parse(Float64,x),stringvec[2:end])
-                rescaled_vals = vals .* scale
-                rescaled_lines[k] = join([stringvec[1]; string.(rescaled_vals)], " ")
-            end
-        end
-    end
-    rescaled_contents = join(rescaled_lines, "\r\n")
-    return rescaled_contents
-end
-
-function select_material(material_path::String)
-    mtl_file = open(material_path)
-    mtl = read(mtl_file, String)
-    return mtl
-end
-
-using Colors
-using CoordinateTransformations
-using FileIO
-using GeometryTypes
-using LinearAlgebra
-using MeshCat
-using MeshIO
-using Rotations
-
-vis = Visualizer()
-open(vis)
-visualize!(vis,model,X_nom,Δt=H_nom_sample[1])
-
-for i = 1:4
-    cyl = Cylinder(Point3f0(xc[i],yc[i],0),Point3f0(xc[i],yc[i],0.1),convert(Float32,0.035))
-    setobject!(vis["cyl$i"],cyl,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
-end
+# using PGFPlots
+# const PGF = PGFPlots
+#
+# # TO trajectory
+# p_nom = PGF.Plots.Linear(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],
+#     mark="",style="color=purple, line width=3pt, solid",legendentry="TO")
+#
+# # DPO trajectory
+# p_dpo = PGF.Plots.Linear(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],
+#     mark="",style="color=orange, line width=3pt, solid",legendentry="DPO")
+#
+# # DPO trajectory
+# p_sample = [PGF.Plots.Linear(hcat(X_sample[i]...)[1,:],hcat(X_sample[i]...)[2,:],
+#     mark="",style="color=gray, line width=1pt, solid") for i = 1:N]
+# p_sample[6].legendentry="sample"
+#
+# # obstacles
+# p_circle = [PGF.Plots.Circle(circle..., style="color=black,fill=black") for circle in circles]
+#
+# a = Axis([p_circle;
+#     p_sample[1];
+#     p_sample[2];
+#     p_sample[3];
+#     p_sample[4];
+#     p_sample[5];
+#     p_sample[6];
+#     p_nom;
+#     p_dpo
+#     ],
+#     xmin=-0.4, ymin=-0.1, xmax=1.4, ymax=1.1,
+#     axisEqualImage=true,
+#     hideAxis=false,
+# 	ylabel="y",
+# 	xlabel="x",
+# 	legendStyle="{at={(0.01,0.99)},anchor=north west}",
+# 	)
+#
+# # Save to tikz format
+# dir = joinpath(@__DIR__,"results")
+# PGF.save(joinpath(dir,"car_obstacles.tikz"), a, include_preamble=false)
+#
+#
+# # visualize
+#
+# function visualize!(vis,p,q; Δt=0.1,r=0.25)
+#
+#     obj_path = joinpath(pwd(),"/home/taylor/Research/contact_implicit_trajectory_optimization/models/cybertruck/cybertruck.obj")
+#     mtl_path = joinpath(pwd(),"/home/taylor/Research/contact_implicit_trajectory_optimization/models/cybertruck/cybertruck.mtl")
+#
+#     ctm = ModifiedMeshFileObject(obj_path,mtl_path,scale=0.05)
+#     setobject!(vis["cybertruck"],ctm,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
+#     settransform!(vis["cybertruck"], LinearMap(RotZ(pi)*RotX(pi/2.0)))
+#
+#     anim = MeshCat.Animation(convert(Int,floor(1/Δt)))
+#
+#     for t = 1:length(q)
+#
+#         MeshCat.atframe(anim,t) do
+#             x = [q[t][1];q[t][2];0.0]
+#             settransform!(vis["cybertruck"], compose(Translation(x),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+#         end
+#     end
+#     # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
+#     MeshCat.setanimation!(vis,anim)
+# end
+#
+# function ModifiedMeshFileObject(obj_path::String, material_path::String; scale::T=0.1) where {T}
+#     obj = MeshFileObject(obj_path)
+#     rescaled_contents = rescale_contents(obj_path, scale=scale)
+#     material = select_material(material_path)
+#     mod_obj = MeshFileObject(
+#         rescaled_contents,
+#         obj.format,
+#         material,
+#         obj.resources,
+#         )
+#     return mod_obj
+# end
+#
+# function rescale_contents(obj_path::String; scale::T=0.1) where T
+#     lines = readlines(obj_path)
+#     rescaled_lines = copy(lines)
+#     for (k,line) in enumerate(lines)
+#         if length(line) >= 2
+#             if line[1] == 'v'
+#                 stringvec = split(line, " ")
+#                 vals = map(x->parse(Float64,x),stringvec[2:end])
+#                 rescaled_vals = vals .* scale
+#                 rescaled_lines[k] = join([stringvec[1]; string.(rescaled_vals)], " ")
+#             end
+#         end
+#     end
+#     rescaled_contents = join(rescaled_lines, "\r\n")
+#     return rescaled_contents
+# end
+#
+# function select_material(material_path::String)
+#     mtl_file = open(material_path)
+#     mtl = read(mtl_file, String)
+#     return mtl
+# end
+#
+# using Colors
+# using CoordinateTransformations
+# using FileIO
+# using GeometryTypes
+# using LinearAlgebra
+# using MeshCat
+# using MeshIO
+# using Rotations
+#
+# vis = Visualizer()
+# open(vis)
+# visualize!(vis,model,X_nom,Δt=H_nom_sample[1])
+#
+# for i = 1:4
+#     cyl = Cylinder(Point3f0(xc[i],yc[i],0),Point3f0(xc[i],yc[i],0.1),convert(Float32,0.035))
+#     setobject!(vis["cyl$i"],cyl,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
+# end
 
 
 
