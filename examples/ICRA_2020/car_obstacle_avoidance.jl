@@ -15,9 +15,8 @@ ul = -3.0
 
 # h = h0 (fixed timestep)
 tf0 = 1.0
-h0 = tf0/(T-1)
-hu = h0
-hl = h0
+Δt = tf0/(T-1)
+
 
 # Initial and final states
 x1 = [0.0; 0.0; 0.0]
@@ -61,14 +60,12 @@ m_stage = 4
 # Objective
 Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(10.0*ones(model.nx)) for t = 1:T]
 R = [Diagonal(1.0e-1ones(model.nu)) for t = 1:T-1]
-c = 0.0
-obj = QuadraticTrackingObjective(Q,R,c,
+obj = QuadraticTrackingObjective(Q,R,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-H_lqr = [0.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,model,obj,
@@ -76,8 +73,7 @@ prob = init_problem(model.nx,model.nu,T,model,obj,
                     xu=xu_traj,
                     ul=[ul*ones(model.nu) for t=1:T-1],
                     uu=[uu*ones(model.nu) for t=1:T-1],
-                    hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
+                    Δt=Δt,
                     stage_constraints=true,
                     m_stage=[m_stage for t=1:T-1]
                     )
@@ -90,12 +86,12 @@ X0 = linear_interp(x1,xT,T) # linear interpolation on state
 U0 = [0.001*rand(model.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
-Z0 = pack(X0,U0,h0,prob)
+Z0 = pack(X0,U0,prob)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
-X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:ipopt)
+X_nom, U_nom = unpack(Z_nominal,prob)
 
 # Sample
 

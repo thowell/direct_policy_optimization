@@ -14,6 +14,7 @@ include("sample_objective.jl")
 # include("sample_general_objective.jl")
 
 include("dynamics_constraints.jl")
+include("time_constraints.jl")
 include("stage_constraints.jl")
 include("general_constraints.jl")
 

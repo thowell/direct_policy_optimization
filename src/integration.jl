@@ -1,10 +1,10 @@
 function xm_rk3_implicit(model,x⁺,x,u,h)
-    0.5*(x⁺ + x) + h[1]/8.0*(dynamics(model,x,u) - dynamics(model,x⁺,u))
+    0.5*(x⁺ + x) + h/8.0*(dynamics(model,x,u) - dynamics(model,x⁺,u))
 end
 
 function rk3_implicit(model,x⁺,x,u,h)
     xm = xm_rk3_implicit(model,x⁺,x,u,h)
-    x⁺ - x - h[1]/6*dynamics(model,x,u) - 4*h[1]/6*dynamics(model,xm,u) - h[1]/6*dynamics(model,x⁺,u)
+    x⁺ - x - h/6*dynamics(model,x,u) - 4*h/6*dynamics(model,xm,u) - h/6*dynamics(model,x⁺,u)
 end
 
 function discrete_linear(model,x⁺,x,u,h)
@@ -24,7 +24,7 @@ function discrete_dynamics(model,x,u,h,t)
 end
 
 function midpoint_implicit(model,x⁺,x,u,Δt)
-    x⁺ - (x + Δt[1]*dynamics(model,0.5*(x + x⁺),u))
+    x⁺ - (x + Δt*dynamics(model,0.5*(x + x⁺),u))
 end
 
 function discrete_dynamics(model,x⁺,x,u,h,t)

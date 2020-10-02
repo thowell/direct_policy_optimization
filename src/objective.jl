@@ -20,7 +20,6 @@ end
 mutable struct QuadraticTrackingObjective <: Objective
     Q
     R
-    c
     x_ref
     u_ref
 end
@@ -29,9 +28,9 @@ function quadratic_cost(x,u,Q,R,x_ref,u_ref)
     (x-x_ref)'*Q*(x-x_ref) + (u-u_ref)'*R*(u-u_ref)
 end
 
-function stage_cost(model,x⁺,x,u,Q,R,x_ref,u_ref,h,c)
+function stage_cost(model,x⁺,x,u,Q,R,x_ref,u_ref)
     ℓ1 = quadratic_cost(x,u,Q,R,x_ref,u_ref)
-    return h[1]*ℓ1 + c*h[1]
+    return ℓ1
 end
 
 function terminal_cost(x,Q,x_ref)
@@ -43,16 +42,14 @@ function objective(Z,l::QuadraticTrackingObjective,model,idx,T)
     u_ref = l.u_ref
     Q = l.Q
     R = l.R
-    c = l.c
 
     s = 0
     for t = 1:T-1
         x = Z[idx.x[t]]
         u = Z[idx.u[t]]
-        h = Z[idx.h[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        s += stage_cost(model,x⁺,x,u,Q[t],R[t],x_ref[t],u_ref[t],h,c)
+        s += stage_cost(model,x⁺,x,u,Q[t],R[t],x_ref[t],u_ref[t])
     end
     x = view(Z,idx.x[T])
     s += terminal_cost(x,Q[T],x_ref[T])
@@ -65,22 +62,18 @@ function objective_gradient!(∇l,Z,l::QuadraticTrackingObjective,model,idx,T)
     u_ref = l.u_ref
     Q = l.Q
     R = l.R
-    c = l.c
 
     for t = 1:T-1
         x = Z[idx.x[t]]
         u = Z[idx.u[t]]
-        h = Z[idx.h[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        stage_cost_x(z) = stage_cost(model,x⁺,z,u,Q[t],R[t],x_ref[t],u_ref[t],h,c)
-        stage_cost_u(z) = stage_cost(model,x⁺,x,z,Q[t],R[t],x_ref[t],u_ref[t],h,c)
-        stage_cost_h(z) = stage_cost(model,x⁺,x,u,Q[t],R[t],x_ref[t],u_ref[t],z,c)
-        stage_cost_x⁺(z) = stage_cost(model,z,x,u,Q[t],R[t],x_ref[t],u_ref[t],h,c)
+        stage_cost_x(z) = stage_cost(model,x⁺,z,u,Q[t],R[t],x_ref[t],u_ref[t])
+        stage_cost_u(z) = stage_cost(model,x⁺,x,z,Q[t],R[t],x_ref[t],u_ref[t])
+        stage_cost_x⁺(z) = stage_cost(model,z,x,u,Q[t],R[t],x_ref[t],u_ref[t])
 
         ∇l[idx.x[t]] += ForwardDiff.gradient(stage_cost_x,x)
         ∇l[idx.u[t]] += ForwardDiff.gradient(stage_cost_u,u)
-        ∇l[idx.h[t]:idx.h[t]] += ForwardDiff.gradient(stage_cost_h,view(Z,idx.h[t]:idx.h[t]))
         ∇l[idx.x[t+1]] += ForwardDiff.gradient(stage_cost_x⁺,x⁺)
     end
     x = view(Z,idx.x[T])
