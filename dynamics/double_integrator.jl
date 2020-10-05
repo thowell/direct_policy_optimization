@@ -1,6 +1,7 @@
 mutable struct DoubleIntegrator
     nx::Int # state dimension
     nu::Int # control dimension
+    nw::Int
 end
 
 function dynamics(model::DoubleIntegrator,x,u,w)

@@ -21,7 +21,7 @@ obj = QuadraticTrackingObjective(
     [zeros(nx) for t=1:T],[zeros(nu) for t=1:T])
 
 # Problem
-prob = init_problem(nx,nu,T,model,obj,
+prob = init_problem(T,model,obj,
                     xl=[zeros(nx) for t = 1:T],
                     xu=[zeros(nx) for t = 1:T],
                     ul=[zeros(nu) for t = 1:T-1],
@@ -36,11 +36,11 @@ X0 = linear_interp(zeros(nx),zeros(nx),T) # linear interpolation on state
 U0 = [zeros(nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
-Z0 = pack(X0,U0,model.Δt,prob)
+Z0 = pack(X0,U0,prob)
 
 # Solve nominal problem
 @time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
-X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
+X_nom, U_nom = unpack(Z_nominal,prob)
 
 # Sample
 Q_lqr = [Diagonal(ones(nx)) for t = 1:T]

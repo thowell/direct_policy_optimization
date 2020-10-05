@@ -1,7 +1,6 @@
 mutable struct DPOProblem <: Problem
     prob::TrajectoryOptimizationProblem
 
-    u_policy
     n_policy
     n_features
 
@@ -9,19 +8,15 @@ mutable struct DPOProblem <: Problem
     Nμ::Int
     NP::Int
     NK::Int
-    Nu::Int
 
     M_nlp::Int # number of constraints
     M_dynamics::Int # number of sample constraints
-    M_time::Int
-    M_policy::Int
     M_stage::Int
     M_general::Int
 
     idx_μ
     idx_P
     idx_K
-    idx_u
 
     Q
     R
@@ -35,11 +30,9 @@ mutable struct DPOProblem <: Problem
     Kl
     Ku
 
-    ul
-    uu
-
-    N::Int # number of samples
-    models
+    N_sample # samples from joint distribution over x and w
+    M_sample # samples from distribution over x
+    sample_model
     β_resample
     β_con
     W
@@ -51,70 +44,61 @@ mutable struct DPOProblem <: Problem
     sample_general_ineq
 end
 
-function init_DPO_problem(prob::TrajectoryOptimizationProblem,models,Q,R;
+function init_DPO_problem(prob::TrajectoryOptimizationProblem,
+        sample_model,
+        Q,R;
         n_policy=prob.nu,
         n_features=prob.nx,
-        μl=[-Inf*ones(models[1].nx) for t = 1:prob.T],
-        μu=[Inf*ones(models[1].nx) for t = 1:prob.T],
-        Ll=[-Inf*ones(n_tri(models[1].nx)) for t = 1:prob.T],
-        Lu=[Inf*ones(n_tri(models[1].nx)) for t = 1:prob.T],
-        Kl=[-Inf*ones(n_policy*n_features) for t = 1:T-1],
-        Ku=[Inf*ones(n_policy*n_features) for t = 1:T-1],
-        ul=[prob.ul for i = 1:length(models)],
-        uu=[prob.uu for i = 1:length(models)],
-        β_resample=1.0,β_con=1.0,W=[ones(prob.nx) for t = 1:T-1],
+        μl=[-Inf*ones(sample_model.nx) for t = 1:prob.T],
+        μu=[Inf*ones(sample_model.nx) for t = 1:prob.T],
+        Ll=[-Inf*ones(n_tri(sample_model.nx)) for t = 1:prob.T],
+        Lu=[Inf*ones(n_tri(sample_model.nx)) for t = 1:prob.T],
+        β_resample=1.0,β_con=1.0,W=[Diagonal(ones(sample_model.nx)) for t = 1:T-1],
         general_objective=false,
         sample_general_constraints=false,
         m_sample_general=0,
         sample_general_ineq=(1:m_sample_general)
         )
 
-    u_policy = 1:n_policy
-
+    N_sample = 2*(sample_model.nx + sample.model.nw)
+    M_sample = 2*sample_model.nx
     T = prob.T
-    N = length(models)
 
-    Nμ = sum([models[i].nx for i = 1:N])*T
-    NL = sum([n_tri(models[i].nx) for i = 1:N])*T
+    Nμ = sample_model.nx*T
+    NL = n_tri(sample_model.nx)*T
     NK = n_policy*n_features*(T-1)
-    Nu = sum([models[i].nu for i = 1:N])*(T-1)
 
-    N_nlp = prob.N + Nμ + NL + NK + Nu
+    N_nlp = prob.N + Nμ + NL + NK
 
-    M_dynamics = sum([models[i].nx + n_tri(models[i].nx) for i = 1:N])*(T-1)
-    M_time = prob.free_time*N*(T-2)
-    M_policy = policy_constraint*N*n_policy*(T-1)
-    M_stage = prob.stage_constraints*N*sum(prob.m_stage)
+    M_dynamics = (sample_model.nx + n_tri(sample_model.nx))*(T-1)
+    M_stage = prob.stage_constraints*M_samples*sum(prob.m_stage)
     M_general = sample_general_constraints*m_sample_general
 
-    M_nlp = prob.M + M_dynamics + M_time + M_policy + M_stage + M_general
+    M_nlp = prob.M + M_dynamics + M_stage + M_general
 
     shift = prob.N
 
-    idx_μ = [shift + (t-1)*models[i].nx .+ (1:model[i].nx) for t = 1:T]
-    shift += sum([models[i].nx for i = 1:N])*T
+    idx_μ = [shift + (t-1)*sample_mddel.nx .+ (1:sample_model.nx) for t = 1:T]
+    shift += sample_model.nx*T
 
-    idx_L = [shift + (t-1)*n_tri(models[i].nx) .+ (1:n_tri(model[i].nx)) for t = 1:T]
-    shift += sum([n_tri(models[i].nx) for i = 1:N])*T
+    idx_L = [shift + (t-1)*n_tri(sample_model.nx) .+ (1:n_tri(sample_model.nx)) for t = 1:T]
+    shift += n_tri(sample_model.nx)*T
 
     idx_K = [shift + (t-1)*(n_policy*n_features) .+ (1:n_policy*n_features) for t = 1:T-1]
     shift += (T-1)*n_policy*n_features
-
-    idx_u = [[shift (i-1)*(i==1 ? 0 : models[i-1].nu) + (t-1)*models[i].nu .+ (1:models[i].nu)] for i = 1:N]
 
     return DPOProblem(
         prob,
         u_policy,
         n_policy,n_features,
-        N_nlp,Nμ,NL,NK,Nu,
-        M_nlp,M_dynamics,M_time,M_policy,M_stage,M_general,
-        idx_μ,idx_P,idx_K,idx_U,
+        N_nlp,Nμ,NL,NK,
+        M_nlp,M_dynamics,M_stage,M_general,
+        idx_μ,idx_P,idx_K,
         Q,R,
         μl,μu,
         Ll,Lu,
-        Kl,Ku,
-        ul,uu,
-        N,models,β,w,
+        N_sample,M_sample,sample_model,
+        β_resample,β_con,W,
         general_objective,
         policy_constraint,
         sample_general_constraints,

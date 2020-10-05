@@ -11,11 +11,11 @@ L = Array(cholesky(W).L)
 L = sqrt(W)
 vec(L*L') -  vec(W)
 
-T = 51
-n = 12
-m = 14
+T = 25
+n = 10
+m = 4
 p = 1
 Z_dpo = (2*n*(n+m))^3
-Z_cond = ((n^2 + n)/2 + n + 2*(n+p)*m)^3
+Z_cond = ((n^2 + n)/2 + n)^3 #+ 2*(n+p)*m)^3
 
 Z_dpo/Z_cond

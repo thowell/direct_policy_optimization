@@ -200,36 +200,24 @@ function sigma_points(μ,L,W,β)
     return x,w
 end
 
-# function sample_mean(μ,L,u,W,β,Δt,t,models,N)
-#     x,w = sigma_points(μ,L,W,β)
-#     s = [discrete_dynamics(models[i],x[i],u,Δt,t)) for i = 1:N]
-#     μ⁺ = sample_mean(s)
-#     μ⁺
-# end
-#
-# μ = zeros(3)
-# L = Array(cholesky(P).L)
-# W = Array(cholesky(W).L)
-#
-# sigma_points(μ,L,W,1.0)
-# A = rand(3,3)
-# P = A'*A
-# B = rand(2,2)
-# W = B'*B
-#
-# Σ = cat(P,W,dims=(1,2))
-# cholesky(Σ).L
-#
-# x = [ones(3) for i = 1:5]
-# cat(x,[ones(3) for i = 1:5],dims=(1,1))
-#
-# size(W,1)
-#
-#
-# cholesky(P).L
-# cholesky(W).L
+function dynamics_sample_mean(x_nom,u_nom,μ,L,K,W,β,Δt,t,models,N)
+    L_mat = vec_to_lt(L)
+    x,w = sigma_points(μ,L_mat,W,β)
+    s = [discrete_dynamics(models[i],x[i],
+            policy(models[i],K,models[i].nx,models[i].nu,x_nom,u_nom),Δt,w[i],t) for i = 1:N]
+    μ⁺ = sample_mean(s)
+    μ⁺
+end
 
-# L = cholesky(P).L
+function dynamics_sample_L(x_nom,u_nom,μ,L,K,W,β,Δt,t,models,N)
+    L_mat = vec_to_lt(L)
+    x,w = sigma_points(μ,L_mat,W,β)
+    s = [discrete_dynamics(models[i],x[i],
+            policy(models[i],K,models[i].nx,models[i].nu,x_nom,u_nom),Δt,w[i],t) for i = 1:N]
+    P⁺ = sample_covariance(s)
+    L⁺ = lt_to_vec(cholesky(P⁺).L)
+    L⁺
+end
 
 function lt_to_vec(L)
     L[tril!(trues(size(L)), 0)]

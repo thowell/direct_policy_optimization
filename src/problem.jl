@@ -1,10 +1,8 @@
-# z = (x,u,h)
+# z = (x,u)
 # Z = [z1,...,zT-1,xT]
 abstract type Problem end
 
 mutable struct TrajectoryOptimizationProblem <: Problem
-    nx::Int # states
-    nu::Int # controls
     T::Int # horizon
 
     N::Int # number of decision variables
@@ -37,11 +35,11 @@ mutable struct TrajectoryOptimizationProblem <: Problem
     general_ineq
 end
 
-function init_problem(nx,nu,T,model,obj;
-        ul=[-Inf*ones(nu) for t = 1:T-1],
-        uu=[Inf*ones(nu) for t = 1:T-1],
-        xl=[-Inf*ones(nx) for t = 1:T],
-        xu=[Inf*ones(nx) for t = 1:T],
+function init_problem(T,model,obj;
+        ul=[-Inf*ones(model.nu) for t = 1:T-1],
+        uu=[Inf*ones(model.nu) for t = 1:T-1],
+        xl=[-Inf*ones(model.nx) for t = 1:T],
+        xu=[Inf*ones(model.nx) for t = 1:T],
         free_time::Bool=false,
         Δt=0.0,
         stage_constraints::Bool=false,
@@ -51,19 +49,20 @@ function init_problem(nx,nu,T,model,obj;
         m_general=0,
         general_ineq=(1:m_general))
 
-    idx = init_indices(nx,nu,T)
+    idx = init_indices(model.nx,model.nu,T)
 
-    Nx = nx*T
-    Nu = nu*(T-1)
+    Nx = model.nx*T
+    Nu = model.nu*(T-1)
     N = Nx + Nu
 
-    M_dynamics = nx*(T-1)
+    M_dynamics = model.nx*(T-1)
     M_time = free_time*(T-2)
     M_stage = stage_constraints*sum(m_stage)
     M_general = general_constraints*m_general
     M = M_dynamics + M_time + M_stage + M_general
 
-    return TrajectoryOptimizationProblem(nx,nu,T,
+    return TrajectoryOptimizationProblem(
+        T,
         N,Nx,Nu,
         M,M_dynamics,M_time,M_stage,M_general,
         ul,uu,
@@ -82,8 +81,8 @@ function init_problem(nx,nu,T,model,obj;
 end
 
 function pack(X0,U0,prob::TrajectoryOptimizationProblem)
-    nx = prob.nx
-    nu = prob.nu
+    nx = prob.model.nx
+    nu = prob.model.nu
     T = prob.T
     idx = prob.idx
 
@@ -99,8 +98,8 @@ function pack(X0,U0,prob::TrajectoryOptimizationProblem)
 end
 
 function unpack(Z0,prob::TrajectoryOptimizationProblem)
-    nx = prob.nx
-    nu = prob.nu
+    nx = prob.model.nx
+    nu = prob.model.nu
     T = prob.T
     idx = prob.idx
 

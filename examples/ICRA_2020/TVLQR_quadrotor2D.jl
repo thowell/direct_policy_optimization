@@ -39,7 +39,7 @@ obj = QuadraticTrackingObjective(
     [xT_nom for t=1:T],[zeros(nu) for t=1:T])
 
 # Problem
-prob = init_problem(nx,nu,T,model,obj,
+prob = init_problem(T,model,obj,
                     xl=xl_traj,
                     xu=xu_traj,
                     ul=ul_traj,

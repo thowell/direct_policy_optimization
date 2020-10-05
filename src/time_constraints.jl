@@ -1,6 +1,6 @@
 function time_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
-    nu = prob.nu
+    nu = prob.model.nu
     T = prob.T
     model = prob.model
 
@@ -16,16 +16,13 @@ end
 
 function time_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
-    nu = prob.nu
+    nu = prob.model.nu
     T = prob.T
     model = prob.model
 
     shift = 0
 
     for t = 1:T-2
-        # u = Z[idx.u[t]]
-        # u⁺ = Z[idx.u[t+1]]
-
         r_idx = t
         ∇c[r_idx,idx.u[t][end]] = -1.0
         ∇c[r_idx,idx.h[t+1][end]] = 1.0
@@ -35,11 +32,7 @@ function time_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
 end
 
 function sparse_time_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
-    idx = prob.idx
-    nx = prob.nx
-    nu = prob.nu
     T = prob.T
-    model = prob.model
 
     shift = 0
 
@@ -60,9 +53,7 @@ end
 function sparsity_time_jacobian(prob::TrajectoryOptimizationProblem;
         r_shift=0)
     idx = prob.idx
-    nu = prob.nu
     T = prob.T
-    model = prob.model
 
     row = []
     col = []

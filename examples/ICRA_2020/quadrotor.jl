@@ -96,7 +96,7 @@ Q_lqr = [t < T ? Diagonal(100.0*ones(model.nx)) : Diagonal(1000.0*ones(model.nx)
 R_lqr = [Diagonal([1.0*ones(model.nu_ctrl);0.0]) for t = 1:T-1]
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,model,ft_obj,
+prob = init_problem(T,model,ft_obj,
                     xl=xl_traj,
                     xu=xu_traj,
                     ul=ul_traj,

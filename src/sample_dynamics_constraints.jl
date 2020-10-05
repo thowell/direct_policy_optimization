@@ -7,276 +7,179 @@ function sample_dynamics_constraints!(c,z,prob::DPOProblem)
 
     shift = 0
 
-    # nx = length(idx_nom.x[1])
-    nu = length(u_policy)
-
     # dynamics + resampling (μ1 and L1 are taken care of w/ primal bounds)
-    # for t = 1:T-1
-    #     μ = z[prob.idx_μ[t]]
-    #     L = vec_to_lt(z[prob.idx_L[t]])
-    #     x,w = sigma_points(μ,L,W[t],β)
-    #     s = [discrete_dynamics(models[i],x[i],ui[i],prob.prob.Δt,t)) for i = 1:N]
-    #     μ⁺ = sample_mean(s)
-    #     P⁺ = sample_covariance(s,β=β,w=W[t])
-    #
-    #     c[(t-1)*(n + n_tri(n)) .+ (1:n)] = μ⁺ - z[prob.idx_μ[t+1]]
-    #     c[(t-1)*(n + n_tri(n)) + n .+ (1:n_tri(n))] =  lt_to_vec(cholesky(P⁺).L) - z[prob.idx_L[t+1]]
-    # end
+    for t = 1:T-1
+        x_nom = z[prob.prob.idx.x[t]]
+        u_nom = z[prob.prob.idx.u[t]]
+
+        μ = z[prob.idx_μ[t]]
+        L = z[prob.idx_L[t]]
+        K = z[prob.idx_K[t]]
+
+        c[(t-1)*(n + n_tri(n)) .+ (1:n)] = (dynamics_sample_mean(x_nom,u_nom,μ,L,K,W[t],β,Δt,t,models,N)
+            - z[prob.idx_μ[t+1]])
+
+        c[(t-1)*(n + n_tri(n)) + n .+ (1:n_tri(n))] = (dynamics_sample_L(x_nom,u_nom,μ,L,K,u_vec,W[t],β,Δt,t,models,N)
+            - z[prob.idx_L[t+1]])
+    end
     nothing
 end
 
 function ∇sample_dynamics_constraints!(∇c,z,prob::DPOProblem)
-    idx_nom = prob.idx_nom
-    idx_sample = prob.idx_sample
-    idx_x_tmp = prob.idx_x_tmp
-    idx_K = prob.idx_K
-    idx_uw = prob.idx_uw
-    u_policy = prob.u_policy
     models = prob.models
-    β = prob.β
-    w = prob.w
-    m_stage = prob.prob.m_stage
+    β = prob.β_resample
+    W = prob.W
     T = prob.prob.T
     N = prob.N
-    disturbance_ctrl = prob.disturbance_ctrl
 
+    n = prob.prob.model.nx
     shift = 0
-    # nx = length(idx_nom.x[1])
-    nu = length(u_policy)
 
-    # dynamics + resampling (x1 is taken care of w/ primal bounds)
-    s = 0
+    # dynamics + resampling (μ1 and L1 are taken care of w/ primal bounds)
     for t = 1:T-1
-        x⁺_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
-        x⁺_tmp_vec = vcat(x⁺_tmp...)
-        idx_x_tmp_vec = vcat([idx_x_tmp[i].x[t] for i = 1:N]...)
-        xs⁺ = (t in prob.resample_idx ? resample(x⁺_tmp,β=β,w=w) : x⁺_tmp )# resample
+        x_nom = z[prob.prob.idx.x[t]]
+        u_nom = z[prob.prob.idx.u[t]]
 
-        for i = 1:N
-            xi = view(z,idx_sample[i].x[t])
-            ui = view(z,idx_sample[i].u[t])
-            hi = z[idx_sample[i].h[t]]
-            xi⁺ = view(z,idx_sample[i].x[t+1])
+        μ = z[prob.idx_μ[t]]
+        L = z[prob.idx_L[t]]
+        K = z[prob.idx_K[t]]
 
-            dyn_x(a) = discrete_dynamics(models[i],x⁺_tmp[i],a,ui,hi,t)
-            dyn_u(a) = discrete_dynamics(models[i],x⁺_tmp[i],xi,a,hi,t)
-            dyn_h(a) = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,a,t)
-            dyn_x_tmp(a) = discrete_dynamics(models[i],a,xi,ui,hi,t)
-            function resample_x_tmp(a)
-                if t in prob.resample_idx
-                    return resample_vec(a,models[i].nx,N,i,β=β,w=w)
-                else
-                    return a[(i-1)*models[i].nx .+ (1:models[i].nx)]
-                end
-            end
+        # μ
+        tmp1_x_nom(y) = dynamics_sample_mean(y,u_nom,μ,L,K,W[t],β,Δt,t,models,N)
+        tmp1_u_nom(y) = dynamics_sample_mean(x_nom,y,μ,L,K,W[t],β,Δt,t,models,N)
+        tmp1_μ(y) = dynamics_sample_mean(x_nom,u_nom,y,L,K,W[t],β,Δt,t,models,N)
+        tmp1_L(y) = dynamics_sample_mean(x_nom,u_nom,μ,y,K,W[t],β,Δt,t,models,N)
+        tmp1_K(y) = dynamics_sample_mean(x_nom,u_nom,μ,L,y,W[t],β,Δt,t,models,N)
+        tmp1_μ⁺(y) = dynamics_sample_mean(x_nom,u_nom,μ,L,K,W[t],β,Δt,t,models,N) - y
 
-            # c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)
-            r_idx = shift .+ (1:models[i].nx)
+        r_idx = (t-1)*(n + n_tri(n)) .+ (1:n)
+        c_idx = prob.idx_x_nom[t]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = ForwardDiff.jacobian(tmp1_x_nom,x_nom)
+        shift += len
 
-            c_idx = idx_sample[i].x[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x,xi)
-            len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x,xi))
-            s += len
+        c_idx = prob.idx_u_nom[t]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = ForwardDiff.jacobian(tmp1_u_nom,u_nom)
+        shift += len
 
-            c_idx = idx_sample[i].u[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_u,ui)
-            len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_u,ui))
-            s += len
+        c_idx = prob.idx_μ[t]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = ForwardDiff.jacobian(tmp1_μ,μ)
+        shift += len
 
-            c_idx = idx_sample[i].h[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t]))
-            len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_h,view(z,idx_sample[i].h[t])))
-            s += len
+        c_idx = prob.idx_L[t]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = ForwardDiff.jacobian(tmp1_L,L)
+        shift += len
 
-            c_idx = idx_x_tmp[i].x[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i])
-            len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i]))
-            s += len
+        c_idx = prob.idx_K[t]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = ForwardDiff.jacobian(tmp1_K,K)
+        shift += len
 
-            shift += models[i].nx
+        c_idx = prob.idx_μ[t+1]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = ForwardDiff.jacobian(tmp1_μ⁺,μ⁺)
+        shift += len
 
-            # c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
-            r_idx = shift .+ (1:models[i].nx)
+        # L
+        tmp2_x_nom(y) = dynamics_sample_covariance(y,u_nom,μ,L,K,W[t],β,Δt,t,models,N)
+        tmp2_u_nom(y) = dynamics_sample_covariance(x_nom,y,μ,L,K,W[t],β,Δt,t,models,N)
+        tmp2_μ(y) = dynamics_sample_covariance(x_nom,u_nom,y,L,K,W[t],β,Δt,t,models,N)
+        tmp2_L(y) = dynamics_sample_covariance(x_nom,u_nom,μ,y,K,W[t],β,Δt,t,models,N)
+        tmp2_K(y) = dynamics_sample_covariance(x_nom,u_nom,μ,L,y,W[t],β,Δt,t,models,N)
+        tmp2_L⁺(y) = dynamics_sample_covariance(x_nom,u_nom,μ,L,K,W[t],β,Δt,t,models,N) - y
 
-            c_idx = idx_sample[i].x[t+1]
-            # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nx))
-            len = length(r_idx)*length(c_idx)
-            ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(models[i].nx)))
-            s += len
+        r_idx = (t-1)*(n + n_tri(n)) .+ (1:n)
+        c_idx = prob.idx_x_nom[t]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = vec.(real.(FiniteDiff.finite_difference_jacobian(tmp2_x_nom,x_nom)))
+        shift += len
 
-            c_idx = idx_x_tmp_vec
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec)
-            len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec))
-            ∇c[s .+ (1:len)] = vec(real.(FiniteDiff.finite_difference_jacobian(resample_x_tmp,x⁺_tmp_vec)))
+        c_idx = prob.idx_u_nom[t]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = vec.(real.(ForwardDiff.jacobian(tmp2_u_nom,u_nom)))
+        shift += len
 
-            s += len
+        c_idx = prob.idx_μ[t]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = vec.(real.(ForwardDiff.jacobian(tmp2_μ,μ)))
+        shift += len
 
-            if disturbance_ctrl
-                # uwi = view(z,idx_sample[i].u[t][nu .+ (1:nx)])
-                # c[shift .+ (1:nx)] += uwi
-                c_idx = idx_uw[i][t]
-                len = length(r_idx)*length(c_idx)
-                ∇c[s .+ (1:len)] = vec(Diagonal(ones(models[i].nx)))
-                s += len
-            end
+        c_idx = prob.idx_L[t]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = vec.(real.(ForwardDiff.jacobian(tmp2_L,L)))
+        shift += len
 
-            shift += models[i].nx
+        c_idx = prob.idx_K[t]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = vec.(real.(ForwardDiff.jacobian(tmp2_K,K)))
+        shift += len
 
-            if t < T-1
-                r_idx = shift .+ (1:1)
-
-                c_idx = idx_sample[i].h[t+1]
-
-                len = length(r_idx)*length(c_idx)
-                ∇c[s + 1] = 1.0
-                s += len
-
-                c_idx = idx_sample[i].h[t]
-                len = length(r_idx)*length(c_idx)
-                ∇c[s + 1] = -1.0
-                s += len
-
-                shift += 1
-            end
-        end
+        c_idx = prob.idx_μ[t+1]
+        len = length(r_idx)*length(c_idx)
+        ∇c[shift .+ (1:len)] = vec.(real.(ForwardDiff.jacobian(tmp2_L⁺,L⁺)))
+        shift += len
     end
     nothing
 end
 
 function sparsity_jacobian_sample_dynamics(prob::DPOProblem;
         r_shift=0)
-    idx_nom = prob.idx_nom
-    idx_sample = prob.idx_sample
-    idx_x_tmp = prob.idx_x_tmp
-    idx_K = prob.idx_K
-    idx_uw = prob.idx_uw
-    u_policy = prob.u_policy
+
     models = prob.models
-    β = prob.β
-    w = prob.w
-    m_stage = prob.prob.m_stage
+    β = prob.β_resample
+    W = prob.W
     T = prob.prob.T
     N = prob.N
-    disturbance_ctrl = prob.disturbance_ctrl
+    n = prob.prob.model.nx
 
     shift = 0
-
-    # nx = length(idx_nom.x[1])
-    nu = length(u_policy)
-
-    s = 0
 
     row = []
     col = []
 
-    # dynamics + resampling (x1 is taken care of w/ primal bounds)
     for t = 1:T-1
-        # h = z[idx_nom.h[t]]
-        # x⁺_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
-        # x⁺_tmp_vec = vcat(x⁺_tmp...)
-        idx_x_tmp_vec = vcat([idx_x_tmp[i].x[t] for i = 1:N]...)
-        # xs⁺ = resample(x⁺_tmp,β=β,w=w) # resample
 
-        for i = 1:N
-            # xi = view(z,idx_sample[i].x[t])
-            # ui = view(z,idx_sample[i].u[t])
-            # xi⁺ = view(z,idx_sample[i].x[t+1])
-            #
-            # dyn_x(a) = integration(models[i],x⁺_tmp[i],a,ui,h)
-            # dyn_u(a) = integration(models[i],x⁺_tmp[i],xi,a,h)
-            # dyn_h(a) = integration(models[i],x⁺_tmp[i],xi,ui,a)
-            # dyn_x_tmp(a) = integration(models[i],a,xi,ui,h)
-            # resample_x_tmp(a) = resample_vec(a,nx,N,i,β=β,w=w) # resample
+        r_idx = shift + (t-1)*(n + n_tri(n)) .+ (1:n)
+        c_idx = prob.idx_x_nom[t]
+        row_col!(row,col,r_idx,c_idx)
 
-            # c[shift .+ (1:nx)] = integration(models[i],x⁺_tmp[i],xi,ui,h)
-            r_idx = r_shift + shift .+ (1:models[i].nx)
+        c_idx = prob.idx_u_nom[t]
+        row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_sample[i].x[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x,xi)
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x,xi))
-            # s += len
-            row_col!(row,col,r_idx,c_idx)
+        c_idx = prob.idx_μ[t]
+        row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_sample[i].u[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_u,ui)
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_u,ui))
-            # s += len
-            row_col!(row,col,r_idx,c_idx)
+        c_idx = prob.idx_L[t]
+        row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_sample[i].h[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t]))
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_h,view(z,idx_nom.h[t])))
-            # s += len
-            row_col!(row,col,r_idx,c_idx)
+        c_idx = prob.idx_K[t]
+        row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_x_tmp[i].x[t]
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i])
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(dyn_x_tmp,x⁺_tmp[i]))
-            # s += len
-            row_col!(row,col,r_idx,c_idx)
+        c_idx = prob.idx_μ[t+1]
+        row_col!(row,col,r_idx,c_idx)
 
-            shift += models[i].nx
+        # L
+        r_idx = shift + (t-1)*(n + n_tri(n)) .+ (1:n)
+        c_idx = prob.idx_x_nom[t]
+        row_col!(row,col,r_idx,c_idx)
 
-            # c[shift .+ (1:nx)] = xs⁺[i] - xi⁺
-            r_idx = r_shift + shift .+ (1:models[i].nx)
+        c_idx = prob.idx_u_nom[t]
+        row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_sample[i].x[t+1]
-            # ∇c[r_idx,c_idx] = Diagonal(-1.0*ones(nx))
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(Diagonal(-1.0*ones(nx)))
-            # s += len
-            row_col!(row,col,r_idx,c_idx)
+        c_idx = prob.idx_μ[t]
+        row_col!(row,col,r_idx,c_idx)
 
-            c_idx = idx_x_tmp_vec
-            # ∇c[r_idx,c_idx] = ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec)
-            # len = length(r_idx)*length(c_idx)
-            # ∇c[s .+ (1:len)] = vec(ForwardDiff.jacobian(resample_x_tmp,x⁺_tmp_vec))
-            # s += len
-            row_col!(row,col,r_idx,c_idx)
+        c_idx = prob.idx_L[t]
+        row_col!(row,col,r_idx,c_idx)
 
-            if disturbance_ctrl
-                # uwi = view(z,idx_sample[i].u[t][nu .+ (1:nx)])
-                # c[shift .+ (1:nx)] += uwi
-                c_idx = idx_uw[i][t]
-                # len = length(r_idx)*length(c_idx)
-                # ∇c[s .+ (1:len)] = vec(Diagonal(ones(nx)))
-                # s += len
-                row_col!(row,col,r_idx,c_idx)
-            end
+        c_idx = prob.idx_K[t]
+        row_col!(row,col,r_idx,c_idx)
 
-            shift += models[i].nx
-
-            if t < T-1
-                r_idx = r_shift + shift .+ (1:1)
-
-                c_idx = idx_sample[i].h[t+1]
-
-                # len = length(r_idx)*length(c_idx)
-                # ∇c[s + 1] = 1.0
-                # s += len
-
-                row_col!(row,col,r_idx,c_idx)
-
-                c_idx = idx_sample[i].h[t]
-                # len = length(r_idx)*length(c_idx)
-                # ∇c[s + 1] = -1.0
-                # s += len
-
-                row_col!(row,col,r_idx,c_idx)
-
-                shift += 1
-            end
-        end
+        c_idx = prob.idx_μ[t+1]
+        row_col!(row,col,r_idx,c_idx)
     end
-
     return collect(zip(row,col))
 end

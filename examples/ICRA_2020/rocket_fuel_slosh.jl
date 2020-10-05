@@ -71,7 +71,7 @@ ft_obj = FreeTimeObjective(c)
 obj = FreeTimeTrackingObjective(track_obj,ft_obj)
 
 # Problem
-prob_nom = init_problem(model_nom.nx,model_nom.nu,T,model_nom,obj,
+prob_nom = init_problem(T,model_nom,obj,
                     xl=xl_traj,
                     xu=xu_traj,
                     ul=[[ul;hl] for t=1:T-1],

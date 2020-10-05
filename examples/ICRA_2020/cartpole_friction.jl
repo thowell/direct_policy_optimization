@@ -5,9 +5,9 @@ using Plots
 μ0 = 0.1
 
 model_nominal = CartpoleFriction(1.0,0.2,0.5,9.81,0.0,
-    nx_friction,nu_friction,nu_policy_friction)
+    nx_friction,nu_friction,nu_policy_friction,0)
 model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,μ0,
-    nx_friction,nu_friction,nu_policy_friction)
+    nx_friction,nu_friction,nu_policy_friction,0)
 
 # Horizon
 T = 51
@@ -46,7 +46,7 @@ Q_lqr = [(t < T ? Diagonal([10.0;10.0;10.0;10.0])
 R_lqr = [Diagonal([1.0,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
 
 # Problem
-prob_nominal = init_problem(model_nominal.nx,model_nominal.nu,T,
+prob_nominal = init_problem(T,
                     model_nominal,multi_obj,
                     xl=xl_traj,
                     xu=xu_traj,
@@ -58,7 +58,7 @@ prob_nominal = init_problem(model_nominal.nx,model_nominal.nu,T,
                     general_ineq=vcat([((t-1)*m_stage_friction
                         .+ stage_friction_ineq) for t=1:T-1]...))
 
-prob_friction = init_problem(model_friction.nx,model_friction.nu,T,
+prob_friction = init_problem(T,
                     model_friction,multi_obj,
                     xl=xl_traj,
                     xu=xu_traj,

@@ -179,7 +179,7 @@ function dLdq̇(model,q,q̇)
 	ForwardDiff.gradient(Lq̇,q̇)
 end
 
-function dynamics(model::Rocket,x,u)
+function dynamics(model::Rocket,x,u,w)
 	nq = convert(Int,floor(model.nx/2))
 	q = x[1:nq]
 	q̇ = x[nq .+ (1:nq)]
@@ -216,19 +216,19 @@ function output(model::RocketNominalFT,x)
 end
 
 function discrete_dynamics(model::RocketNominalFT,x⁺,x,u,h,w,t)
-    midpoint_implicit(model,x⁺,x,u[1:end-1],u[end])
+    midpoint_implicit(model,x⁺,x,u[1:end-1],u[end],w)
 end
 
 function discrete_dynamics(model::RocketSloshFT,x⁺,x,u,h,w,t)
-    midpoint_implicit(model,x⁺,x,u[1:end-1],u[end])
+    midpoint_implicit(model,x⁺,x,u[1:end-1],u[end],w)
 end
 
 function discrete_dynamics(model::RocketNominalFT,x,u,h,w,t)
-    midpoint(model,x,u[1:end-1],u[end])
+    midpoint(model,x,u[1:end-1],u[end],w)
 end
 
 function discrete_dynamics(model::RocketSloshFT,x,u,h,w,t)
-    midpoint(model,x,u[1:end-1],u[end])
+    midpoint(model,x,u[1:end-1],u[end],w)
 end
 
 function visualize!(vis,model::Rocket,q;
