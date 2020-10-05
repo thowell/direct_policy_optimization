@@ -2,6 +2,9 @@ include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
 include(joinpath(pwd(),"dynamics/pendulum.jl"))
 using Plots
 
+# Model
+model = model_ft
+
 # Horizon
 T = 51
 
@@ -31,26 +34,27 @@ xu_traj[1] = x1
 xl_traj[T] = xT
 xu_traj[T] = xT
 
-# Objective (minimum time)
-Q = [Diagonal(zeros(model.nx)) for t = 1:T]
-R = [Diagonal(zeros(model.nu)) for t = 1:T-1]
+# Objective
+# Q = [Diagonal(zeros(model.nx)) for t = 1:T]
+# R = [Diagonal(zeros(model.nu)) for t = 1:T-1]
+# track_obj = QuadraticTrackingObjective(Q,R,
+#     [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
 c = 1.0
-obj = QuadraticTrackingObjective(Q,R,c,
-    [zeros(model.nx) for t=1:T],[zeros(model.nu) for t=1:T])
+ft_obj = FreeTimeObjective(c)
+
+# obj = FreeTimeTrackingObjective(track_obj)
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal([10.0;10.0]) : Diagonal([100.0; 100.0]) for t = 1:T]
-R_lqr = [Diagonal(0.1*ones(model.nu)) for t = 1:T-1]
-H_lqr = [10.0 for t = 1:T-1]
+R_lqr = [Diagonal([0.1;10.0]) for t = 1:T-1]
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,model,obj,
+prob = init_problem(model.nx,model.nu,T,model,ft_obj,
                     xl=xl_traj,
                     xu=xu_traj,
-                    ul=[ul*ones(model.nu) for t=1:T-1],
-                    uu=[uu*ones(model.nu) for t=1:T-1],
-                    hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
+                    ul=[[ul;hl] for t=1:T-1],
+                    uu=[[uu;hu] for t=1:T-1],
+					free_time=true,
                     )
 
 # MathOptInterface problem
@@ -58,16 +62,19 @@ prob_moi = init_MOI_Problem(prob)
 
 # Initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation for states
-U0 = [0.1*rand(model.nu) for t = 1:T-1] # random controls
+U0 = [[0.0;h0] for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
-Z0 = pack(X0,U0,h0,prob)
+Z0 = pack(X0,U0,prob)
 
 # Solve nominal problem
 @time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
 
 # Unpack solutions
-X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob)
+X_nominal, U_nominal = unpack(Z_nominal,prob)
+
+plot(hcat(U_nominal...)[1,:])
+sum(hcat(U_nominal...)[2,:])
 
 # Samples
 N = 2*model.nx

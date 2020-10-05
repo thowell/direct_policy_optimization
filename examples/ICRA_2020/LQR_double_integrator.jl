@@ -18,7 +18,6 @@ uu_traj = [zeros(nu) for t = 1:T]
 obj = QuadraticTrackingObjective(
 	[Diagonal(zeros(nx)) for t = 1:T],
 	[Diagonal(zeros(nu)) for t = 1:T-1],
-	0.0,
     [zeros(nx) for t=1:T],[zeros(nu) for t=1:T])
 
 # Problem
@@ -27,8 +26,6 @@ prob = init_problem(nx,nu,T,model,obj,
                     xu=[zeros(nx) for t = 1:T],
                     ul=[zeros(nu) for t = 1:T-1],
                     uu=[zeros(nu) for t = 1:T-1],
-                    hl=[0.0 for t=1:T-1],
-                    hu=[0.0 for t=1:T-1],
                     )
 
 # MathOptInterface problem

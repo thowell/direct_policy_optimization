@@ -7,6 +7,7 @@ vis = Visualizer()
 open(vis)
 
 # Nominal model
+model_nom = model_nom_ft
 nx_nom = model_nom.nx
 nu = model_nom.nu
 nq_nom = convert(Int,floor(nx_nom/2))
@@ -59,21 +60,23 @@ h0 = 0.5
 tf0 = hu*(T-1)
 
 # Objective
-Q = [(t != T ? Diagonal([1.0;10.0;1.0;1.0;10.0;1.0])
+Q = [(t != T ? h0*Diagonal([1.0;10.0;1.0;1.0;10.0;1.0])
     : Diagonal([10.0;100.0;10.0;10.0;100.0;10.0])) for t = 1:T]
-R = [Diagonal(1.0e-1*ones(model_nom.nu)) for t = 1:T-1]
-c = 1.0
-obj = QuadraticTrackingObjective(Q,R,c,
+R = [h0*Diagonal([1.0e-1*ones(model_nom.nu_ctrl);0.0]) for t = 1:T-1]
+track_obj = QuadraticTrackingObjective(Q,R,
     [xT for t=1:T],[zeros(model_nom.nu) for t=1:T])
+c = 10.0
+ft_obj = FreeTimeObjective(c)
+
+obj = FreeTimeTrackingObjective(track_obj,ft_obj)
 
 # Problem
 prob_nom = init_problem(model_nom.nx,model_nom.nu,T,model_nom,obj,
                     xl=xl_traj,
                     xu=xu_traj,
-                    ul=[ul for t=1:T-1],
-                    uu=[uu for t=1:T-1],
-                    hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
+                    ul=[[ul;hl] for t=1:T-1],
+                    uu=[[uu;hu] for t=1:T-1],
+					free_time=true
                     )
 
 # MathOptInterface problem
@@ -81,29 +84,32 @@ prob_nom_moi = init_MOI_Problem(prob_nom)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [rand(model_nom.nu) for t = 1:T-1] # random controls
+U0 = [[rand(model_nom.nu_ctrl);h0] for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
-Z0 = pack(X0,U0,h0,prob_nom)
+Z0 = pack(X0,U0,prob_nom)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nom = solve(prob_nom_moi,copy(Z0),nlp=:ipopt,time_limit=20)
-X_nom, U_nom, H_nom = unpack(Z_nom,prob_nom)
+@time Z_nom = solve(prob_nom_moi,copy(Z0),nlp=:SNOPT7,time_limit=20)
+X_nom, U_nom = unpack(Z_nom,prob_nom)
 
-visualize!(vis,model_nom,X_nom,Δt=H_nom[1],
+tf_nom = sum(hcat(U_nom...)[end,:]) # works when 2.72
+Δt_nom = U_nom[1][end]
+plot(hcat(U_nom...)[end,:])
+visualize!(vis,model_nom,X_nom,Δt=U_nom[1][end],
 	r_pad=r_pad)
 
 plot(hcat(U_nom...)',linetype=:steppost)
-sum(H_nom) # works when 2.72
 
 # TVLQR policy
 Q_lqr = [(t < T ? Diagonal([100.0*ones(nq_nom); 100.0*ones(nq_nom)])
    : Diagonal([1000.0*ones(nq_nom); 1000.0*ones(nq_nom)])) for t = 1:T]
-R_lqr = [Diagonal(1.0*ones(model_nom.nu)) for t = 1:T-1]
-H_lqr = [100.0 for t = 1:T-1]
-
-K = TVLQR_gains(model_nom,X_nom,U_nom,[H_nom[1] for t = 1:T-1],Q_lqr,R_lqr)
+R_lqr = [Diagonal([1.0*ones(model_nom.nu_ctrl);100.0]) for t = 1:T-1]
+_R_lqr = [Diagonal(1.0*ones(model_nom.nu_ctrl)) for t = 1:T-1]
+K = TVLQR_gains(model_nom,X_nom,U_nom,
+	Q_lqr,_R_lqr,
+	free_time=true)
 
 # Simulate TVLQR (no slosh)
 using Distributions
@@ -122,13 +128,14 @@ w0 = rand(W0,1)
 
 z0_sim = vec(copy(x1_sim) + w0)
 
-t_nom = range(0,stop=sum(H_nom),length=T)
-t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
+t_nom = range(0,stop=tf_nom,length=T)
+t_sim_nom = range(0,stop=tf_nom,length=T_sim)
 
 # simulate
 z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
-    X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,H_nom[1],z0_sim,w,_norm=2,
-	ul=ul,uu=uu)
+    X_nom,[U_nom[t][1:model_nom.nu_ctrl] for t = 1:T-1],
+	model_sim,Q_lqr,_R_lqr,T_sim,Δt_nom,z0_sim,w,_norm=2)#,
+	# ul=ul,uu=uu)
 
 # plot states
 plt_x = plot(t_nom,hcat(X_nom...)[1:model_nom.nx,:]',
@@ -163,6 +170,7 @@ Ju_tvlqr
 
 
 # Fuel-slosh model
+model_slosh = model_slosh_ft
 x1_slosh = [x1[1:3];0.0;x1[4:6]...;0.0]
 xT_slosh = [xT[1:3];0.0;xT[4:6]...;0.0]
 
@@ -203,17 +211,18 @@ xu_traj_slosh[T][7] = 0.01*pi/180.0
 
 Q_slosh = [(t != T ? Diagonal([1.0;10.0;1.0;0.1;1.0;10.0;1.0;0.1])
     : Diagonal([10.0;100.0;10.0;0.1;10.0;100.0;10.0;0.1])) for t = 1:T]
-obj_slosh = QuadraticTrackingObjective(Q_slosh,R,c,
+track_obj_slosh = QuadraticTrackingObjective(Q_slosh,R,
     [xT_slosh for t=1:T],[zeros(model_slosh.nu) for t=1:T])
+
+obj_slosh = FreeTimeTrackingObjective(track_obj_slosh,ft_obj)
 
 # Problem
 prob_slosh = init_problem(model_slosh.nx,model_slosh.nu,T,model_slosh,obj_slosh,
                     xl=xl_traj_slosh,
                     xu=xu_traj_slosh,
-                    ul=[ul for t=1:T-1],
-                    uu=[uu for t=1:T-1],
-                    hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
+                    ul=[[ul;hl] for t=1:T-1],
+                    uu=[[uu;hu] for t=1:T-1],
+                    free_time=true
                     )
 
 # MathOptInterface problem
@@ -221,20 +230,19 @@ prob_moi_slosh = init_MOI_Problem(prob_slosh)
 
 # Trajectory initialization
 X0_slosh = linear_interp(x1_slosh,xT_slosh,T) # linear interpolation on state
-U0_slosh = [rand(model_slosh.nu) for t = 1:T-1] # random controls
+U0_slosh = [[rand(model_slosh.nu_ctrl);h0] for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
-Z0_slosh = pack(X0_slosh,U0_slosh,h0,prob_slosh)
+Z0_slosh = pack(X0_slosh,U0_slosh,prob_slosh)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal_slosh = solve(prob_moi_slosh,copy(Z0_slosh),nlp=:ipopt,time_limit=20)
-X_nom_slosh, U_nom_slosh, H_nom_slosh = unpack(Z_nominal_slosh,prob_slosh)
+@time Z_nominal_slosh = solve(prob_moi_slosh,copy(Z0_slosh),nlp=:SNOPT7,time_limit=20)
+X_nom_slosh, U_nom_slosh = unpack(Z_nominal_slosh,prob_slosh)
 
-plot(hcat(U_nom_slosh...)',linetype=:steppost)
-sum(H_nom_slosh) # should be 2.76
-sum(H_nom) # should be 2.72
-X_nom_slosh[T][2]
+plot(hcat(U_nom_slosh...)[1:model_slosh.nu_ctrl,:]',linetype=:steppost)
+tf_nom_slosh = sum(hcat(U_nom_slosh...)[end,:]) # should be 2.76
+Δt_nom_slosh = U_nom_slosh[1][end]
 
 # simulate slosh with TVLQR controller from nominal model
 model_sim = model_slosh
@@ -247,13 +255,14 @@ w0 = rand(W0,1)
 x1_slosh_sim = x1_slosh
 z0_sim = vec(copy(x1_slosh_sim) + w0)
 
-t_nom = range(0,stop=sum(H_nom),length=T)
-t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
-dt_sim_nom = sum(H_nom)/(T_sim-1)
+t_nom = range(0,stop=tf_nom_slosh,length=T)
+t_sim_nom = range(0,stop=tf_nom_slosh,length=T_sim)
+dt_sim_nom = tf_nom_slosh/(T_sim-1)
 
 z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
-    X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,H_nom[1],z0_sim,w,_norm=2,
-	controller=:policy,ul=ul,uu=uu)
+    X_nom,[U_nom[t][1:model_nom.nu_ctrl] for t = 1:T-1],
+	model_sim,Q_lqr,_R_lqr,T_sim,Δt_nom,z0_sim,w,_norm=2,
+	controller=:policy)#,ul=ul,uu=uu)
 
 plt_x = plot(t_nom,hcat(X_nom...)[1:model_nom.nx,:]',
 	legend=:topright,color=:red,

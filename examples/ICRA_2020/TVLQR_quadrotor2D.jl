@@ -20,7 +20,6 @@ x_nom_ref = linear_interp(x1_nom,xT_nom,T)
 Q_nom = [(t < T ? Diagonal([1.0; 1.0; 1.0; 1.0; 1.0; 1.0])
 	: Diagonal([10.0; 10.0; 10.0; 10.0; 10.0; 10.0])) for t = 1:T]
 R_nom = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c_nom = 0.0
 
 xl_traj = [-Inf*ones(nx) for t = 1:T]
 xu_traj = [Inf*ones(nx) for t = 1:T]
@@ -34,13 +33,9 @@ xu_traj[T] = xT_nom
 ul_traj = [zeros(nu) for t = 1:T]
 uu_traj = [Inf*ones(nu) for t = 1:T]
 
-hl = Δt
-hh = Δt
-
 obj = QuadraticTrackingObjective(
 	Q_nom,
 	R_nom,
-	c_nom,
     [xT_nom for t=1:T],[zeros(nu) for t=1:T])
 
 # Problem
@@ -49,8 +44,7 @@ prob = init_problem(nx,nu,T,model,obj,
                     xu=xu_traj,
                     ul=ul_traj,
                     uu=uu_traj,
-                    hl=[hl for t=1:T-1],
-                    hu=[hh for t=1:T-1],
+                   	Δt=Δt
                     )
 
 # MathOptInterface problem
@@ -61,11 +55,11 @@ X0 = x_nom_ref # linear interpolation on state
 U0 = [1.0*rand(nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
-Z0 = pack(X0,U0,Δt,prob)
+Z0 = pack(X0,U0,prob)
 
 # Solve nominal problem
 @time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
-X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
+X_nom, U_nom = unpack(Z_nominal,prob)
 
 Plots.plot(hcat(X_nom...)')
 Plots.plot(hcat(U_nom...)')
@@ -73,7 +67,6 @@ Plots.plot(hcat(U_nom...)')
 obj_fixed = obj = QuadraticTrackingObjective(
 	[Diagonal(zeros(nx)) for t = 1:T],
 	[Diagonal(zeros(nu)) for t = 1:T-1],
-	0.0,
     [zeros(nx) for t=1:T],[zeros(nu) for t=1:T])
 
 xl_traj = [zeros(nx) for t = 1:T]
@@ -87,8 +80,7 @@ prob_fixed = init_problem(nx,nu,T,model,obj,
                     xu=xu_traj,
                     ul=ul_traj,
                     uu=uu_traj,
-                    hl=[Δt for t=1:T-1],
-                    hu=[Δt for t=1:T-1],
+					Δt=Δt
                     )
 # Sample
 Q_lqr = [(t < T ? Diagonal([10.0;10.0;10.0;10.0;10.0;10.0])

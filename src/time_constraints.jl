@@ -8,7 +8,7 @@ function time_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
         h = Z[idx.u[t]][end]
         h⁺ = Z[idx.u[t+1]][end]
 
-        c[nx*(T-1) + t] = h⁺ - h
+        c[t] = h⁺ - h
     end
 
     return nothing

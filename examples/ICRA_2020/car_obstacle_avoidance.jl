@@ -90,7 +90,7 @@ Z0 = pack(X0,U0,prob)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:ipopt)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
 X_nom, U_nom = unpack(Z_nominal,prob)
 
 # Sample

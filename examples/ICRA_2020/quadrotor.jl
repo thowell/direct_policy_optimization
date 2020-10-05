@@ -5,6 +5,9 @@ include(joinpath(pwd(),"dynamics/visualize.jl"))
 
 using Plots
 
+# Model
+model = model_ft
+
 # Horizon
 T = 31
 Tm = convert(Int,floor(T/2)+1)
@@ -12,15 +15,17 @@ Tm = convert(Int,floor(T/2)+1)
 # Bounds
 
 # ul <= u <= uu
-uu = 2.0*ones(model.nu)
-ul = zeros(model.nu)
+uu = 2.0*ones(model.nu_ctrl)
+ul = zeros(model.nu_ctrl)
 
-uu_traj = [copy(uu) for t = 1:T-1]
-ul_traj = [copy(ul) for t = 1:T-1]
+# h = h0 (fixed time step)
+tf0 = 5.0
+h0 = tf0/(T-1)
+hu = h0
+hl = 0.0*h0
 
-# for t = Tm:T-1
-#     uu_traj[t][1] = 0.0
-# end
+uu_traj = [[copy(uu);hu] for t = 1:T-1]
+ul_traj = [[copy(ul);hl] for t = 1:T-1]
 
 # Circle obstacle
 r_cyl = 0.5
@@ -30,7 +35,7 @@ yc1 = 1.0
 xc2 = 2.0
 yc2 = 2.75
 xc3 = 4.0
-yc3 = 1.85
+yc3 = 2.0
 xc4 = 5.0
 yc4 = 1.0
 
@@ -49,11 +54,6 @@ function c_stage!(c,x,u,t,model)
 end
 m_stage = 4
 
-# h = h0 (fixed timestep)
-tf0 = 10.0
-h0 = tf0/(T-1)
-hu = h0
-hl = 0.0*h0
 
 # Initial and final states
 x1 = zeros(model.nx)
@@ -79,28 +79,30 @@ xu_traj[1] = copy(x1)
 xl_traj[T] = copy(xT)
 xu_traj[T] = copy(xT)
 
-u_ref = -1.0*model.m*model.g[3]/4.0*ones(model.nu)
+u_ref = [-1.0*model.m*model.g[3]/4.0*ones(model.nu_ctrl);0.0]
 
 # Objective
-Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(1.0*ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 10.0
-obj = QuadraticTrackingObjective(Q,R,c,
-    [xT for t=1:T],[u_ref for t=1:T-1])
+# Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(1.0*ones(model.nx)) for t = 1:T]
+# R = [Diagonal([1.0e-1*ones(model.nu_ctrl);0.0]) for t = 1:T-1]
+# track_obj = QuadraticTrackingObjective(Q,R,
+#     [xT for t=1:T],[u_ref for t=1:T-1])
+c = 1.0
+ft_obj = FreeTimeObjective(c)
+
+# obj = FreeTimeTrackingObjective(track_obj,ft_obj)
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal(100.0*ones(model.nx)) : Diagonal(1000.0*ones(model.nx)) for t = 1:T]
-R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-H_lqr = [10.0 for t = 1:T-1]
+R_lqr = [Diagonal([1.0*ones(model.nu_ctrl);0.0]) for t = 1:T-1]
 
 # Problem
-prob = init_problem(model.nx,model.nu,T,model,obj,
+prob = init_problem(model.nx,model.nu,T,model,ft_obj,
                     xl=xl_traj,
                     xu=xu_traj,
                     ul=ul_traj,
                     uu=uu_traj,
-                    hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
+                    free_time=true,
+                    Δt=-1.0,
                     stage_constraints=true,
                     m_stage=[m_stage for t=1:T-1]
                     )
@@ -110,28 +112,31 @@ prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [copy(u_ref) for t = 1:T-1] # random controls
-
+U0 = [[copy(u_ref[1:end-1]);h0] for t = 1:T-1] # random controls
 # Pack trajectories into vector
-Z0 = pack(X0,U0,h0,prob)
+Z0 = pack(X0,U0,prob)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
 @time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
-X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
-sum(H_nom)
+X_nom, U_nom = unpack(Z_nominal,prob)
+sum(hcat(U_nom...)[end,:])
 plot(hcat(X_nom...)[1:3,:]',linetype=:steppost)
-plot(hcat(U_nom...)',linetype=:steppost)
-
+plot(hcat(U_nom...)[1:model.nu,:]',linetype=:steppost)
+U_nom[1][end]
 vis = Visualizer()
 open(vis)
-visualize!(vis,model,X_nom,Δt=H_nom[1])
+visualize!(vis,model,X_nom,Δt=U_nom[1][end])
 
 for i = 1:m_stage
     cyl = Cylinder(Point3f0(xc[i],yc[i],0),Point3f0(xc[i],yc[i],2.0),convert(Float32,r_cyl-model.L))
     setobject!(vis["cyl$i"],cyl,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
 end
+
 # Sample
+K = TVLQR_gains(model,X_nom,U_nom,
+    Q_lqr,[R_lqr[t][1:model.nu_ctrl,1:model.nu_ctrl] for t = 1:T-1],
+    free_time=true)
 
 N = 2*model.nx
 models = [model for i = 1:N]
@@ -147,8 +152,6 @@ for i = 1:N
     xl_traj_sample[i][1] = copy(x1_sample[i])
     xu_traj_sample[i][1] = copy(x1_sample[i])
 end
-
-K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 
 prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
     xl=xl_traj_sample,

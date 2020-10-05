@@ -86,34 +86,42 @@ function TVLQR(A,B,Q,R)
     return K
 end
 
-function nominal_jacobians(model,X_nominal,U_nominal,H_nominal;
-        u_policy=(1:length(U_nominal[1])))
+function nominal_jacobians(model,X,U;
+        free_time=false,Δt=-1.0)
     A = []
     B = []
     for t = 1:T-1
-        x = X_nominal[t]
-        u = U_nominal[t][u_policy]
-        h = H_nominal[t]
-        x⁺ = X_nominal[t+1]
+        x = X[t]
+        u = U[t]
+        x⁺ = X[t+1]
 
-        fx(z) = discrete_dynamics(model,x⁺,z,u,h,t)
-        fu(z) = discrete_dynamics(model,x⁺,x,z,h,t)
-        fx⁺(z) = discrete_dynamics(model,z,x,u,h,t)
+        fx(z) = (free_time
+                 ? midpoint_implicit(model,x⁺,z,u[1:end-1],u[end])
+                 : midpoint_implicit(model,x⁺,z,u,Δt)
+                 )
+        fu(z) = (free_time
+                 ? midpoint_implicit(model,x⁺,x,z[1:end-1],z[end])
+                 : midpoint_implicit(model,x⁺,x,z,Δt)
+                 )
+        fx⁺(z) = (free_time
+                  ? midpoint_implicit(model,z,x,u[1:end-1],u[end])
+                  : midpoint_implicit(model,z,x,u,Δt)
+                  )
 
         A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
         push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
-        push!(B,-A⁺\ForwardDiff.jacobian(fu,u))
+        push!(B,-A⁺\ForwardDiff.jacobian(fu,u)[:,free_time ? (1:end-1) : (1:end)])
     end
     return A, B
 end
 
-function TVLQR_gains(model,X_nominal,U_nominal,H_nominal,Q_lqr,R_lqr;
-        u_policy=(1:length(U_nominal[1])))
+function TVLQR_gains(model,X,U,Q_lqr,R_lqr;
+        free_time=false,Δt=-1.0)
 
-    A,B = nominal_jacobians(model,X_nominal,U_nominal,H_nominal,
-            u_policy=u_policy)
+    A,B = nominal_jacobians(model,X,U,
+            free_time=free_time,Δt=Δt)
 
-    K = TVLQR(A,B,Q_lqr,[R_lqr[t][u_policy,u_policy] for t=1:T-1])
+    K = TVLQR(A,B,Q_lqr,R_lqr)
 end
 
 function sample_mean(X)

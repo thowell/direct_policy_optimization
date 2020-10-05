@@ -15,9 +15,7 @@ T = 51
 # Bounds
 # h = h0 (fixed timestep)
 tf0 = 5.0
-h0 = tf0/(T-1)
-hu = h0
-hl = h0
+Δt = tf0/(T-1)
 
 # Initial and final states
 x1 = [0.0; 0.0; 0.0; 0.0]
@@ -36,8 +34,7 @@ xu_traj[T] = xT
 Q = [(t < T ? Diagonal(ones(model_nominal.nx))
     : Diagonal(zeros(model_nominal.nx))) for t = 1:T]
 R = [Diagonal([0.1,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
-c = 0.0
-obj = QuadraticTrackingObjective(Q,R,c,
+obj = QuadraticTrackingObjective(Q,R,
     [xT for t=1:T],[zeros(model_nominal.nu) for t=1:T])
 penalty_obj = PenaltyObjective(α_cartpole_friction)
 
@@ -47,7 +44,6 @@ multi_obj = MultiObjective([obj,penalty_obj])
 Q_lqr = [(t < T ? Diagonal([10.0;10.0;10.0;10.0])
     : Diagonal(100.0*ones(model_nominal.nx))) for t = 1:T]
 R_lqr = [Diagonal([1.0,0.0,0.0,0.0,0.0,0.0,0.0]) for t = 1:T-1]
-H_lqr = [0.0 for t = 1:T-1]
 
 # Problem
 prob_nominal = init_problem(model_nominal.nx,model_nominal.nu,T,
@@ -56,8 +52,7 @@ prob_nominal = init_problem(model_nominal.nx,model_nominal.nu,T,
                     xu=xu_traj,
                     ul=[ul_friction for t=1:T-1],
                     uu=[uu_friction for t=1:T-1],
-                    hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
+                    Δt=Δt,
                     general_constraints=true,
                     m_general=m_stage_friction*(T-1),
                     general_ineq=vcat([((t-1)*m_stage_friction
@@ -69,8 +64,7 @@ prob_friction = init_problem(model_friction.nx,model_friction.nu,T,
                     xu=xu_traj,
                     ul=[ul_friction for t=1:T-1],
                     uu=[uu_friction for t=1:T-1],
-                    hl=[hl for t=1:T-1],
-                    hu=[hu for t=1:T-1],
+                    Δt=Δt,
                     general_constraints=true,
                     m_general=m_stage_friction*(T-1),
                     general_ineq=vcat([((t-1)*m_stage_friction
@@ -85,7 +79,7 @@ X0 = linear_interp(x1,xT,T) # linear interpolation on state
 U0 = [ones(model_nominal.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
-Z0 = pack(X0,U0,h0,prob_nominal)
+Z0 = pack(X0,U0,prob_nominal)
 
 # Solve nominal problem
 @time Z_nominal = solve(prob_nominal_moi,copy(Z0),tol=1.0e-5,c_tol=1.0e-5,
@@ -94,14 +88,14 @@ Z0 = pack(X0,U0,h0,prob_nominal)
     c_tol=1.0e-5,nlp=:SNOPT7)
 
 # Unpack solutions
-X_nominal, U_nominal, H_nominal = unpack(Z_nominal,prob_nominal)
-X_friction_nominal, U_friction_nominal, H_friction_nominal = unpack(Z_friction_nominal,
+X_nominal, U_nominal = unpack(Z_nominal,prob_nominal)
+X_friction_nominal, U_friction_nominal = unpack(Z_friction_nominal,
     prob_friction)
 
 # Time trajectories
 t_nominal = zeros(T)
 for t = 2:T
-    t_nominal[t] = t_nominal[t-1] + H_nominal[t-1]
+    t_nominal[t] = t_nominal[t-1] + Δt
 end
 
 # Plots results
