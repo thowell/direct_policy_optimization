@@ -9,6 +9,7 @@ struct RocketNominal{T} <: Rocket
 
 	nx::Int
 	nu::Int
+	nw::Int
 end
 
 struct RocketNominalFT{T} <: Rocket
@@ -20,6 +21,7 @@ struct RocketNominalFT{T} <: Rocket
 	nx::Int
 	nu::Int
 	nu_ctrl::Int
+	nw::Int
 end
 
 struct RocketSlosh{T} <: Rocket
@@ -34,6 +36,7 @@ struct RocketSlosh{T} <: Rocket
 
 	nx::Int
 	nu::Int
+	nw::Int
 end
 
 struct RocketSloshFT{T} <: Rocket
@@ -49,6 +52,7 @@ struct RocketSloshFT{T} <: Rocket
 	nx::Int
 	nu::Int
 	nu_ctrl::Int
+	nw::Int
 end
 
 g = 9.81
@@ -61,18 +65,19 @@ l2 = 0.1 # length from COM to pendulum
 l3 = 0.1 # length of pendulum
 
 # nominal model
+nw = 0
 nu = 2
 nx_nom = 6
-model_nom = RocketNominal(g,m1,l1,J,nx_nom,nu)
+model_nom = RocketNominal(g,m1,l1,J,nx_nom,nu,nw)
 
 nu_ft = 3
-model_nom_ft = RocketNominalFT(g,m1,l1,J,nx_nom,nu_ft,nu)
+model_nom_ft = RocketNominalFT(g,m1,l1,J,nx_nom,nu_ft,nu,nw)
 
 # slosh model
 nx_slosh = 8
-model_slosh = RocketSlosh(g,m1-m2,l1,J,m2,l2,l3,nx_slosh,nu)
+model_slosh = RocketSlosh(g,m1-m2,l1,J,m2,l2,l3,nx_slosh,nu,nw)
 
-model_slosh_ft = RocketSloshFT(g,m1-m2,l1,J,m2,l2,l3,nx_slosh,nu_ft,nu)
+model_slosh_ft = RocketSloshFT(g,m1-m2,l1,J,m2,l2,l3,nx_slosh,nu_ft,nu,nw)
 
 function kinematics_thruster(model,q)
 	x,z,θ = q[1:3]
@@ -210,12 +215,20 @@ function output(model::RocketNominalFT,x)
 	x
 end
 
-function discrete_dynamics(model::RocketNominalFT,x⁺,x,u,h,t)
+function discrete_dynamics(model::RocketNominalFT,x⁺,x,u,h,w,t)
     midpoint_implicit(model,x⁺,x,u[1:end-1],u[end])
 end
 
-function discrete_dynamics(model::RocketSloshFT,x⁺,x,u,h,t)
+function discrete_dynamics(model::RocketSloshFT,x⁺,x,u,h,w,t)
     midpoint_implicit(model,x⁺,x,u[1:end-1],u[end])
+end
+
+function discrete_dynamics(model::RocketNominalFT,x,u,h,w,t)
+    midpoint(model,x,u[1:end-1],u[end])
+end
+
+function discrete_dynamics(model::RocketSloshFT,x,u,h,w,t)
+    midpoint(model,x,u[1:end-1],u[end])
 end
 
 function visualize!(vis,model::Rocket,q;

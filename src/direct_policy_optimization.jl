@@ -11,7 +11,6 @@ include("sample_problem.jl")
 
 include("objective.jl")
 include("sample_objective.jl")
-# include("sample_general_objective.jl")
 
 include("dynamics_constraints.jl")
 include("time_constraints.jl")
@@ -24,7 +23,6 @@ include("policy.jl")
 include("policy_constraints.jl")
 
 include("sample_stage_constraints.jl")
-include("sample_disturbances.jl")
 
 include("moi.jl")
 include("simulate.jl")

@@ -102,7 +102,6 @@ prob = init_problem(model.nx,model.nu,T,model,ft_obj,
                     ul=ul_traj,
                     uu=uu_traj,
                     free_time=true,
-                    Δt=-1.0,
                     stage_constraints=true,
                     m_stage=[m_stage for t=1:T-1]
                     )

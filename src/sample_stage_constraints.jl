@@ -1,4 +1,4 @@
-function sample_stage_constraints!(c,z,prob::SampleProblem)
+function sample_stage_constraints!(c,z,prob::DPOProblem)
     idx_nom = prob.idx_nom
     idx_sample = prob.idx_sample
     idx_x_tmp = prob.idx_x_tmp
@@ -32,7 +32,7 @@ function sample_stage_constraints!(c,z,prob::SampleProblem)
     nothing
 end
 
-function ∇sample_stage_constraints!(∇c,z,prob::SampleProblem)
+function ∇sample_stage_constraints!(∇c,z,prob::DPOProblem)
     idx_nom = prob.idx_nom
     idx_sample = prob.idx_sample
     idx_x_tmp = prob.idx_x_tmp
@@ -88,7 +88,7 @@ function ∇sample_stage_constraints!(∇c,z,prob::SampleProblem)
     nothing
 end
 
-function sparsity_jacobian_sample_stage(prob::SampleProblem;
+function sparsity_jacobian_sample_stage(prob::DPOProblem;
         r_shift=0)
     idx_nom = prob.idx_nom
     idx_sample = prob.idx_sample

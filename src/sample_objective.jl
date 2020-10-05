@@ -1,4 +1,4 @@
-function sample_objective(z,prob::SampleProblem)
+function sample_objective(z,prob::DPOProblem)
     idx_nom = prob.idx_nom
     idx_sample = prob.idx_sample
     u_policy = prob.u_policy
@@ -34,7 +34,7 @@ function sample_objective(z,prob::SampleProblem)
     return γ*J/N
 end
 
-function ∇sample_objective!(∇obj,z,prob::SampleProblem)
+function ∇sample_objective!(∇obj,z,prob::DPOProblem)
     idx_nom = prob.idx_nom
     idx_sample = prob.idx_sample
     u_policy = prob.u_policy

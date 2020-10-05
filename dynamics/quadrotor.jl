@@ -13,9 +13,10 @@ mutable struct Quadrotor{T} <: AbstractQuadrotor
 
       nx::Int
       nu::Int
+      nw::Int
 end
 
-function dynamics(model::Quadrotor,z,u)
+function dynamics(model::Quadrotor,z,u,w)
       # states
       x = view(z,1:3)
       r = view(z,4:6)
@@ -47,6 +48,7 @@ end
 
 nx = 12
 nu = 4
+nw = 0
 model = Quadrotor(0.5,
       Diagonal(@SVector[0.0023, 0.0023, 0.004]),
       Diagonal(@SVector[1.0/0.0023, 1.0/0.0023, 1.0/0.004]),
@@ -54,7 +56,7 @@ model = Quadrotor(0.5,
       0.175,
       1.0,
       0.0245,
-      nx,nu)
+      nx,nu,nw)
 
 mutable struct QuadrotorFT{T} <: AbstractQuadrotor
       m::T
@@ -68,9 +70,10 @@ mutable struct QuadrotorFT{T} <: AbstractQuadrotor
       nx::Int
       nu::Int
       nu_ctrl::Int
+      nw::Int
 end
 
-function dynamics(model::QuadrotorFT,z,u)
+function dynamics(model::QuadrotorFT,z,u,w)
       # states
       x = view(z,1:3)
       r = view(z,4:6)
@@ -100,8 +103,12 @@ function dynamics(model::QuadrotorFT,z,u)
       SVector{12}([v; 0.25*((1-r'*r)*ω - 2*cross(ω,r) + 2*(ω'*r)*r); model.g + (1/model.m)*MRP(r[1],r[2],r[3])*F; model.Jinv*(τ - cross(ω,model.J*ω))])
 end
 
-function discrete_dynamics(model::QuadrotorFT,x⁺,x,u,h,t)
-    midpoint_implicit(model,x⁺,x,u[1:end-1],u[end])
+function discrete_dynamics(model::QuadrotorFT,x⁺,x,u,h,w,t)
+    midpoint_implicit(model,x⁺,x,u[1:end-1],u[end],w)
+end
+
+function discrete_dynamics(model::QuadrotorFT,x,u,h,w,t)
+    midpoint(model,x,u[1:end-1],u[end],w)
 end
 
 nu_ft = 5
@@ -112,7 +119,7 @@ model_ft = QuadrotorFT(0.5,
                   0.175,
                   1.0,
                   0.0245,
-                  nx,nu_ft,nu)
+                  nx,nu_ft,nu,nw)
 
 # dynamics(model,rand(nx),rand(nu))
 function visualize!(vis,p::AbstractQuadrotor,q; Δt=0.1)

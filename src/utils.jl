@@ -185,3 +185,59 @@ function sample_dynamics(model,X,U,Δt,t; β=1.0,w=1.0,fast_sqrt=false)
     Xs⁺ = fast_sqrt ? resample_fastsqrt(X⁺,β=β,w=w) : resample(X⁺,β=β,w=w)
     return Xs⁺
 end
+
+function n_tri(n)
+    (n^2 + n)/2
+end
+
+function sigma_points(μ,L,W,β)
+    n = length(μ)
+    d = size(W,1)
+    w0 = zeros(d)
+
+    x = cat([μ + s*β*L[:,i] for s in [-1.0,1.0] for i = 1:n],[μ for i = 1:2d],dims=(1,1))
+    w = cat([w0 for i = 1:2n],[s*β*W[:,i] for s in [-1.0,1.0] for i = 1:d],dims=(1,1))
+    return x,w
+end
+
+# function sample_mean(μ,L,u,W,β,Δt,t,models,N)
+#     x,w = sigma_points(μ,L,W,β)
+#     s = [discrete_dynamics(models[i],x[i],u,Δt,t)) for i = 1:N]
+#     μ⁺ = sample_mean(s)
+#     μ⁺
+# end
+#
+# μ = zeros(3)
+# L = Array(cholesky(P).L)
+# W = Array(cholesky(W).L)
+#
+# sigma_points(μ,L,W,1.0)
+# A = rand(3,3)
+# P = A'*A
+# B = rand(2,2)
+# W = B'*B
+#
+# Σ = cat(P,W,dims=(1,2))
+# cholesky(Σ).L
+#
+# x = [ones(3) for i = 1:5]
+# cat(x,[ones(3) for i = 1:5],dims=(1,1))
+#
+# size(W,1)
+#
+#
+# cholesky(P).L
+# cholesky(W).L
+
+# L = cholesky(P).L
+
+function lt_to_vec(L)
+    L[tril!(trues(size(L)), 0)]
+end
+
+function vec_to_lt(v::AbstractVector{T}, z::T=zero(T)) where T
+    n = length(v)
+    s = round(Int,(sqrt(8n+1)-1)/2)
+    s*(s+1)/2 == n || error("vec2utri: length of vector is not triangular")
+    [ i>=j ? v[round(Int, j*(j-1)/2+i)] : z for i=1:s, j=1:s ]
+end

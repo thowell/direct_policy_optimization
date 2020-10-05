@@ -1,7 +1,9 @@
 function dynamics_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
-    nx = prob.nx
-    nu = prob.nu
+    nx = prob.model.nx
+    nu = prob.model.nu
+    nw = prob.model.nw
+    w = zeros(nw)
     T = prob.T
     model = prob.model
 
@@ -13,9 +15,7 @@ function dynamics_constraints!(c,Z,prob::TrajectoryOptimizationProblem)
         u = Z[idx.u[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        c[(t-1)*nx .+ (1:nx)] = (prob.free_time
-            ? discrete_dynamics(model,x⁺,x,u,u[end],t)
-            : discrete_dynamics(model,x⁺,x,u,prob.Δt,t))
+        c[(t-1)*nx .+ (1:nx)] = discrete_dynamics(model,x⁺,x,u,prob.Δt,w,t)
     end
 
     return nothing
@@ -23,8 +23,10 @@ end
 
 function dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
-    nx = prob.nx
-    nu = prob.nu
+    nx = prob.model.nx
+    nu = prob.model.nu
+    nw = prob.model.nw
+    w = zeros(nw)
     T = prob.T
     model = prob.model
 
@@ -38,17 +40,9 @@ function dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProbl
         u = Z[idx.u[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        dyn_x(z) = (prob.free_time
-            ? discrete_dynamics(model,x⁺,z,u,u[end],t)
-            : discrete_dynamics(model,x⁺,z,u,prob.Δt,t))
-        dyn_u(z) = (prob.free_time
-            ? discrete_dynamics(model,x⁺,x,z,z[end],t)
-            : discrete_dynamics(model,x⁺,x,z,prob.Δt,t)
-            )
-        dyn_x⁺(z) = (prob.free_time
-            ? discrete_dynamics(model,z,x,u,u[end],t)
-            : discrete_dynamics(model,z,x,u,prob.Δt,t)
-            )
+        dyn_x(z) = discrete_dynamics(model,x⁺,z,u,prob.Δt,w,t)
+        dyn_u(z) = discrete_dynamics(model,x⁺,x,z,prob.Δt,w,t)
+        dyn_x⁺(z) = discrete_dynamics(model,z,x,u,prob.Δt,w,t)
 
         r_idx = (t-1)*nx .+ (1:nx)
 
@@ -62,8 +56,10 @@ end
 
 function sparse_dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizationProblem)
     idx = prob.idx
-    nx = prob.nx
-    nu = prob.nu
+    nx = prob.model.nx
+    nu = prob.model.nu
+    nw = prob.model.nw
+    w = zeros(nw)
     T = prob.T
     model = prob.model
 
@@ -77,17 +73,9 @@ function sparse_dynamics_constraints_jacobian!(∇c,Z,prob::TrajectoryOptimizati
         u = Z[idx.u[t]]
         x⁺ = Z[idx.x[t+1]]
 
-        dyn_x(z) = (prob.free_time
-            ? discrete_dynamics(model,x⁺,z,u,u[end],t)
-            : discrete_dynamics(model,x⁺,z,u,prob.Δt,t))
-        dyn_u(z) = (prob.free_time
-            ? discrete_dynamics(model,x⁺,x,z,z[end],t)
-            : discrete_dynamics(model,x⁺,x,z,prob.Δt,t)
-            )
-        dyn_x⁺(z) = (prob.free_time
-            ? discrete_dynamics(model,z,x,u,u[end],t)
-            : discrete_dynamics(model,z,x,u,prob.Δt,t)
-            )
+        dyn_x(z) = discrete_dynamics(model,x⁺,z,u,prob.Δt,w,t)
+        dyn_u(z) = discrete_dynamics(model,x⁺,x,z,prob.Δt,w,t)
+        dyn_x⁺(z) = discrete_dynamics(model,z,x,u,prob.Δt,w,t)
 
         r_idx = (t-1)*nx .+ (1:nx)
 
@@ -112,10 +100,9 @@ end
 function sparsity_dynamics_jacobian(prob::TrajectoryOptimizationProblem;
         r_shift=0)
     idx = prob.idx
-    nx = prob.nx
-    nu = prob.nu
+    nx = prob.model.nx
+    nu = prob.model.nu
     T = prob.T
-    model = prob.model
 
     row = []
     col = []

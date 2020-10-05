@@ -16,6 +16,7 @@ mutable struct Acrobot{T}
 
     nx::Int # state dimension
     nu::Int # control dimension
+    nw::Int
 end
 
 function M(model::Acrobot,q)
@@ -46,7 +47,7 @@ function B(model::Acrobot,q)
     @SMatrix [0.0; 1.0]
 end
 
-function dynamics(model::Acrobot,x,u)
+function dynamics(model::Acrobot,x,u,w)
     q = view(x,1:2)
     v = view(x,3:4)
     qdd = M(model,q)\(-C(model,x)*v + τ(model,q) + B(model,q)*u - [model.b1;model.b2].*v)
@@ -64,7 +65,8 @@ end
 
 nx = 4
 nu = 1
-model = Acrobot(1.0,0.33,1.0,0.5,1.0,0.33,1.0,0.5,9.81,0.1,0.1,nx,nu)
+nw = 0
+model = Acrobot(1.0,0.33,1.0,0.5,1.0,0.33,1.0,0.5,9.81,0.1,0.1,nx,nu,nw)
 
 function visualize!(vis,model::Acrobot,q;
         color=[RGBA(0,0,0,1.0) for i = 1:length(q)],r=0.1,Δt=0.1)

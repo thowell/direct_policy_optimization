@@ -5,9 +5,10 @@ mutable struct Cartpole{T}
     g::T      # gravity m/s^2
     nx::Int   # state dimension
     nu::Int   # control dimension
+	nw::Int
 end
 
-function dynamics(model::Cartpole, x, u)
+function dynamics(model::Cartpole, x, u, w)
     H = @SMatrix [model.mc+model.mp model.mp*model.l*cos(x[2]); model.mp*model.l*cos(x[2]) model.mp*model.l^2]
     C = @SMatrix [0.0 -model.mp*x[4]*model.l*sin(x[2]); 0.0 0.0]
     G = @SVector [0.0, model.mp*model.g*model.l*sin(x[2])]
@@ -18,7 +19,7 @@ function dynamics(model::Cartpole, x, u)
 end
 
 nx,nu = 4,1
-model = Cartpole(1.0,0.2,0.5,9.81,nx,nu)
+model = Cartpole(1.0,0.2,0.5,9.81,nx,nu,nw)
 model_nominal = model
 
 mutable struct CartpoleFriction{T}
@@ -30,9 +31,10 @@ mutable struct CartpoleFriction{T}
     nx::Int   # state dimension
     nu::Int   # control dimension
 	nu_policy
+	nw::Int
 end
 
-function dynamics(model::CartpoleFriction, x, u)
+function dynamics(model::CartpoleFriction, x, u, w)
     H = @SMatrix [model.mc+model.mp model.mp*model.l*cos(x[2]); model.mp*model.l*cos(x[2]) model.mp*model.l^2]
     C = @SMatrix [0.0 -model.mp*x[4]*model.l*sin(x[2]); 0.0 0.0]
     G = @SVector [0.0, model.mp*model.g*model.l*sin(x[2])]
@@ -43,10 +45,10 @@ function dynamics(model::CartpoleFriction, x, u)
     return @SVector [x[3],x[4],qdd[1],qdd[2]]
 end
 
-nx_friction,nu_friction = 4,7
+nx_friction,nu_friction,nw = 4,7,0
 nu_policy_friction = nu
 model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,0.1,
-	nx_friction,nu_friction,nu_policy_friction)
+	nx_friction,nu_friction,nu_policy_friction,nw)
 
 function maximum_energy_dissipation(x⁺,u,model)
 
@@ -130,7 +132,7 @@ function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 	return collect(zip(row,col))
 end
 
-function general_constraints!(c,Z,prob::SampleProblem)
+function general_constraints!(c,Z,prob::DPOProblem)
 	idx_sample = prob.idx_sample
 	model = prob.prob.model
 	T = prob.prob.T
@@ -147,7 +149,7 @@ function general_constraints!(c,Z,prob::SampleProblem)
 	nothing
 end
 
-function ∇general_constraints!(∇c,Z,prob::SampleProblem)
+function ∇general_constraints!(∇c,Z,prob::DPOProblem)
 	shift = 0
 	s = 0
 
@@ -181,7 +183,7 @@ function ∇general_constraints!(∇c,Z,prob::SampleProblem)
 	nothing
 end
 
-function general_constraint_sparsity(prob::SampleProblem;
+function general_constraint_sparsity(prob::DPOProblem;
 		r_shift=0,)
 	row = []
 	col = []
@@ -249,7 +251,7 @@ function objective_gradient!(∇l,Z,l::PenaltyObjective,model::CartpoleFriction,
     return nothing
 end
 
-function sample_general_objective(z,prob::SampleProblem)
+function sample_general_objective(z,prob::DPOProblem)
     idx_sample = prob.idx_sample
     T = prob.prob.T
     N = prob.N
@@ -266,7 +268,7 @@ function sample_general_objective(z,prob::SampleProblem)
     return α_cartpole_friction*J
 end
 
-function ∇sample_general_objective!(∇obj,z,prob::SampleProblem)
+function ∇sample_general_objective!(∇obj,z,prob::DPOProblem)
     idx_sample = prob.idx_sample
     T = prob.prob.T
     N = prob.N

@@ -16,15 +16,15 @@ function general_constraint_sparsity(prob::TrajectoryOptimizationProblem;
 	return collect(zip(row,col))
 end
 
-function general_constraints!(c,Z,prob::SampleProblem)
+function general_constraints!(c,Z,prob::DPOProblem)
 	nothing
 end
 
-function ∇general_constraints!(∇c,Z,prob::SampleProblem)
+function ∇general_constraints!(∇c,Z,prob::DPOProblem)
 	nothing
 end
 
-function general_constraint_sparsity(prob::SampleProblem;
+function general_constraint_sparsity(prob::DPOProblem;
 		r_shift=0)
 	row = []
 	col = []

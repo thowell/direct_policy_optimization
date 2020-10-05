@@ -1,27 +1,55 @@
 function sample_dynamics_constraints!(c,z,prob::DPOProblem)
+    idx_nom = prob.idx_nom
+    idx_sample = prob.idx_sample
+    idx_x_tmp = prob.idx_x_tmp
+    idx_K = prob.idx_K
+    idx_uw = prob.idx_uw
+    u_policy = prob.u_policy
     models = prob.models
-    β = prob.β_resample
-    W = prob.W
+    β = prob.β
+    w = prob.w
+    m_stage = prob.prob.m_stage
     T = prob.prob.T
     N = prob.N
+    disturbance_ctrl = prob.disturbance_ctrl
 
     shift = 0
 
     # nx = length(idx_nom.x[1])
     nu = length(u_policy)
 
-    # dynamics + resampling (μ1 and L1 are taken care of w/ primal bounds)
-    # for t = 1:T-1
-    #     μ = z[prob.idx_μ[t]]
-    #     L = vec_to_lt(z[prob.idx_L[t]])
-    #     x,w = sigma_points(μ,L,W[t],β)
-    #     s = [discrete_dynamics(models[i],x[i],ui[i],prob.prob.Δt,t)) for i = 1:N]
-    #     μ⁺ = sample_mean(s)
-    #     P⁺ = sample_covariance(s,β=β,w=W[t])
-    #
-    #     c[(t-1)*(n + n_tri(n)) .+ (1:n)] = μ⁺ - z[prob.idx_μ[t+1]]
-    #     c[(t-1)*(n + n_tri(n)) + n .+ (1:n_tri(n))] =  lt_to_vec(cholesky(P⁺).L) - z[prob.idx_L[t+1]]
-    # end
+    # dynamics + resampling (x1 is taken care of w/ primal bounds)
+    for t = 1:T-1
+        x⁺_tmp = [view(z,idx_x_tmp[i].x[t]) for i = 1:N]
+        xs⁺ = (t in prob.resample_idx ? resample(x⁺_tmp,β=β,w=w) : x⁺_tmp) # resample
+
+        for i = 1:N
+            xi = view(z,idx_sample[i].x[t])
+            ui = view(z,idx_sample[i].u[t])
+            hi = view(z,idx_sample[i].h[t])
+
+            xi⁺ = view(z,idx_sample[i].x[t+1])
+
+            c[shift .+ (1:models[i].nx)] = discrete_dynamics(models[i],x⁺_tmp[i],xi,ui,hi,t)
+            shift += models[i].nx
+            c[shift .+ (1:models[i].nx)] = xs⁺[i] - xi⁺
+
+            if disturbance_ctrl
+                uwi = view(z,idx_uw[i][t])
+                c[shift .+ (1:models[i].nx)] += uwi
+            end
+
+            shift += models[i].nx
+
+            if t < T-1
+                hi⁺ = view(z,idx_sample[i].h[t+1])
+
+                c[shift + 1] = hi⁺[1] - hi[1]
+
+                shift += 1
+            end
+        end
+    end
     nothing
 end
 

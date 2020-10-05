@@ -6,17 +6,20 @@ mutable struct Biped{T}
     l1::T
     l2::T
     Tm::Int
+
     nx::Int
     nu::Int
+    nw::Int
 end
 
-function dynamics(model::Biped,x,u)
+function dynamics(model::Biped,x,u,w)
     f(x) + g(x)*u
 end
 
 nx = 10
 nu = 4
-model = Biped(0.2755,0.288,0,nx,nu)
+nw = 0
+model = Biped(0.2755,0.288,0,nx,nu,nw)
 
 mutable struct PenaltyObjective{T} <: Objective
     α::T
