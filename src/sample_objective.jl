@@ -1,73 +1,74 @@
 function sample_objective(z,prob::DPOProblem)
-    idx_nom = prob.idx_nom
-    idx_sample = prob.idx_sample
-    u_policy = prob.u_policy
-    Q = prob.Q
-    R = prob.R
-    H = prob.H
-    T = prob.prob.T
-    N = prob.N
-    γ = prob.γ
+    β = prob.β_resample
+    N = prob.N_sample_con
+    sample_model = prob.sample_model
 
     J = 0.0
 
-    for t = 1:T
-        x_nom = view(z,idx_nom.x[t])
+    for t = 1:T-1
+        x_nom = view(z,prob.prob.idx.x[t])
+        u_nom = view(z,prob.prob.idx.u[t])
+        μ = view(z,prob.idx_μ[t])
+        L = view(z,prob.idx_L[t])
+        K = view(z,prob.idx_K[t])
 
-        for i = 1:N
-            xi = output(prob.models[i],view(z,idx_sample[i].x[t]))
-            J += (xi - x_nom)'*Q[t]*(xi - x_nom)
-        end
+        Q = prob.Q[t]
+        R = prob.R[t]
 
-        t==T && continue
-        u_nom = view(z,idx_nom.u[t])
-        h_nom = z[idx_nom.h[t]]
-
-        for i = 1:N
-            ui = view(z,idx_sample[i].u[t])
-            hi = z[idx_sample[i].h[t]]
-            J += (ui - u_nom)'*R[t]*(ui - u_nom)
-            J += (hi - h_nom)'*H[t]*(hi - h_nom)
-        end
+        J += sample_cost(x_nom,u_nom,μ,L,K,β,N,sample_model,Q,R)
     end
 
-    return γ*J/N
+    x_nom = view(z,prob.prob.idx.x[T])
+    μ = view(z,prob.idx_μ[T])
+    L = view(z,prob.idx_L[T])
+
+    Q = prob.Q[T]
+    J += sample_cost_terminal(x_nom,μ,L,β,N,sample_model,Q)
+
+    return J/N
 end
 
 function ∇sample_objective!(∇obj,z,prob::DPOProblem)
-    idx_nom = prob.idx_nom
-    idx_sample = prob.idx_sample
-    u_policy = prob.u_policy
-    Q = prob.Q
-    R = prob.R
-    H = prob.H
-    T = prob.prob.T
-    N = prob.N
-    γ = prob.γ
+    β = prob.β_resample
+    N = prob.N_sample_con
+    sample_model = prob.sample_model
 
-    for t = 1:T
-        x_nom = view(z,idx_nom.x[t])
-        for i = 1:N
-            xi = output(prob.models[i],view(z,idx_sample[i].x[t]))
+    J = 0.0
 
-            ∇obj[output(prob.models[i],idx_sample[i].x[t])] += 2.0*Q[t]*(xi - x_nom)*γ/N
-            ∇obj[idx_nom.x[t]] -= 2.0*Q[t]*(xi - x_nom)*γ/N
-        end
+    for t = 1:T-1
+        x_nom = view(z,prob.prob.idx.x[t])
+        u_nom = view(z,prob.prob.idx.u[t])
+        μ = view(z,prob.idx_μ[t])
+        L = view(z,prob.idx_L[t])
+        K = view(z,prob.idx_K[t])
+        Q = prob.Q[t]
+        R = prob.R[t]
 
-        t==T && continue
-        u_nom = view(z,idx_nom.u[t])
-        h_nom = z[idx_nom.h[t]]
+        tmp_x_nom(y) = sample_cost(y,u_nom,μ,L,K,β,N,sample_model,Q,R)
+        tmp_u_nom(y) = sample_cost(x_nom,y,μ,L,K,β,N,sample_model,Q,R)
+        tmp_μ(y) = sample_cost(x_nom,u_nom,y,L,K,β,N,sample_model,Q,R)
+        tmp_L(y) = sample_cost(x_nom,u_nom,μ,y,K,β,N,sample_model,Q,R)
+        tmp_K(y) = sample_cost(x_nom,u_nom,μ,L,y,β,N,sample_model,Q,R)
 
-        for i = 1:N
-            ui = view(z,idx_sample[i].u[t])
-            hi = z[idx_sample[i].h[t]]
-
-            ∇obj[idx_sample[i].u[t]] += 2.0*R[t]*(ui - u_nom)*γ/N
-            ∇obj[idx_sample[i].h[t]] += 2.0*H[t]*(hi - h_nom)*γ/N
-
-            ∇obj[idx_nom.u[t]] -= 2.0*R[t]*(ui - u_nom)*γ/N
-            ∇obj[idx_nom.h[t]] -= 2.0*H[t]*(hi - h_nom)*γ/N
-        end
+        ∇obj[prob.prob.idx.x[t]] += ForwardDiff.gradient(tmp_x_nom,x_nom)./N
+        ∇obj[prob.prob.idx.u[t]] += ForwardDiff.gradient(tmp_u_nom,u_nom)./N
+        ∇obj[prob.idx_μ[t]] += ForwardDiff.gradient(tmp_μ,μ)./N
+        ∇obj[prob.idx_L[t]] += ForwardDiff.gradient(tmp_L,L)./N
+        ∇obj[prob.idx_K[t]] += ForwardDiff.gradient(tmp_K,K)./N
     end
+
+    x_nom = view(z,prob.prob.idx.x[T])
+    μ = view(z,prob.idx_μ[T])
+    L = view(z,prob.idx_L[T])
+    Q = prob.Q[T]
+
+    Tmp_x_nom(y) = sample_cost_terminal(y,μ,L,β,N,sample_model,Q)
+    Tmp_μ(y) = sample_cost_terminal(x_nom,y,L,β,N,sample_model,Q)
+    Tmp_L(y) = sample_cost_terminal(x_nom,μ,y,β,N,sample_model,Q)
+
+    ∇obj[prob.prob.idx.x[T]] += ForwardDiff.gradient(Tmp_x_nom,x_nom)./N
+    ∇obj[prob.idx_μ[T]] += ForwardDiff.gradient(Tmp_μ,μ)./N
+    ∇obj[prob.idx_L[T]] += ForwardDiff.gradient(Tmp_L,L)./N
+
     return nothing
 end

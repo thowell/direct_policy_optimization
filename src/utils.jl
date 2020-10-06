@@ -90,22 +90,23 @@ function nominal_jacobians(model,X,U;
         free_time=false,Δt=-1.0)
     A = []
     B = []
+    w = zeros(model.nw)
     for t = 1:T-1
         x = X[t]
         u = U[t]
         x⁺ = X[t+1]
 
         fx(z) = (free_time
-                 ? midpoint_implicit(model,x⁺,z,u[1:end-1],u[end])
-                 : midpoint_implicit(model,x⁺,z,u,Δt)
+                 ? midpoint_implicit(model,x⁺,z,u[1:end-1],u[end],w)
+                 : midpoint_implicit(model,x⁺,z,u,Δt,w)
                  )
         fu(z) = (free_time
-                 ? midpoint_implicit(model,x⁺,x,z[1:end-1],z[end])
-                 : midpoint_implicit(model,x⁺,x,z,Δt)
+                 ? midpoint_implicit(model,x⁺,x,z[1:end-1],z[end],w)
+                 : midpoint_implicit(model,x⁺,x,z,Δt,w)
                  )
         fx⁺(z) = (free_time
-                  ? midpoint_implicit(model,z,x,u[1:end-1],u[end])
-                  : midpoint_implicit(model,z,x,u,Δt)
+                  ? midpoint_implicit(model,z,x,u[1:end-1],u[end],w)
+                  : midpoint_implicit(model,z,x,u,Δt,w)
                   )
 
         A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
@@ -131,7 +132,7 @@ function sample_mean(X)
     xμ = sum(X)./N
 end
 
-function sample_covariance(X; β=1.0,w=ones(length(X[1])))
+function sample_covariance(X; β=1.0,w=1.0e-8*ones(length(X[1])))
     N = length(X)
     xμ = sample_mean(X)
     Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + Diagonal(w)
@@ -187,45 +188,109 @@ function sample_dynamics(model,X,U,Δt,t; β=1.0,w=1.0,fast_sqrt=false)
 end
 
 function n_tri(n)
-    (n^2 + n)/2
+    convert(Int,(n^2 + n)/2)
 end
 
 function sigma_points(μ,L,W,β)
     n = length(μ)
     d = size(W,1)
     w0 = zeros(d)
+    L_mat = vec_to_lt(L)
 
-    x = cat([μ + s*β*L[:,i] for s in [-1.0,1.0] for i = 1:n],[μ for i = 1:2d],dims=(1,1))
+    x = cat([μ + s*β*L_mat[:,i] for s in [-1.0,1.0] for i = 1:n],[μ for i = 1:2d],dims=(1,1))
     w = cat([w0 for i = 1:2n],[s*β*W[:,i] for s in [-1.0,1.0] for i = 1:d],dims=(1,1))
     return x,w
 end
 
-function dynamics_sample_mean(x_nom,u_nom,μ,L,K,W,β,Δt,t,models,N)
+function state_sigma_points(μ,L,β)
+    n = length(μ)
     L_mat = vec_to_lt(L)
-    x,w = sigma_points(μ,L_mat,W,β)
-    s = [discrete_dynamics(models[i],x[i],
-            policy(models[i],K,models[i].nx,models[i].nu,x_nom,u_nom),Δt,w[i],t) for i = 1:N]
+
+    x = [μ + s*β*L_mat[:,i] for s in [-1.0,1.0] for i = 1:n]
+    return x
+end
+
+
+
+function dynamics_sample_mean(x_nom,u_nom,μ,L,K,W,β,Δt,t,sample_model,N)
+    x, w = sigma_points(μ,L,W,β)
+    s = [discrete_dynamics(sample_model,x[i],
+            policy(sample_model,K,x[i],x_nom,u_nom),Δt,w[i],t) for i = 1:N]
     μ⁺ = sample_mean(s)
     μ⁺
 end
 
-function dynamics_sample_L(x_nom,u_nom,μ,L,K,W,β,Δt,t,models,N)
-    L_mat = vec_to_lt(L)
-    x,w = sigma_points(μ,L_mat,W,β)
-    s = [discrete_dynamics(models[i],x[i],
-            policy(models[i],K,models[i].nx,models[i].nu,x_nom,u_nom),Δt,w[i],t) for i = 1:N]
+function dynamics_sample_L(x_nom,u_nom,μ,L,K,W,β,Δt,t,sample_model,N)
+    x,w = sigma_points(μ,L,W,β)
+    s = [discrete_dynamics(sample_model,x[i],
+            policy(sample_model,K,x[i],x_nom,u_nom),Δt,w[i],t) for i = 1:N]
     P⁺ = sample_covariance(s)
     L⁺ = lt_to_vec(cholesky(P⁺).L)
     L⁺
+end
+
+function sample_cost(x_nom,u_nom,μ,L,K,β,N,sample_model,Q,R)
+    x = state_sigma_points(μ,L,β)
+    u = [policy(sample_model,K,x[i],x_nom,u_nom) for i = 1:N]
+    J = 0.0
+    for i = 1:N
+        J += (x[i] - x_nom)'*Q*(x[i] - x_nom)
+        J += (u[i] - u_nom)'*R*(u[i] - u_nom)
+    end
+    return J
+end
+
+function sample_cost_terminal(x_nom,μ,L,β,N,sample_model,Q)
+    x = state_sigma_points(μ,L,β)
+    J = 0.0
+    for i = 1:N
+        J += (x[i] - x_nom)'*Q*(x[i] - x_nom)
+    end
+    return J
 end
 
 function lt_to_vec(L)
     L[tril!(trues(size(L)), 0)]
 end
 
-function vec_to_lt(v::AbstractVector{T}, z::T=zero(T)) where T
+function vec_to_lt(v)
     n = length(v)
     s = round(Int,(sqrt(8n+1)-1)/2)
-    s*(s+1)/2 == n || error("vec2utri: length of vector is not triangular")
-    [ i>=j ? v[round(Int, j*(j-1)/2+i)] : z for i=1:s, j=1:s ]
+    x = zeros(eltype(v),s,s)
+    shift = 1
+    for j = 1:s
+        for i = j:s
+            x[i,j] = v[shift]
+            shift += 1
+        end
+    end
+    x
+end
+
+function sample_control_bounds!(c,μ,L,K,x_nom,u_nom,β,N,sample_model,ul,uu)
+    x = state_sigma_points(μ,L,β)
+    u = [policy(sample_model,K,x[i],x_nom,u_nom) for i = 1:N]
+    for i = 1:N
+        c[(i-1)*(2*sample_model.nu) .+ (1:sample_model.nu)] = uu - u[i]
+        c[(i-1)*(2*sample_model.nu) + sample_model.nu .+ (1:sample_model.nu)] = u[i] - ul
+    end
+    return nothing
+end
+
+function sample_state_bounds!(c,μ,L,β,N,sample_model,xl,xu)
+    x = state_sigma_points(μ,L,β)
+    for i = 1:N
+        c[(i-1)*(2*sample_model.nx) .+ (1:sample_model.nx)] = xu - x[i]
+        c[(i-1)*(2*sample_model.nx) + sample_model.nx .+ (1:sample_model.nx)] = x[i] - xl
+    end
+    return nothing
+end
+
+function sample_stage!(c,μ,L,K,x_nom,u_nom,β,N,sample_model,m_stage,t)
+    x = state_sigma_points(μ,L,β)
+    u = [policy(sample_model,K,x[i],x_nom,u_nom) for i = 1:N]
+    for i = 1:N
+        c_stage!(view(c,(i-1)*m_stage .+ (1:m_stage)),x[i],u[i],t,sample_model)
+    end
+    return nothing
 end

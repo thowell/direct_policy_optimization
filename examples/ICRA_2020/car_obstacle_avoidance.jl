@@ -17,7 +17,6 @@ ul = -3.0
 tf0 = 1.0
 Δt = tf0/(T-1)
 
-
 # Initial and final states
 x1 = [0.0; 0.0; 0.0]
 xT = [1.0; 1.0; 0.0]
@@ -93,52 +92,57 @@ Z0 = pack(X0,U0,prob)
 @time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
 X_nom, U_nom = unpack(Z_nominal,prob)
 
+K = TVLQR_gains(model,X_nom,U_nom,Q_lqr,R_lqr)
+
 # Sample
+sample_model = model
+β_resample = 1.0e-1
+β_con = 7.5e-1
+W = [Diagonal(1.0*[1.0;1.0;0.1]) for t = 1:T-1]
+L1 = lt_to_vec(cholesky(Diagonal(1.0e-1*[1.0;1.0;0.1])).L)
 
-N = 2*model.nx
-models = [model for i = 1:N]
-β = 1.0
-w = 1.0e-5*[1.0;1.0;0.1]
-γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=0.1,w=[1.0;1.0;0.1])
+μ1 = copy(x1)
 
-xl_traj_sample = [[-Inf*ones(model.nx) for t = 1:T] for i = 1:N]
-xu_traj_sample = [[Inf*ones(model.nx) for t = 1:T] for i = 1:N]
+μl_traj_sample = [-Inf*ones(sample_model.nx) for t = 1:T]
+μu_traj_sample = [Inf*ones(sample_model.nx) for t = 1:T]
 
-for i = 1:N
-    xl_traj_sample[i][1] = x1_sample[i]
-    xu_traj_sample[i][1] = x1_sample[i]
-end
+μl_traj_sample[1] = copy(μ1)
+μu_traj_sample[1] = copy(μ1)
 
-K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
+Ll_traj_sample = [-Inf*ones(n_tri(sample_model.nx)) for t = 1:T]
+Lu_traj_sample = [Inf*ones(n_tri(sample_model.nx)) for t = 1:T]
 
-prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
-    xl=xl_traj_sample,
-    xu=xu_traj_sample,
-    β=β,w=w,γ=γ)
+Ll_traj_sample[1] = copy(L1)
+Lu_traj_sample[1] = copy(L1)
 
+prob_sample = init_DPO_problem(
+    prob,
+    sample_model,
+    Q_lqr,R_lqr,
+    μl=μl_traj_sample,
+    μu=μu_traj_sample,
+    Ll=Ll_traj_sample,
+    Lu=Lu_traj_sample,
+    ul=prob.ul,
+    uu=prob.uu,
+    # xl=[-100.0*ones(sample_model.nx) for t = 1:T],
+    # xu=[100.0*ones(sample_model.nx) for t = 1:T],
+    β_resample=β_resample,β_con=β_con,W=W)
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample)
+μ0 = deepcopy(X_nom)
+L0 = [0.1*ones(n_tri(sample_model.nx)) for t = 1:T]
+Z0_sample = pack(X_nom,U_nom,μ0,L0,K,prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=60)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=360,
+    max_iter=500,c_tol=1.0e-2,tol=1.0e-2)
 
 # Unpack solutions
-X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+X_nom_sample, U_nom_sample, μ_sol, L_sol, K_sol, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
 
-# Time trajectories
-t_nominal = zeros(T)
-t_sample = zeros(T)
-for t = 2:T
-    t_nominal[t] = t_nominal[t-1] + H_nom[t-1]
-    t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
-end
-
-display("time (nominal): $(sum(H_nom))s")
-display("time (sample): $(sum(H_nom_sample))s")
-
+L_mat_sol = [vec_to_lt(L_sol[t]) for t = 1:T]
 # Plots results
 
 # Position trajectory
@@ -163,7 +167,7 @@ plt = plot!(Shape(cx3,cy3),color=:red,label="",linecolor=:red)
 plt = plot!(Shape(cx4,cy4),color=:red,label="",linecolor=:red)
 # plt = plot(Shape(cx5,cy5),color=:red,label="",linecolor=:red)
 
-for i = 1:N
+for i = 1:prob_sample.N_sample_con
     x_sample_pos = [X_sample[i][t][1] for t = 1:T]
     y_sample_pos = [X_sample[i][t][2] for t = 1:T]
     plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,
@@ -174,13 +178,17 @@ x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
 plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=4.0,label="DPO",color=:orange,legend=:bottomright)
 
+μx_pos = [μ_sol[t][1] for t = 1:T]
+μy_pos = [μ_sol[t][2] for t = 1:T]
+plt = plot!(μx_pos,μy_pos,aspect_ratio=:equal,width=1.0,label="mean",color=:green,legend=:bottomright)
+
 savefig(plt,joinpath(@__DIR__,"results/car_trajectory.png"))
 
 # Control
-plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',color=:purple,width=2.0,
+plt = plot(Array(hcat(U_nom...))',color=:purple,width=2.0,
     title="car",xlabel="time (s)",ylabel="control",label=["v (nominal)" "ω (nominal)"],
     legend=:bottom,linetype=:steppost)
-plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',color=:orange,
+plt = plot!(Array(hcat(U_nom_sample...))',color=:orange,
     width=2.0,label=["v (sample)" "ω (sample)"],linetype=:steppost)
 savefig(plt,joinpath(@__DIR__,"results/car_control.png"))
 
@@ -191,7 +199,7 @@ plt1 = plot(title="Sample states",legend=:bottom,xlabel="time (s)");
 for i = 1:N
     t_sample = zeros(T)
     for t = 2:T
-        t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
+        t_sample[t] = t_sample[t-1] + Δt
     end
     plt1 = plot!(t_sample,hcat(X_sample[i]...)',label="");
 end
