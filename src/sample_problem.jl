@@ -44,7 +44,8 @@ mutable struct DPOProblem <: Problem
     W
 
     general_objective
-
+    sample_control_consraints
+    sample_state_constraints
     sample_general_constraints
     m_sample_general
     sample_general_ineq
@@ -65,6 +66,8 @@ function init_DPO_problem(prob::TrajectoryOptimizationProblem,
         xu=[Inf*ones(sample_model.nx) for t = 1:prob.T],
         β_resample=1.0,β_con=1.0,W=[Diagonal(ones(sample_model.nx)) for t = 1:T-1],
         general_objective=false,
+        sample_control_constraints=false,
+        sample_state_constraints=false,
         sample_general_constraints=false,
         m_sample_general=0,
         sample_general_ineq=(1:m_sample_general)
@@ -81,8 +84,8 @@ function init_DPO_problem(prob::TrajectoryOptimizationProblem,
     N_nlp = prob.N + Nμ + NL + NK
 
     M_dynamics = (sample_model.nx + n_tri(sample_model.nx))*(T-1)
-    M_control = 2*N_sample_con*sample_model.nu*(T-1)
-    M_state = 0*2*N_sample_con*sample_model.nx*T
+    M_control = sample_control_constraints*2*N_sample_con*sample_model.nu*(T-1)
+    M_state = sample_state_constraints*2*N_sample_con*sample_model.nx*T
     M_stage = prob.stage_constraints*N_sample_con*sum(prob.m_stage)
     M_general = sample_general_constraints*m_sample_general
 
@@ -113,6 +116,8 @@ function init_DPO_problem(prob::TrajectoryOptimizationProblem,
         N_sample_dyn,N_sample_con,sample_model,
         β_resample,β_con,W,
         general_objective,
+        sample_control_constraints,
+        sample_state_constraints,
         sample_general_constraints,
         m_sample_general,
         sample_general_ineq

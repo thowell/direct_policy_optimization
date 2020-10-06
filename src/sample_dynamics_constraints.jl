@@ -3,6 +3,7 @@ function sample_dynamics_constraints!(c,z,prob::DPOProblem)
     β = prob.β_resample
     W = prob.W
     T = prob.prob.T
+    Δt = prob.prob.Δt
     N = prob.N_sample_dyn
     n = sample_model.nx
     shift = 0
@@ -22,7 +23,7 @@ function sample_dynamics_constraints!(c,z,prob::DPOProblem)
         c[(t-1)*(n + n_tri(n)) .+ (1:n)] = (dynamics_sample_mean(x_nom,u_nom,μ,L,K,W[t],β,Δt,t,sample_model,N)
             - μ⁺)
 
-        c[(t-1)*(n + n_tri(n)) + n .+ (1:n_tri(n))] = (dynamics_sample_L(x_nom,u_nom,μ,L,K,W[t],β,Δt,t,sample_model,N)
+        c[(t-1)*(n + n_tri(n)) + n .+ (1:n_tri(n))] = (dynamics_sample_L(x_nom,model.nu==1 ? u_nom[1] : u_nom,μ,L,K,W[t],β,Δt,t,sample_model,N)
             - L⁺)
     end
     nothing
@@ -33,6 +34,7 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::DPOProblem)
     β = prob.β_resample
     W = prob.W
     T = prob.prob.T
+    Δt = prob.prob.Δt
     N = prob.N_sample_dyn
     n = sample_model.nx
 
@@ -107,7 +109,10 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::DPOProblem)
 
         c_idx = prob.prob.idx.u[t]
         len = length(r_idx)*length(c_idx)
-        ∇c[shift .+ (1:len)] = vec(real.(FiniteDiff.finite_difference_jacobian(tmp2_u_nom,u_nom)))
+        ∇c[shift .+ (1:len)] = (model.nu==1
+            ? vec(real.(FiniteDiff.finite_difference_derivative(tmp2_u_nom,u_nom[1])))
+            : vec(real.(FiniteDiff.finite_difference_jacobian(tmp2_u_nom,u_nom)))
+            )
         # ∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(tmp2_u_nom,u_nom))
         shift += len
 

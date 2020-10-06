@@ -37,11 +37,11 @@ end
 
 function discrete_dynamics(model::DoubleIntegratorAnalytical,x⁺,x,u,h,w,t)
     A, B = get_dynamics(model)
-    x⁺ - A*x - B*u
+    x⁺ - A*x - B*u - w
 end
 function discrete_dynamics(model::DoubleIntegratorAnalytical,x,u,h,w,t)
     A, B = get_dynamics(model)
-    A*x + B*u
+    A*x + B*u + w
 end
 
-model_analytical = DoubleIntegratorAnalytical(2,1,0,0.1)
+model_analytical = DoubleIntegratorAnalytical(2,1,2,0.1)

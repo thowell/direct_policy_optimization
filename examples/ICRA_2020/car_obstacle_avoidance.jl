@@ -123,8 +123,10 @@ prob_sample = init_DPO_problem(
     μu=μu_traj_sample,
     Ll=Ll_traj_sample,
     Lu=Lu_traj_sample,
-    ul=prob.ul,
-    uu=prob.uu,
+    ul=deepcopy(prob.ul),
+    uu=deepcopy(prob.uu),
+    sample_control_constraints=true,
+    sample_state_constraints=false,
     # xl=[-100.0*ones(sample_model.nx) for t = 1:T],
     # xu=[100.0*ones(sample_model.nx) for t = 1:T],
     β_resample=β_resample,β_con=β_con,W=W)
@@ -142,6 +144,7 @@ Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=360,
 # Unpack solutions
 X_nom_sample, U_nom_sample, μ_sol, L_sol, K_sol, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
 
+U_sample
 L_mat_sol = [vec_to_lt(L_sol[t]) for t = 1:T]
 # Plots results
 
@@ -196,29 +199,29 @@ savefig(plt,joinpath(@__DIR__,"results/car_control.png"))
 
 # State samples
 plt1 = plot(title="Sample states",legend=:bottom,xlabel="time (s)");
-for i = 1:N
-    t_sample = zeros(T)
-    for t = 2:T
-        t_sample[t] = t_sample[t-1] + Δt
-    end
-    plt1 = plot!(t_sample,hcat(X_sample[i]...)',label="");
+for i = 1:prob_sample.N_sample_con
+    # t_sample = zeros(T)
+    # for t = 2:T
+    #     t_sample[t] = t_sample[t-1] + Δt
+    # end
+    plt1 = plot!(hcat(X_sample[i]...)',label="");
 end
-plt1 = plot!(t_sample,hcat(X_nom_sample...)',color=:red,width=2.0,
+plt1 = plot!(hcat(X_nom_sample...)',color=:red,width=2.0,
     label=["nominal" "" ""])
 display(plt1)
 savefig(plt1,joinpath(@__DIR__,"results/car_sample_states.png"))
 
 # Control samples
 plt2 = plot(title="Sample controls",xlabel="time (s)",legend=:bottom);
-for i = 1:N
-    t_sample = zeros(T)
-    for t = 2:T
-        t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
-    end
-    plt2 = plot!(t_sample[1:end-1],hcat(U_sample[i]...)',label="",
+for i = 1:prob_sample.N_sample_con
+    # t_sample = zeros(T)
+    # for t = 2:T
+    #     t_sample[t] = t_sample[t-1] + Δt
+    # end
+    plt2 = plot!(hcat(U_sample[i]...)',label="",
         linetype=:steppost);
 end
-plt2 = plot!(t_sample[1:end-1],hcat(U_nom_sample...)',color=:red,width=2.0,
+plt2 = plot!(hcat(U_nom_sample...)',color=:red,width=2.0,
     label=["nominal" ""],linetype=:steppost)
 display(plt2)
 savefig(plt2,joinpath(@__DIR__,"results/car_sample_controls.png"))

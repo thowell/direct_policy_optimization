@@ -224,9 +224,10 @@ function dynamics_sample_L(x_nom,u_nom,μ,L,K,W,β,Δt,t,sample_model,N)
     x,w = sigma_points(μ,L,W,β)
     s = [discrete_dynamics(sample_model,x[i],
             policy(sample_model,K,x[i],x_nom,u_nom),Δt,w[i],t) for i = 1:N]
-    P⁺ = sample_covariance(s)
+    P⁺ = Array(sample_covariance(s))
     L⁺ = lt_to_vec(cholesky(P⁺).L)
     L⁺
+    # u_nom
 end
 
 function sample_cost(x_nom,u_nom,μ,L,K,β,N,sample_model,Q,R)

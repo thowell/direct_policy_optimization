@@ -26,6 +26,7 @@ prob = init_problem(T,model,obj,
                     xu=[zeros(nx) for t = 1:T],
                     ul=[zeros(nu) for t = 1:T-1],
                     uu=[zeros(nu) for t = 1:T-1],
+					Δt=model.Δt
                     )
 
 # MathOptInterface problem
@@ -45,57 +46,72 @@ X_nom, U_nom = unpack(Z_nominal,prob)
 # Sample
 Q_lqr = [Diagonal(ones(nx)) for t = 1:T]
 R_lqr = [Diagonal(ones(nu)) for t = 1:T-1]
-H_lqr = [0.0 for t = 1:T-1]
 
 K = TVLQR([A for t=1:T-1],[B for t=1:T-1],[Q_lqr[t] for t=1:T],[R_lqr[t] for t=1:T-1])
 
 α = 1.0
-x11 = α*[1.0; 1.0]
-x12 = α*[1.0; -1.0]
-x13 = α*[-1.0; 1.0]
-x14 = α*[-1.0; -1.0]
-x1_sample = [x11,x12,x13,x14]
+# x11 = α*[1.0; 1.0]
+# x12 = α*[1.0; -1.0]
+# x13 = α*[-1.0; 1.0]
+# x14 = α*[-1.0; -1.0]
+# x1_sample = [x11,x12,x13,x14]
 
-N = 2*nx
-models = [model for i = 1:N]
-β = 1.0
-w = 1.0e-1*ones(nx)
-γ = N
+μ1 = zeros(model.nx)
+L1 = lt_to_vec(cholesky(Diagonal(α*ones(model.nx))).L)
 
-xl_traj_sample = [[-Inf*ones(nx) for t = 1:T] for i = 1:N]
-xu_traj_sample = [[Inf*ones(nx) for t = 1:T] for i = 1:N]
+sample_model = model
+β_resample = 1.0
+β_con = 1.0
+W = [Diagonal(1.0*ones(model.nw)) for t = 1:T-1]
 
-ul_traj_sample = [[-Inf*ones(nu) for t = 1:T-1] for i = 1:N]
-uu_traj_sample = [[Inf*ones(nu) for t = 1:T-1] for i = 1:N]
+μl_traj_sample = [-Inf*ones(nx) for t = 1:T]
+μu_traj_sample = [Inf*ones(nx) for t = 1:T]
 
-for i = 1:N
-    xl_traj_sample[i][1] = x1_sample[i]
-    xu_traj_sample[i][1] = x1_sample[i]
-end
+μl_traj_sample[1] = copy(μ1)
+μu_traj_sample[1] = copy(μ1)
 
-prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
-    xl=xl_traj_sample,
-    xu=xu_traj_sample,
-	ul=ul_traj_sample,
-    uu=uu_traj_sample,
-    β=β,w=w,γ=γ)
+Ll_traj_sample = [-Inf*ones(n_tri(nx)) for t = 1:T]
+Lu_traj_sample = [Inf*ones(n_tri(nx)) for t = 1:T]
 
+Ll_traj_sample[1] = copy(L1)
+Lu_traj_sample[1] = copy(L1)
+
+# ul_traj_sample = [[-Inf*ones(nu) for t = 1:T-1] for i = 1:N]
+# uu_traj_sample = [[Inf*ones(nu) for t = 1:T-1] for i = 1:N]
+
+prob_sample = init_DPO_problem(prob,sample_model,
+	Q_lqr,R_lqr,
+	μl=μl_traj_sample,
+    μu=μu_traj_sample,
+    Ll=Ll_traj_sample,
+    Lu=Lu_traj_sample,
+    # ul=deepcopy(prob.ul),
+    # uu=deepcopy(prob.uu),
+    # sample_control_constraints=true,
+    # sample_state_constraints=false,
+    # xl=[-100.0*ones(sample_model.nx) for t = 1:T],
+    # xu=[100.0*ones(sample_model.nx) for t = 1:T],
+    β_resample=β_resample,β_con=β_con,W=W)
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-Z0_sample = ones(prob_sample_moi.n)
+# Z0_sample = ones(prob_sample_moi.n)
+Z0_sample = pack([ones(nx) for t = 1:T],
+	[ones(nu) for t = 1:T-1],
+	[ones(nx) for t = 1:T],
+	[lt_to_vec(cholesky(Diagonal(ones(nx))).L) for t = 1:T],
+	[ones(nu*nx) for t = 1:T-1],prob_sample)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=60,tol=1.0e-6,c_tol=1.0e-6)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),
+	nlp=:SNOPT7,time_limit=60,tol=1.0e-6,c_tol=1.0e-6)
 
 # Unpack solutions
-X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
+X_nom_sample, U_nom_sample, μ_sol, L_sol, K_sol, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
 
-X_sample[1]
-U_sample[1]
 Θ = [reshape(Z_sample_sol[prob_sample.idx_K[t]],nu,nx) for t = 1:T-1]
 policy_error = [norm(vec(Θ[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-println("Policy solution error (avg.): $(sum(policy_error)/T)")
+println("Policy solution error (Inf norm): $(norm(policy_error,Inf))")
 
 using Plots
 plt = plot(policy_error,xlabel="time step",ylims=(1.0e-16,1.0),yaxis=:log,
