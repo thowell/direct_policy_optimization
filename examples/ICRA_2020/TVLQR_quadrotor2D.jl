@@ -6,8 +6,8 @@ nx = model.nx
 nu = model.nu
 
 # horizon
-T = 51
-Δt = 0.1
+T = 101
+Δt = 0.05
 
 Δt*(T-1)
 
@@ -17,9 +17,9 @@ xT_nom = [1.0; 1.0; 0.0; 0.0; 0.0; 0.0]
 
 x_nom_ref = linear_interp(x1_nom,xT_nom,T)
 
-Q_nom = [(t < T ? Diagonal([1.0; 1.0; 1.0; 1.0; 1.0; 1.0])
-	: Diagonal([10.0; 10.0; 10.0; 10.0; 10.0; 10.0])) for t = 1:T]
-R_nom = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+Q_nom = [(t < T ? Diagonal([10.0; 10.0; 10.0; 1.0; 1.0; 1.0])
+	: Diagonal([10.0; 10.0; 10.0; 1.0; 1.0; 1.0])) for t = 1:T]
+R_nom = [Diagonal(10.0*ones(model.nu)) for t = 1:T-1]
 
 xl_traj = [-Inf*ones(nx) for t = 1:T]
 xu_traj = [Inf*ones(nx) for t = 1:T]
@@ -33,10 +33,12 @@ xu_traj[T] = xT_nom
 ul_traj = [zeros(nu) for t = 1:T]
 uu_traj = [Inf*ones(nu) for t = 1:T]
 
+u_ref = model.m*model.g/2.0*ones(model.nu)
+
 obj = QuadraticTrackingObjective(
 	Q_nom,
 	R_nom,
-    [xT_nom for t=1:T],[zeros(nu) for t=1:T])
+    [xT_nom for t=1:T],[u_ref for t=1:T])
 
 # Problem
 prob = init_problem(T,model,obj,
@@ -52,7 +54,7 @@ prob_moi = init_MOI_Problem(prob)
 
 # Trajectory initialization
 X0 = x_nom_ref # linear interpolation on state
-U0 = [1.0*rand(nu) for t = 1:T-1] # random controls
+U0 = [copy(u_ref) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,prob)
@@ -62,7 +64,7 @@ Z0 = pack(X0,U0,prob)
 X_nom, U_nom = unpack(Z_nominal,prob)
 
 Plots.plot(hcat(X_nom...)')
-Plots.plot(hcat(U_nom...)')
+Plots.plot(hcat(U_nom...)',linetype=:steppost)
 
 obj_fixed = QuadraticTrackingObjective(
 	[Diagonal(zeros(nx)) for t = 1:T],
@@ -83,14 +85,14 @@ prob_fixed = init_problem(T,model,obj_fixed,
 					Δt=Δt
                     )
 # Sample
-Q_lqr = [(t < T ? Diagonal([1.0;1.0;1.0;1.0;1.0;1.0])
-	: Diagonal([10.0;10.0;10.0;10.0;10.0;10.0])) for t = 1:T]
-R_lqr = [Diagonal(1.0e-1*ones(nu)) for t = 1:T-1]
+Q_lqr = [(t < T ? Diagonal([10.0;10.0;10.0;10.0;10.0;10.0])
+	: Diagonal([100.0;100.0;100.0;100.0;100.0;100.0])) for t = 1:T]
+R_lqr = [Diagonal(1.0*ones(nu)) for t = 1:T-1]
 
 A_dyn, B_dyn = nominal_jacobians(model,X_nom,U_nom,Δt=Δt)
 K = TVLQR_gains(model,X_nom,U_nom,Q_lqr,R_lqr,Δt=Δt)
 
-α = 1.0
+α = 1.0e-1
 # x11 = α*[1.0; 1.0]
 # x12 = α*[1.0; -1.0]
 # x13 = α*[-1.0; 1.0]
@@ -101,9 +103,9 @@ K = TVLQR_gains(model,X_nom,U_nom,Q_lqr,R_lqr,Δt=Δt)
 L1 = lt_to_vec(cholesky(Diagonal(α*ones(model.nx))).L)
 
 sample_model = model
-β_resample = 1.0
-β_con = 1.0
-W = [Diagonal(1.0*ones(model.nw)) for t = 1:T-1]
+β_resample = 1.0e-1
+β_con = 1.0e-1
+W = [Diagonal(1.0e-1*ones(model.nw)) for t = 1:T-1]
 
 μl_traj_sample = [-Inf*ones(nx) for t = 1:T]
 μu_traj_sample = [Inf*ones(nx) for t = 1:T]
@@ -154,12 +156,12 @@ end
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),
-	nlp=:SNOPT7,time_limit=300,tol=1.0e-3,c_tol=1.0e-3)
+	nlp=:SNOPT7,time_limit=60,tol=1.0e-2,c_tol=1.0e-2)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, μ_sol, L_sol, K_sol, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
 
-Θ_linear = [reshape(Z_sample_sol[prob_sample.idx_K[t]],nu,nx) for t = 1:T-1]
+Θ_linear = [reshape(K_sol[t],nu,nx) for t = 1:T-1]
 policy_error_linear = [norm(vec(Θ_linear[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("Policy solution error (Inf norm) [linear dynamics]:
     $(norm(policy_error_linear,Inf))")
@@ -225,38 +227,41 @@ PGF.save(joinpath(dir,"TVLQR_quadrotor2D.tikz"), a, include_preamble=false)
 
 
 plot(range(0,stop=Δt*(T-1),length=T),hcat(X_nom...)[1:3,:]')
-# # Simulate policy
-# using Distributions
-# model_sim = model
-# T_sim = 10*T
+
+# Simulate policy
+using Distributions
+include(joinpath(pwd(),"dynamics/quadrotor2D.jl"))
+
+model_sim = model
+T_sim = 10*T
+
+W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
+w = rand(W,T_sim)
+
+W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
+w0 = rand(W0,1)
+
+z0_sim = vec(copy(X_nom[1]) + w0)
+
+t_nom = range(0,stop=Δt*T,length=T)
+t_sim = range(0,stop=Δt*T,length=T_sim)
+
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
+    X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,Δt,z0_sim,w,_norm=2)
 #
-# W = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
-# w = rand(W,T_sim)
-#
-# W0 = Distributions.MvNormal(zeros(nx),Diagonal(1.0e-5*ones(nx)))
-# w0 = rand(W0,1)
-#
-# z0_sim = vec(copy(X_nom[1]) + w0)
-#
-# t_nom = range(0,stop=Δt*T,length=T)
-# t_sim = range(0,stop=Δt*T,length=T_sim)
-#
-# z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
-#     X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,Δt,z0_sim,w,_norm=2)
-#
-# z_linear, u_linear, J_linear, Jx_linear, Ju_linear = simulate_linear_controller(Θ_linear,
-#     X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,Δt,z0_sim,w,_norm=2)
+z_linear, u_linear, J_linear, Jx_linear, Ju_linear = simulate_linear_controller(Θ_linear,
+    X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,Δt,z0_sim,w,_norm=2)
 #
 # z_nonlin, u_nonlin, J_nonlin, Jx_nonlin, Ju_nonlin = simulate_linear_controller(Θ_nonlinear,
 #     X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,Δt,z0_sim,w,_norm=2)
 #
-# plt_x = plot(t_nom,hcat(X_nom...)[1:6,:]',legend=:topright,color=:red,
-#     label="",width=2.0,xlabel="time (s)",
-#     title="Quadrotor 2D",ylabel="state")
-# plt_x = plot!(t_sim,hcat(z_tvlqr...)[1:6,:]',color=:purple,label="",
-#     width=2.0)
-# plt_x = plot!(t_sim,hcat(z_linear...)[1:6,:]',linetype=:steppost,color=:cyan,
-#     label="",width=2.0)
+plt_x = plot(t_nom,hcat(X_nom...)[1:6,:]',legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Quadrotor 2D",ylabel="state")
+plt_x = plot!(t_sim,hcat(z_tvlqr...)[1:6,:]',color=:purple,label="",
+    width=2.0)
+plt_x = plot!(t_sim,hcat(z_linear...)[1:6,:]',linetype=:steppost,color=:cyan,
+    label="",width=2.0)
 # plt_x = plot!(t_sim,hcat(z_nonlin...)[1:6,:]',linetype=:steppost,color=:orange,
 #     label="",width=2.0)
 #
@@ -270,17 +275,30 @@ plot(range(0,stop=Δt*(T-1),length=T),hcat(X_nom...)[1:3,:]')
 # plt_u = plot!(t_sim[1:T_sim-1],hcat(u_nonlin...)[1:1,:]',color=:orange,
 #     label="nonlinear",width=2.0)
 #
-# # objective value
-# J_tvlqr
-# J_linear
-# J_nonlin
-#
-# # state tracking
-# Jx_tvlqr
-# Jx_linear
-# Jx_nonlin
-#
-# # control tracking
-# Ju_tvlqr
-# Ju_linear
-# Ju_nonlin
+# objective value
+J_tvlqr
+J_linear
+J_nonlin
+
+# state tracking
+Jx_tvlqr
+Jx_linear
+Jx_nonlin
+
+# control tracking
+Ju_tvlqr
+Ju_linear
+Ju_nonlin
+
+
+
+
+
+
+
+
+
+
+
+
+vec(K[1])

@@ -173,7 +173,7 @@ plt = plot!(Shape(cx4,cy4),color=:red,label="",linecolor=:red)
 for i = 1:prob_sample.N_sample_con
     x_sample_pos = [X_sample[i][t][1] for t = 1:T]
     y_sample_pos = [X_sample[i][t][2] for t = 1:T]
-    plt = scatter!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,
+    plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,
         color=:cyan,label= i != 1 ? "" : "sample")
 end
 display(plt)
