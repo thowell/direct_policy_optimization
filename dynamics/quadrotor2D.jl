@@ -25,4 +25,4 @@ function discrete_dynamics(model::Quadrotor2D,x,u,h,w,t)
 end
 
 nx,nu,nw = 6,2,6
-model = Quadrotor2D(1.0,1.0/12.0*(2*0.5^2),0.5,9.81,nx,nu,nw) 
+model = Quadrotor2D(0.5,1.0,1.0/12.0*(2*0.5^2),9.81,nx,nu,nw)

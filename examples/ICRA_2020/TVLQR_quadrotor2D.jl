@@ -6,7 +6,7 @@ nx = model.nx
 nu = model.nu
 
 # horizon
-T = 101
+T = 201
 Δt = 0.05
 
 Δt*(T-1)
@@ -17,18 +17,18 @@ xT_nom = [1.0; 1.0; 0.0; 0.0; 0.0; 0.0]
 
 x_nom_ref = linear_interp(x1_nom,xT_nom,T)
 
-Q_nom = [(t < T ? Diagonal([10.0; 10.0; 10.0; 1.0; 1.0; 1.0])
-	: Diagonal([10.0; 10.0; 10.0; 1.0; 1.0; 1.0])) for t = 1:T]
+Q_nom = [(t < T ? Diagonal([1.0; 1.0; 1.0; 1.0; 1.0; 10.0])
+	: Diagonal([1.0; 1.0; 1.0; 1.0; 1.0; 10.0])) for t = 1:T]
 R_nom = [Diagonal(10.0*ones(model.nu)) for t = 1:T-1]
 
 xl_traj = [-Inf*ones(nx) for t = 1:T]
 xu_traj = [Inf*ones(nx) for t = 1:T]
 
-xl_traj[1] = x1_nom
-xu_traj[1] = x1_nom
+xl_traj[1] = copy(x1_nom)
+xu_traj[1] = copy(x1_nom)
 
-xl_traj[T] = xT_nom
-xu_traj[T] = xT_nom
+xl_traj[T] = copy(xT_nom)
+xu_traj[T] = copy(xT_nom)
 
 ul_traj = [zeros(nu) for t = 1:T]
 uu_traj = [Inf*ones(nu) for t = 1:T]
@@ -85,27 +85,28 @@ prob_fixed = init_problem(T,model,obj_fixed,
 					Δt=Δt
                     )
 # Sample
-Q_lqr = [(t < T ? Diagonal([10.0;10.0;10.0;10.0;10.0;10.0])
-	: Diagonal([100.0;100.0;100.0;100.0;100.0;100.0])) for t = 1:T]
-R_lqr = [Diagonal(1.0*ones(nu)) for t = 1:T-1]
+γ = 1.0
+Q_lqr = [(t < T ? Diagonal(γ*[10.0;10.0;10.0;10.0;10.0;10.0])
+	: Diagonal(γ*[100.0;100.0;100.0;100.0;100.0;100.0])) for t = 1:T]
+R_lqr = [γ*Diagonal(1.0*ones(nu)) for t = 1:T-1]
 
 A_dyn, B_dyn = nominal_jacobians(model,X_nom,U_nom,Δt=Δt)
 K = TVLQR_gains(model,X_nom,U_nom,Q_lqr,R_lqr,Δt=Δt)
 
-α = 1.0e-1
+α = 1.0
 # x11 = α*[1.0; 1.0]
 # x12 = α*[1.0; -1.0]
 # x13 = α*[-1.0; 1.0]
 # x14 = α*[-1.0; -1.0]
 # x1_sample = [x11,x12,x13,x14]
 
-μ1 = zeros(model.nx)
+μ1 = ones(model.nx)
 L1 = lt_to_vec(cholesky(Diagonal(α*ones(model.nx))).L)
 
 sample_model = model
-β_resample = 1.0e-1
-β_con = 1.0e-1
-W = [Diagonal(1.0e-1*ones(model.nw)) for t = 1:T-1]
+β_resample = 1.0
+β_con = 1.0
+W = [Diagonal(1.0*ones(model.nw)) for t = 1:T-1]
 
 μl_traj_sample = [-Inf*ones(nx) for t = 1:T]
 μu_traj_sample = [Inf*ones(nx) for t = 1:T]
@@ -143,7 +144,13 @@ Z0_sample = pack([rand(nx) for t = 1:T],
 	[rand(nu) for t = 1:T-1],
 	[rand(nx) for t = 1:T],
 	[lt_to_vec(cholesky(Diagonal(rand(nx))).L) for t = 1:T],
-	[rand(nu*nx) for t = 1:T-1],prob_sample)
+	[K[t] for t = 1:T-1],prob_sample)
+
+# Z0_sample = pack([zeros(nx) for t = 1:T],
+# 	[zeros(nu) for t = 1:T-1],
+# 	[zeros(nx) for t = 1:T],
+# 	[lt_to_vec(cholesky(Diagonal(ones(nx))).L) for t = 1:T],
+# 	[K[t] for t = 1:T-1],prob_sample)
 
 # linear dynamics
 function discrete_dynamics(model::Quadrotor2D,x⁺,x,u,h,w,t)
@@ -156,11 +163,13 @@ end
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),
-	nlp=:SNOPT7,time_limit=60,tol=1.0e-2,c_tol=1.0e-2)
+	nlp=:SNOPT7,time_limit=100,tol=1.0e-2,c_tol=1.0e-2)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, μ_sol, L_sol, K_sol, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
 
+
+P_sol = [vec_to_lt(L_sol[t])*vec_to_lt(L_sol[t])' for t = 1:T]
 Θ_linear = [reshape(K_sol[t],nu,nx) for t = 1:T-1]
 policy_error_linear = [norm(vec(Θ_linear[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("Policy solution error (Inf norm) [linear dynamics]:
@@ -289,16 +298,3 @@ Jx_nonlin
 Ju_tvlqr
 Ju_linear
 Ju_nonlin
-
-
-
-
-
-
-
-
-
-
-
-
-vec(K[1])

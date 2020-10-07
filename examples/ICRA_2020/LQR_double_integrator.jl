@@ -109,7 +109,7 @@ Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),
 # Unpack solutions
 X_nom_sample, U_nom_sample, μ_sol, L_sol, K_sol, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
 
-Θ = [reshape(Z_sample_sol[prob_sample.idx_K[t]],nu,nx) for t = 1:T-1]
+Θ = [reshape(K_sol[t],nu,nx) for t = 1:T-1]
 policy_error = [norm(vec(Θ[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("Policy solution error (Inf norm): $(norm(policy_error,Inf))")
 

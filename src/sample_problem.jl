@@ -44,8 +44,10 @@ mutable struct DPOProblem <: Problem
     W
 
     general_objective
+
     sample_control_consraints
     sample_state_constraints
+
     sample_general_constraints
     m_sample_general
     sample_general_ineq
@@ -267,7 +269,7 @@ function eval_constraint!(c,Z,prob::DPOProblem)
    prob.M_state > 0 && sample_state_bounds!(view(c,M+prob.M_dynamics+prob.M_control .+ (1:prob.M_state)),Z,prob)
 
    prob.prob.stage_constraints && sample_stage_constraints!(view(c,
-    M+prob.M_dynamics+prob.M_control+prob.M_state .+ (1:prob.M_stage)),Z,prob)
+        M+prob.M_dynamics+prob.M_control+prob.M_state .+ (1:prob.M_stage)),Z,prob)
    #
    # prob.sample_general_constraints && general_constraints!(view(c,
    #  M+prob.M_dynamics+prob.M_stage .+ (1:prob.M_general)),Z,prob)

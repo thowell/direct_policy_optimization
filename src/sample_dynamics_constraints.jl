@@ -104,7 +104,6 @@ function ∇sample_dynamics_constraints!(∇c,z,prob::DPOProblem)
         len = length(r_idx)*length(c_idx)
         ∇c[shift .+ (1:len)] = vec(real.(FiniteDiff.finite_difference_jacobian(tmp2_x_nom,x_nom)))
         # ∇c[shift .+ (1:len)] = vec(ForwardDiff.jacobian(tmp2_x_nom,x_nom))
-
         shift += len
 
         c_idx = prob.prob.idx.u[t]

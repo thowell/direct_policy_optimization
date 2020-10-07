@@ -135,7 +135,7 @@ end
 function sample_covariance(X; β=1.0,w=1.0e-8*ones(length(X[1])))
     N = length(X)
     xμ = sample_mean(X)
-    Σμ = (0.5/(β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + Diagonal(w)
+    Σμ = (0.5/((N-1)*β^2))*sum([(X[i] - xμ)*(X[i] - xμ)' for i = 1:N]) + Diagonal(w)
 end
 
 function resample(X; β=1.0,w=ones(length(X[1])))
@@ -214,16 +214,16 @@ end
 
 function dynamics_sample_mean(x_nom,u_nom,μ,L,K,W,β,Δt,t,sample_model,N)
     x, w = sigma_points(μ,L,W,β)
-    s = [discrete_dynamics(sample_model,x[i],
-            policy(sample_model,K,x[i],x_nom,u_nom),Δt,w[i],t) for i = 1:N]
+    u = [policy(sample_model,K,x[i],x_nom,u_nom) for i = 1:N]
+    s = [discrete_dynamics(sample_model,x[i],u[i],Δt,w[i],t) for i = 1:N]
     μ⁺ = sample_mean(s)
     μ⁺
 end
 
 function dynamics_sample_L(x_nom,u_nom,μ,L,K,W,β,Δt,t,sample_model,N)
     x,w = sigma_points(μ,L,W,β)
-    s = [discrete_dynamics(sample_model,x[i],
-            policy(sample_model,K,x[i],x_nom,u_nom),Δt,w[i],t) for i = 1:N]
+    u = [policy(sample_model,K,x[i],x_nom,u_nom) for i = 1:N]
+    s = [discrete_dynamics(sample_model,x[i],u[i],Δt,w[i],t) for i = 1:N]
     P⁺ = Array(sample_covariance(s))
     L⁺ = lt_to_vec(cholesky(P⁺).L)
     L⁺
