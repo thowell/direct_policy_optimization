@@ -59,7 +59,8 @@ MOI.hessian_lagrangian_structure(prob::MOI.AbstractNLPEvaluator) = []
 MOI.eval_hessian_lagrangian(prob::MOI.AbstractNLPEvaluator, H, x, σ, μ) = nothing
 
 function solve(prob::MOI.AbstractNLPEvaluator,x0;
-        tol=1.0e-3,c_tol=1.0e-2,max_iter=1000,nlp=:ipopt,time_limit=120)
+        tol=1.0e-3,c_tol=1.0e-2,max_iter=1000,nlp=:ipopt,time_limit=120,
+        mipl=0,mapl=1,print_sol="No")
     x_l, x_u = primal_bounds(prob)
     c_l, c_u = constraint_bounds(prob)
 
@@ -77,6 +78,9 @@ function solve(prob::MOI.AbstractNLPEvaluator,x0;
         solver = SNOPT7.Optimizer(Major_feasibility_tolerance=c_tol,
                                   Minor_feasibility_tolerance=tol,
                                   Major_optimality_tolerance=tol,
+                                  Major_print_level=mapl,
+                                  Minor_print_level=mipl,
+                                  Solution=print_sol,
                                   Time_limit=time_limit)
     end
 

@@ -17,7 +17,7 @@ function dynamics(model::Quadrotor2D,x,u,w)
 end
 
 function discrete_dynamics(model::Quadrotor2D,x⁺,x,u,h,w,t)
-    midpoint_implicit(model,x⁺,x,u,h,w) + w
+    midpoint_implicit(model,x⁺,x,u,h,w) - w
 end
 
 function discrete_dynamics(model::Quadrotor2D,x,u,h,w,t)

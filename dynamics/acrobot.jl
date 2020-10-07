@@ -19,7 +19,7 @@ mutable struct Acrobot{T}
     nw::Int
 end
 
-function M(model::Acrobot,q)
+function M_func(model::Acrobot,q)
 
     a = (model.J1 + model.J2 + model.m2*model.l1*model.l1 + 2.0*model.m2*model.l1*model.lc2*cos(q[2]))
     b = model.J2 + model.m2*model.l1*model.lc2*cos(q[2])
@@ -29,13 +29,13 @@ function M(model::Acrobot,q)
               b c]
 end
 
-function τ(model::Acrobot,q)
+function τ_func(model::Acrobot,q)
     a = -model.m1*model.g*model.lc1*sin(q[1]) - model.m2*model.g*(model.l1*sin(q[1]) + model.lc2*sin(q[1]+q[2]))
     b = -model.m2*model.g*model.lc2*sin(q[1] + q[2])
     @SVector [a, b]
 end
 
-function C(model::Acrobot,x)
+function C_func(model::Acrobot,x)
     a = -2.0*model.m2*model.l1*model.lc2*sin(x[2])*x[4]
     b = -model.m2*model.l1*model.lc2*sin(x[2])*x[4]
     c = model.m2*model.l1*model.lc2*sin(x[2])*x[3]
@@ -43,14 +43,14 @@ function C(model::Acrobot,x)
     @SMatrix [a b; c d]
 end
 
-function B(model::Acrobot,q)
+function B_func(model::Acrobot,q)
     @SMatrix [0.0; 1.0]
 end
 
 function dynamics(model::Acrobot,x,u,w)
     q = view(x,1:2)
     v = view(x,3:4)
-    qdd = M(model,q)\(-C(model,x)*v + τ(model,q) + B(model,q)*u - [model.b1;model.b2].*v)
+    qdd = M_func(model,q)\(-C_func(model,x)*v + τ_func(model,q) + B_func(model,q)*u - [model.b1;model.b2].*v)
     @SVector [x[3],x[4],qdd[1],qdd[2]]
 end
 
@@ -65,7 +65,7 @@ end
 
 nx = 4
 nu = 1
-nw = 0
+nw = 4
 model = Acrobot(1.0,0.33,1.0,0.5,1.0,0.33,1.0,0.5,9.81,0.1,0.1,nx,nu,nw)
 
 function visualize!(vis,model::Acrobot,q;

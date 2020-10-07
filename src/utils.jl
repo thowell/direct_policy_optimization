@@ -94,24 +94,36 @@ function nominal_jacobians(model,X,U;
     for t = 1:T-1
         x = X[t]
         u = U[t]
-        x⁺ = X[t+1]
+        # x⁺ = X[t+1]
+        #
+        # fx(z) = (free_time
+        #          ? midpoint_implicit(model,x⁺,z,u[1:end-1],u[end],w)
+        #          : midpoint_implicit(model,x⁺,z,u,Δt,w)
+        #          )
+        # fu(z) = (free_time
+        #          ? midpoint_implicit(model,x⁺,x,z[1:end-1],z[end],w)
+        #          : midpoint_implicit(model,x⁺,x,z,Δt,w)
+        #          )
+        # fx⁺(z) = (free_time
+        #           ? midpoint_implicit(model,z,x,u[1:end-1],u[end],w)
+        #           : midpoint_implicit(model,z,x,u,Δt,w)
+        #           )
+        #
+        # A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
+        # push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
+        # push!(B,-A⁺\ForwardDiff.jacobian(fu,u)[:,free_time ? (1:end-1) : (1:end)])
 
         fx(z) = (free_time
-                 ? midpoint_implicit(model,x⁺,z,u[1:end-1],u[end],w)
-                 : midpoint_implicit(model,x⁺,z,u,Δt,w)
+                 ? midpoint(model,z,u[1:end-1],u[end],w)
+                 : midpoint(model,z,u,Δt,w)
                  )
         fu(z) = (free_time
-                 ? midpoint_implicit(model,x⁺,x,z[1:end-1],z[end],w)
-                 : midpoint_implicit(model,x⁺,x,z,Δt,w)
+                 ? midpoint(model,x,z[1:end-1],z[end],w)
+                 : midpoint(model,x,z,Δt,w)
                  )
-        fx⁺(z) = (free_time
-                  ? midpoint_implicit(model,z,x,u[1:end-1],u[end],w)
-                  : midpoint_implicit(model,z,x,u,Δt,w)
-                  )
 
-        A⁺ = ForwardDiff.jacobian(fx⁺,x⁺)
-        push!(A,-A⁺\ForwardDiff.jacobian(fx,x))
-        push!(B,-A⁺\ForwardDiff.jacobian(fu,u)[:,free_time ? (1:end-1) : (1:end)])
+        push!(A,ForwardDiff.jacobian(fx,x))
+        push!(B,ForwardDiff.jacobian(fu,u)[:,free_time ? (1:end-1) : (1:end)])
     end
     return A, B
 end

@@ -14,7 +14,7 @@ function dynamics(model::Pendulum,x,u,w)
               u[1]/(model.m*model.lc*model.lc) - model.g*sin(x[1])/model.lc - model.b*x[2]/(model.m*model.lc*model.lc)]
 end
 
-nx,nu,nw = 2,1,0
+nx,nu,nw = 2,1,2
 model = Pendulum(1.0,0.1,0.5,0.25,9.81,nx,nu,nw)
 
 # Pendulum with free final time
@@ -42,5 +42,5 @@ function discrete_dynamics(model::PendulumFT,x,u,h,w,t)
     midpoint(model,x,u[1:end-1],u[end],w)
 end
 
-nx_ft,nu_ft,nw = 2,2,0
+nx_ft,nu_ft,nw = 2,2,2
 model_ft = PendulumFT(1.0,0.1,0.5,0.25,9.81,nx_ft,nu_ft,nw)
