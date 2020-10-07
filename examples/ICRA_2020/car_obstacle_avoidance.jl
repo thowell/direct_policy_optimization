@@ -63,8 +63,8 @@ obj = QuadraticTrackingObjective(Q,R,
     [xT for t=1:T],[zeros(model.nu) for t=1:T])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal([10.0;10.0;1.0]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
-R_lqr = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+Q_lqr = [t < T ? Diagonal([10.0;10.0;10.0]) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
+R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
 
 # Problem
 prob = init_problem(T,model,obj,
@@ -98,8 +98,8 @@ K = TVLQR_gains(model,X_nom,U_nom,Q_lqr,R_lqr)
 sample_model = model
 β_resample = 1.0e-1
 β_con = 7.5e-1
-W = [Diagonal(1.0*[1.0;1.0;0.1]) for t = 1:T-1]
-L1 = lt_to_vec(cholesky(Diagonal(1.0e-1*[1.0;1.0;0.1])).L)
+W = [Diagonal(1.0*[1.0;1.0;1.0]) for t = 1:T-1]
+L1 = lt_to_vec(cholesky(Diagonal(1.0e-1*[1.0;1.0;1.0])).L)
 
 μ1 = copy(x1)
 
@@ -139,7 +139,7 @@ Z0_sample = pack(X_nom,U_nom,μ0,L0,K,prob_sample)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=360,
-    max_iter=500,c_tol=1.0e-2,tol=1.0e-2)
+    max_iter=500,c_tol=1.0e-3,tol=1.0e-3)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, μ_sol, L_sol, K_sol, X_sample, U_sample = unpack(Z_sample_sol,prob_sample)
@@ -173,9 +173,10 @@ plt = plot!(Shape(cx4,cy4),color=:red,label="",linecolor=:red)
 for i = 1:prob_sample.N_sample_con
     x_sample_pos = [X_sample[i][t][1] for t = 1:T]
     y_sample_pos = [X_sample[i][t][2] for t = 1:T]
-    plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,
+    plt = scatter!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,
         color=:cyan,label= i != 1 ? "" : "sample")
 end
+display(plt)
 plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="TO",color=:purple,legend=:topleft)
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 y_sample_pos = [X_nom_sample[t][2] for t = 1:T]

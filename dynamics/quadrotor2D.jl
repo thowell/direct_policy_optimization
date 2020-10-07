@@ -16,5 +16,13 @@ function dynamics(model::Quadrotor2D,x,u,w)
     @SVector [x[4],x[5],x[6],qdd1,qdd2,qdd3]
 end
 
-nx,nu,nw = 6,2,0
+function discrete_dynamics(model::Quadrotor2D,x⁺,x,u,h,w,t)
+    midpoint_implicit(model,x⁺,x,u,h,w) + w
+end
+
+function discrete_dynamics(model::Quadrotor2D,x,u,h,w,t)
+    midpoint(model,x,u,h,w) + w
+end
+
+nx,nu,nw = 6,2,6
 model = Quadrotor2D(1.0,1.0,1.0,9.81,nx,nu,nw)
