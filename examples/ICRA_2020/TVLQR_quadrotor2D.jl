@@ -159,8 +159,8 @@ X_sample[1]
 U_sample[1]
 Θ_linear = [reshape(Z_sample_sol[prob_sample.idx_K[t]],nu,nx) for t = 1:T-1]
 policy_error_linear = [norm(vec(Θ_linear[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-println("Policy solution error (avg.) [linear dynamics]:
-    $(sum(policy_error_linear)/T)")
+println("Policy solution error (Inf norm) [linear dynamics]:
+    $(norm(policy_error_linear,Inf))")
 
 plt = plot(policy_error_linear,xlabel="time step",ylabel="matrix-norm error",yaxis=:log,
     ylims=(1.0e-16,1.0),width=2.0,legend=:bottom,label="")

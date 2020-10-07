@@ -25,14 +25,14 @@ ul_traj = [copy(ul) for t = 1:T-1]
 # Circle obstacle
 r_cyl = 0.5
 r = r_cyl + model.L
-xc1 = 2.5
-yc1 = 1.0
-xc2 = 2.0
-yc2 = 2.75
-xc3 = 4.0
-yc3 = 1.85
-xc4 = 5.0
-yc4 = 1.0
+xc1 = 2.0
+yc1 = 2.0
+xc2 = 4.0
+yc2 = 4.0
+xc3 = 2.5
+yc3 = 1.125
+xc4 = 2.0
+yc4 = 4.0
 
 xc = [xc1,xc2,xc3,xc4]
 yc = [yc1,yc2,yc3,yc4]
@@ -60,7 +60,7 @@ x1 = zeros(model.nx)
 x1[3] = 1.0
 xT = copy(x1)
 xT[1] = 5.0
-xT[2] = 2.25
+xT[2] = 5.0
 
 xl = -Inf*ones(model.nx)
 xl[1] = -1.0
@@ -69,7 +69,7 @@ xl[3] = 0.0
 
 xu = Inf*ones(model.nx)
 xu[1] = 6.0
-xu[2] = 3.25
+xu[2] = 6.0
 xl_traj = [copy(xl) for t = 1:T]
 xu_traj = [copy(xu) for t = 1:T]
 
@@ -136,9 +136,9 @@ end
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-2*ones(model.nx)
+w = 1.0e-3*ones(model.nx)
 γ = N
-x1_sample = resample([x1 for i = 1:N],β=β,w=w)
+x1_sample = resample([x1 for i = 1:N],β=1.0,w=1.0e-3*ones(model.nx))
 
 xl_traj_sample = [[copy(xl) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[copy(xu) for t = 1:T] for i = 1:N]
@@ -158,10 +158,10 @@ prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample,r=0.01)
+Z0_sample = pack(X0,U_nom,H_nom[1],K,prob_sample,r=0.1)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=7*60*60,tol=1.0e-2,c_tol=1.0e-2)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=10*60,tol=1.0e-2,c_tol=1.0e-2)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -182,7 +182,7 @@ display("time (sample): $(sum(H_nom_sample))s")
 # Position trajectory
 x_nom_pos = [X_nom[t][1] for t = 1:T]
 y_nom_pos = [X_nom[t][2] for t = 1:T]
-pts = Plots.partialcircle(0,2π,100,r)
+pts = Plots.partialcircle(0,2π,100,r_cyl)
 cx,cy = Plots.unzip(pts)
 cx1 = [_cx + xc1 for _cx in cx]
 cy1 = [_cy + yc1 for _cy in cy]
