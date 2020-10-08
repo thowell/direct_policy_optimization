@@ -3,6 +3,9 @@ include(joinpath(pwd(),"dynamics/rocket.jl"))
 include(joinpath(pwd(),"dynamics/visualize.jl"))
 using Plots, Random
 
+vis = Visualizer()
+open(vis)
+
 # Nominal model
 nx_nom = model_nom.nx
 nu = model_nom.nu
@@ -250,7 +253,7 @@ dt_sim_nom = sum(H_nom)/(T_sim-1)
 
 z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
     X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,H_nom[1],z0_sim,w,_norm=2,
-	controller=:policy,ul=ul,uu=uu)
+	controller=:policy)#,ul=ul,uu=uu)
 
 plt_x = plot(t_nom,hcat(X_nom...)[1:model_nom.nx,:]',
 	legend=:topright,color=:red,

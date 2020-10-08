@@ -3,20 +3,27 @@ include(joinpath(pwd(),"dynamics/quadrotor.jl"))
 include(joinpath(pwd(),"dynamics/obstacles.jl"))
 include(joinpath(pwd(),"dynamics/visualize.jl"))
 
+vis = Visualizer()
+open(vis)
+
 using Plots
 
 # Horizon
-T = 21
-Tm = convert(Int,floor(T/2)+1)
+T = 31
+# Tm = convert(Int,floor(T/2)+1)
 
 # Bounds
 
 # ul <= u <= uu
-uu = 2.0*ones(model.nu)
+uu = 3.0*ones(model.nu)
+uu_nom = copy(uu)
+uu[2] *= 0.5
 ul = zeros(model.nu)
+ul_nom = copy(ul)
+@assert sum(uu) > -1.0*model.m*model.g[3]
 
-uu_traj = [copy(uu) for t = 1:T-1]
-ul_traj = [copy(ul) for t = 1:T-1]
+uu_traj = [copy(uu_nom) for t = 1:T-1]
+ul_traj = [copy(ul_nom) for t = 1:T-1]
 
 # for t = Tm:T-1
 #     uu_traj[t][1] = 0.0
@@ -25,8 +32,8 @@ ul_traj = [copy(ul) for t = 1:T-1]
 # Circle obstacle
 r_cyl = 0.5
 r = r_cyl + model.L
-xc1 = 2.0-0.125
-yc1 = 2.0
+xc1 = 1.5-0.1
+yc1 = 1.5
 xc2 = 4.0-0.125
 yc2 = 4.0
 xc3 = 2.25
@@ -42,12 +49,12 @@ circles = [(xc1,yc1,r),(xc2,yc2,r),(xc3,yc3,r),(xc4,yc4,r)]
 # Constraints
 function c_stage!(c,x,u,t,model)
     c[1] = circle_obs(x[1],x[2],xc1,yc1,r)
-    c[2] = circle_obs(x[1],x[2],xc2,yc2,r)
+    # c[2] = circle_obs(x[1],x[2],xc2,yc2,r)
     # c[3] = circle_obs(x[1],x[2],xc3,yc3,r)
     # c[4] = circle_obs(x[1],x[2],xc4,yc4,r)
     nothing
 end
-m_stage = 2
+m_stage = 1
 
 # h = h0 (fixed timestep)
 tf0 = 5.0
@@ -59,17 +66,17 @@ hl = 0.0*h0
 x1 = zeros(model.nx)
 x1[3] = 1.0
 xT = copy(x1)
-xT[1] = 5.0
-xT[2] = 5.0
+xT[1] = 3.0
+xT[2] = 3.0
 
 xl = -Inf*ones(model.nx)
-xl[1] = -1.0
-xl[2] = -1.0
+# xl[1] = -1.0
+# xl[2] = -1.0
 xl[3] = 0.0
 
 xu = Inf*ones(model.nx)
-xu[1] = 6.0
-xu[2] = 6.0
+# xu[1] = 6.0
+# xu[2] = 6.0
 xl_traj = [copy(xl) for t = 1:T]
 xu_traj = [copy(xu) for t = 1:T]
 
@@ -83,13 +90,13 @@ u_ref = -1.0*model.m*model.g[3]/4.0*ones(model.nu)
 
 # Objective
 Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(1.0*ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
 c = 10.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[u_ref for t=1:T-1])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal(100.0*ones(model.nx)) : Diagonal(1000.0*ones(model.nx)) for t = 1:T]
+Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
 H_lqr = [10.0 for t = 1:T-1]
 
@@ -117,23 +124,68 @@ Z0 = pack(X0,U0,h0,prob)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7)
+@time Z_nominal = solve(prob_moi,copy(Z0),nlp=:SNOPT7,c_tol=1.0e-3,tol=1.0e-3)
 X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 sum(H_nom)
 plot(hcat(X_nom...)[1:3,:]',linetype=:steppost)
 plot(hcat(U_nom...)',linetype=:steppost)
 
-vis = Visualizer()
-open(vis)
 visualize!(vis,model,X_nom,Δt=H_nom[1])
-
 for i = 1:m_stage
     cyl = Cylinder(Point3f0(xc[i],yc[i],0),Point3f0(xc[i],yc[i],2.0),convert(Float32,r_cyl-model.L))
     setobject!(vis["cyl$i"],cyl,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
 end
 
-# Sample
+# Simulate TVLQR
+K = TVLQR_gains(model,X_nom,U_nom,[H_nom[1] for t = 1:T-1],Q_lqr,R_lqr)
 
+using Distributions
+
+model_sim = model
+x1_sim = copy(x1)
+T_sim = 10*T
+
+W = Distributions.MvNormal(zeros(model_sim.nx),
+	Diagonal(1.0e-32*ones(model_sim.nx)))
+w = rand(W,T_sim)
+
+W0 = Distributions.MvNormal(zeros(model_sim.nx),
+	Diagonal(1.0e-32*ones(model_sim.nx)))
+w0 = rand(W0,1)
+
+z0_sim = vec(copy(x1_sim) + w0)
+
+t_nom = range(0,stop=sum(H_nom),length=T)
+t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
+
+# simulate
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
+    X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,H_nom[1],z0_sim,w,_norm=2,
+	ul=ul_nom,uu=uu_nom)
+
+# plot states
+plt_x = plot(t_nom,hcat(X_nom...)[1:model.nx,:]',
+	legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Quadrotor",ylabel="state")
+plt_x = plot!(t_sim_nom,hcat(z_tvlqr...)[1:model.nx,:]',color=:black,label="",
+    width=1.0)
+
+# plot COM
+plot_traj = plot(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],
+	legend=:topright,color=:red,
+    label="",width=2.0,xlabel="y",ylabel="z",
+    title="Quadrotor")
+plot_traj = plot!(hcat(z_tvlqr...)[1,:],hcat(z_tvlqr...)[2,:],
+	color=:black,
+    label="",width=1.0)
+
+plot(t_nom[1:end-1],hcat(U_nom...)',
+	linetype=:steppost,color=:red,width=2.0)
+plot!(t_sim_nom[1:end-1],hcat(u_tvlqr...)',
+	linetype=:steppost,color=:black,width=1.0)
+
+# Sample
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
@@ -143,6 +195,23 @@ x1_sample = resample([x1 for i = 1:N],β=1.0,w=1.0e-2*ones(model.nx))
 
 xl_traj_sample = [[copy(xl) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[copy(xu) for t = 1:T] for i = 1:N]
+
+ul_traj_sample = [[copy(ul_nom) for t = 1:T-1] for i = 1:N]
+uu_traj_sample = [[copy(uu_nom) for t = 1:T-1] for i = 1:N]
+for t = 1:T-1
+	for i = 1:6
+		uu_traj_sample[i][t][1] *= 0.5
+	end
+	for i = 6 .+ (1:6)
+		uu_traj_sample[i][t][2] *= 0.5
+	end
+	for i = 12 .+ (1:6)
+		uu_traj_sample[i][t][3] *= 0.5
+	end
+	for i = 18 .+ (1:6)
+		uu_traj_sample[i][t][4] *= 0.5
+	end
+end
 
 for i = 1:N
     xl_traj_sample[i][1] = copy(x1_sample[i])
@@ -154,16 +223,17 @@ K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
 prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
     xl=xl_traj_sample,
     xu=xu_traj_sample,
+	ul=ul_traj_sample,
+    uu=uu_traj_sample,
     β=β,w=w,γ=γ)
-
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample,r=0.01)
+Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample,r=0.001)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
-    time_limit=6*60*60,tol=1.0e-2,c_tol=1.0e-2)
+    time_limit=60*60,tol=1.0e-2,c_tol=1.0e-2)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -184,7 +254,7 @@ display("time (sample): $(sum(H_nom_sample))s")
 # Position trajectory
 x_nom_pos = [X_nom[t][1] for t = 1:T]
 y_nom_pos = [X_nom[t][2] for t = 1:T]
-pts = Plots.partialcircle(0,2π,100,r_cyl)
+pts = Plots.partialcircle(0,2π,100,r)
 cx,cy = Plots.unzip(pts)
 cx1 = [_cx + xc1 for _cx in cx]
 cy1 = [_cy + yc1 for _cy in cy]
@@ -211,7 +281,7 @@ for i = 1:N
 end
 display(plt)
 
-plt = plot!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="TO",color=:purple,legend=:topleft)
+plt = scatter!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="TO",color=:purple,legend=:topleft)
 x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
 y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
 plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=4.0,label="DPO",color=:orange,legend=:bottomright)
