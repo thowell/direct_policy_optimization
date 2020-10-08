@@ -102,7 +102,7 @@ X_nom, U_nom, H_nom = unpack(Z_nominal,prob)
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-5*[1.0;1.0;0.1]
+w = 1.0e-3*[1.0;1.0;0.1]
 γ = 1.0
 x1_sample = resample([x1 for i = 1:N],β=0.1,w=[1.0;1.0;0.1])
 
@@ -131,17 +131,6 @@ Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=60)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
-
-# Time trajectories
-t_nominal = zeros(T)
-t_sample = zeros(T)
-for t = 2:T
-    t_nominal[t] = t_nominal[t-1] + H_nom[t-1]
-    t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
-end
-
-display("time (nominal): $(sum(H_nom))s")
-display("time (sample): $(sum(H_nom_sample))s")
 
 # Plots results
 
@@ -265,11 +254,11 @@ PGF.save(joinpath(dir,"car_obstacles.tikz"), a, include_preamble=false)
 
 function visualize!(vis,p,q; Δt=0.1,r=0.25)
 
-    obj_path = joinpath(pwd(),"/home/taylor/Research/contact_implicit_trajectory_optimization/models/cybertruck/cybertruck.obj")
-    mtl_path = joinpath(pwd(),"/home/taylor/Research/contact_implicit_trajectory_optimization/models/cybertruck/cybertruck.mtl")
+    obj_path = joinpath(pwd(),"/home/taylor/Research/direct_policy_optimization/dynamics/cybertruck/cybertruck.obj")
+    mtl_path = joinpath(pwd(),"/home/taylor/Research/direct_policy_optimization/dynamics/cybertruck/cybertruck.mtl")
 
     ctm = ModifiedMeshFileObject(obj_path,mtl_path,scale=0.05)
-    setobject!(vis["cybertruck"],ctm,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
+    setobject!(vis["cybertruck"],ctm)
     settransform!(vis["cybertruck"], LinearMap(RotZ(pi)*RotX(pi/2.0)))
 
     anim = MeshCat.Animation(convert(Int,floor(1/Δt)))
@@ -285,61 +274,53 @@ function visualize!(vis,p,q; Δt=0.1,r=0.25)
     MeshCat.setanimation!(vis,anim)
 end
 
-function ModifiedMeshFileObject(obj_path::String, material_path::String; scale::T=0.1) where {T}
-    obj = MeshFileObject(obj_path)
-    rescaled_contents = rescale_contents(obj_path, scale=scale)
-    material = select_material(material_path)
-    mod_obj = MeshFileObject(
-        rescaled_contents,
-        obj.format,
-        material,
-        obj.resources,
-        )
-    return mod_obj
-end
-
-function rescale_contents(obj_path::String; scale::T=0.1) where T
-    lines = readlines(obj_path)
-    rescaled_lines = copy(lines)
-    for (k,line) in enumerate(lines)
-        if length(line) >= 2
-            if line[1] == 'v'
-                stringvec = split(line, " ")
-                vals = map(x->parse(Float64,x),stringvec[2:end])
-                rescaled_vals = vals .* scale
-                rescaled_lines[k] = join([stringvec[1]; string.(rescaled_vals)], " ")
-            end
-        end
-    end
-    rescaled_contents = join(rescaled_lines, "\r\n")
-    return rescaled_contents
-end
-
-function select_material(material_path::String)
-    mtl_file = open(material_path)
-    mtl = read(mtl_file, String)
-    return mtl
-end
-
-using Colors
-using CoordinateTransformations
-using FileIO
-using GeometryTypes
-using LinearAlgebra
-using MeshCat
-using MeshIO
-using Rotations
+include(joinpath(pwd(),"dynamics/visualize.jl"))
 
 vis = Visualizer()
 open(vis)
-visualize!(vis,model,X_nom,Δt=H_nom_sample[1])
+visualize!(vis,model,X_nom_sample,Δt=H_nom_sample[1])
 
 for i = 1:4
     cyl = Cylinder(Point3f0(xc[i],yc[i],0),Point3f0(xc[i],yc[i],0.1),convert(Float32,0.035))
     setobject!(vis["cyl$i"],cyl,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
 end
 
+q_to = deepcopy(X_nom)
+for t = 1:T
+	setobject!(vis["traj_to$t"], HyperSphere(Point3f0(0),
+		convert(Float32,0.075)),
+		MeshPhongMaterial(color=RGBA(0.0,255.0/255.0,255.0/255.0,0.75)))
+	settransform!(vis["traj_to$t"], Translation((q_to[t][1],q_to[t][2],-0.1)))
+	setvisible!(vis["traj_to$t"],true)
+end
 
+q_dpo = deepcopy(X_nom_sample)
+for t = 1:T
+	setobject!(vis["traj_dpo$t"], HyperSphere(Point3f0(0),
+		convert(Float32,0.075)),
+		MeshPhongMaterial(color=RGBA(255.0/255.0,127.0/255.0,0.0,0.5)))
+	settransform!(vis["traj_dpo$t"], Translation((q_dpo[t][1],q_dpo[t][2],-0.05)))
+	setvisible!(vis["traj_dpo$t"],true)
+end
 
+q = X_nom_sample
+obj_path = joinpath(pwd(),"/home/taylor/Research/direct_policy_optimization/dynamics/cybertruck/cybertruck.obj")
+mtl_path = joinpath(pwd(),"/home/taylor/Research/direct_policy_optimization/dynamics/cybertruck/cybertruck.mtl")
 
-x1_sample
+ctm = ModifiedMeshFileObject(obj_path,mtl_path,scale=0.05)
+t = 1
+setobject!(vis["ct1"],ctm)
+settransform!(vis["ct1"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+# t = 11
+# setobject!(vis["ct2"],ctm)
+# settransform!(vis["ct2"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+setvisible!(vis["ct2"],false)
+t = 20
+setobject!(vis["ct3"],ctm)
+settransform!(vis["ct3"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+t = 32
+setobject!(vis["ct4"],ctm)
+settransform!(vis["ct4"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))
+t = T
+setobject!(vis["ct5"],ctm)
+settransform!(vis["ct5"], compose(Translation([q[t][1];q[t][2];0.0]),LinearMap(RotZ(q[t][3]+pi)*RotX(pi/2.0))))

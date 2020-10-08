@@ -90,15 +90,15 @@ u_ref = -1.0*model.m*model.g[3]/4.0*ones(model.nu)
 
 # Objective
 Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(1.0*ones(model.nx)) for t = 1:T]
-R = [Diagonal(1.0e-3*ones(model.nu)) for t = 1:T-1]
-c = 10.0
+R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
+c = 100.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[u_ref for t=1:T-1])
 
 # TVLQR cost
 Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-H_lqr = [10.0 for t = 1:T-1]
+H_lqr = [1.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,model,obj,
@@ -189,9 +189,9 @@ plot!(t_sim_nom[1:end-1],hcat(u_tvlqr...)',
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-2*ones(model.nx)
+w = 1.0e-3*ones(model.nx)
 γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=1.0,w=1.0e-2*ones(model.nx))
+x1_sample = resample([x1 for i = 1:N],β=1.0,w=1.0e-3*ones(model.nx))
 
 xl_traj_sample = [[copy(xl) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[copy(xu) for t = 1:T] for i = 1:N]
