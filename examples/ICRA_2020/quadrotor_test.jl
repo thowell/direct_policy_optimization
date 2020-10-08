@@ -29,10 +29,10 @@ yc2 = 4.0
 # xc4 = 2.0
 # yc4 = 4.0
 
-xc = [xc1,xc2,xc3,xc4]
-yc = [yc1,yc2,yc3,yc4]
+xc = [xc1,xc2]#,xc3,xc4]
+yc = [yc1,yc2]#,yc3,yc4]
 
-circles = [(xc1,yc1,r),(xc2,yc2,r),(xc3,yc3,r),(xc4,yc4,r)]
+circles = [(xc1,yc1,r),(xc2,yc2,r)]#,(xc3,yc3,r),(xc4,yc4,r)]
 
 # Constraints
 function c_stage!(c,x,u,t,model)
