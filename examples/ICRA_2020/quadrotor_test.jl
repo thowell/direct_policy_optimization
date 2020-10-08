@@ -3,16 +3,15 @@ include(joinpath(pwd(),"dynamics/quadrotor.jl"))
 include(joinpath(pwd(),"dynamics/obstacles.jl"))
 # include(joinpath(pwd(),"dynamics/visualize.jl"))
 println("quadrotor test loaded")
-using Plots
 
 # Horizon
-T = 101
+T = 51
 Tm = convert(Int,floor(T/2)+1)
 
 # Bounds
 
 # ul <= u <= uu
-uu = 2.0*ones(model.nu)
+uu = 5.0*ones(model.nu)
 ul = zeros(model.nu)
 
 uu_traj = [copy(uu) for t = 1:T-1]
@@ -25,10 +24,10 @@ xc1 = 2.0-0.125
 yc1 = 2.0
 xc2 = 4.0-0.125
 yc2 = 4.0
-xc3 = 2.25
-yc3 = 1.125
-xc4 = 2.0
-yc4 = 4.0
+# xc3 = 2.25
+# yc3 = 1.0
+# xc4 = 2.0
+# yc4 = 4.0
 
 xc = [xc1,xc2,xc3,xc4]
 yc = [yc1,yc2,yc3,yc4]
@@ -39,11 +38,11 @@ circles = [(xc1,yc1,r),(xc2,yc2,r),(xc3,yc3,r),(xc4,yc4,r)]
 function c_stage!(c,x,u,t,model)
     c[1] = circle_obs(x[1],x[2],xc1,yc1,r)
     c[2] = circle_obs(x[1],x[2],xc2,yc2,r)
-    c[3] = circle_obs(x[1],x[2],xc3,yc3,r)
-    c[4] = circle_obs(x[1],x[2],xc4,yc4,r)
+    # c[3] = circle_obs(x[1],x[2],xc3,yc3,r)
+    # c[4] = circle_obs(x[1],x[2],xc4,yc4,r)
     nothing
 end
-m_stage = 4
+m_stage = 2
 
 # h = h0 (fixed timestep)
 tf0 = 5.0
@@ -85,9 +84,9 @@ obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[u_ref for t=1:T-1])
 
 # TVLQR cost
-Q_lqr = [t < T ? Diagonal(100.0*ones(model.nx)) : Diagonal(1000.0*ones(model.nx)) for t = 1:T]
+Q_lqr = [t < T ? Diagonal(10.0*ones(model.nx)) : Diagonal(100.0*ones(model.nx)) for t = 1:T]
 R_lqr = [Diagonal(1.0*ones(model.nu)) for t = 1:T-1]
-H_lqr = [10.0 for t = 1:T-1]
+H_lqr = [1.0 for t = 1:T-1]
 
 # Problem
 prob = init_problem(model.nx,model.nu,T,model,obj,

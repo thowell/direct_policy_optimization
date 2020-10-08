@@ -218,8 +218,6 @@ for i = 1:N
     xu_traj_sample[i][1] = copy(x1_sample[i])
 end
 
-K = TVLQR_gains(model,X_nom,U_nom,H_nom,Q_lqr,R_lqr)
-
 prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
     xl=xl_traj_sample,
     xu=xu_traj_sample,
@@ -233,7 +231,7 @@ Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample,r=0.001)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
-    time_limit=60*60,tol=1.0e-2,c_tol=1.0e-2)
+    time_limit=3*60*60,tol=1.0e-2,c_tol=1.0e-2)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
@@ -268,10 +266,10 @@ cy4 = [_cy + yc4 for _cy in cy]
 # cy5 = [_cy + yc5 for _cy in cy]
 
 plt = plot(Shape(cx1,cy1),color=:red,label="",linecolor=:red)
-plt = plot!(Shape(cx2,cy2),color=:red,label="",linecolor=:red)
-plt = plot!(Shape(cx3,cy3),color=:red,label="",linecolor=:red)
-plt = plot!(Shape(cx4,cy4),color=:red,label="",linecolor=:red)
-# plt = plot(Shape(cx5,cy5),color=:red,label="",linecolor=:red)
+# plt = plot!(Shape(cx2,cy2),color=:red,label="",linecolor=:red)
+# plt = plot!(Shape(cx3,cy3),color=:red,label="",linecolor=:red)
+# plt = plot!(Shape(cx4,cy4),color=:red,label="",linecolor=:red)
+# # plt = plot(Shape(cx5,cy5),color=:red,label="",linecolor=:red)
 
 for i = 1:N
     x_sample_pos = [X_sample[i][t][1] for t = 1:T]
