@@ -1,12 +1,12 @@
 include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
 include(joinpath(pwd(),"dynamics/quadrotor.jl"))
-include(joinpath(pwd(),"dynamics/obstacles.jl"))
+# include(joinpath(pwd(),"dynamics/obstacles.jl"))
 include(joinpath(pwd(),"dynamics/visualize.jl"))
 
 using Plots
 
 # Horizon
-T = 31
+T = 21
 Tm = convert(Int,floor(T/2)+1)
 
 # Bounds
@@ -25,11 +25,11 @@ ul_traj = [copy(ul) for t = 1:T-1]
 # Circle obstacle
 r_cyl = 0.5
 r = r_cyl + model.L
-xc1 = 2.0
+xc1 = 2.0-0.125
 yc1 = 2.0
-xc2 = 4.0
+xc2 = 4.0-0.125
 yc2 = 4.0
-xc3 = 2.5
+xc3 = 2.25
 yc3 = 1.125
 xc4 = 2.0
 yc4 = 4.0
@@ -131,14 +131,15 @@ for i = 1:m_stage
     cyl = Cylinder(Point3f0(xc[i],yc[i],0),Point3f0(xc[i],yc[i],2.0),convert(Float32,r_cyl-model.L))
     setobject!(vis["cyl$i"],cyl,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
 end
+
 # Sample
 
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
-γ = N
-x1_sample = resample([x1 for i = 1:N],β=1.0,w=1.0e-3*ones(model.nx))
+w = 1.0e-2*ones(model.nx)
+γ = 1.0
+x1_sample = resample([x1 for i = 1:N],β=1.0,w=1.0e-2*ones(model.nx))
 
 xl_traj_sample = [[copy(xl) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[copy(xu) for t = 1:T] for i = 1:N]
@@ -158,10 +159,11 @@ prob_sample = init_sample_problem(prob,models,Q_lqr,R_lqr,H_lqr,
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
 
-Z0_sample = pack(X0,U_nom,H_nom[1],K,prob_sample,r=0.1)
+Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample,r=0.01)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=10*60,tol=1.0e-2,c_tol=1.0e-2)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
+    time_limit=6*60*60,tol=1.0e-2,c_tol=1.0e-2)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
