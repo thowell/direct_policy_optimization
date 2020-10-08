@@ -2,6 +2,8 @@ include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
 include(joinpath(pwd(),"dynamics/car.jl"))
 include(joinpath(pwd(),"dynamics/obstacles.jl"))
 
+Random.seed!(1)
+
 using Plots
 
 # Horizon
