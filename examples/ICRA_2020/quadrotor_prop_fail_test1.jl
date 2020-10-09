@@ -17,7 +17,16 @@ T = 31
 # ul <= u <= uu
 uu = 3.0*ones(model.nu)
 uu_nom = copy(uu)
-# uu[2] *= 0.5
+uu1 = copy(uu)
+uu1[2] *= 0.5
+uu2 = copy(uu)
+uu2[2] *= 0.5
+uu3 = copy(uu)
+uu3[2] *= 0.5
+uu4 = copy(uu)
+uu4[2] *= 0.5
+
+
 ul = zeros(model.nu)
 ul_nom = copy(ul)
 @assert sum(uu) > -1.0*model.m*model.g[3]
@@ -91,7 +100,7 @@ u_ref = -1.0*model.m*model.g[3]/4.0*ones(model.nu)
 # Objective
 Q = [t < T ? Diagonal(ones(model.nx)) : Diagonal(1.0*ones(model.nx)) for t = 1:T]
 R = [Diagonal(1.0e-1*ones(model.nu)) for t = 1:T-1]
-c = 100.0
+c = 1.0
 obj = QuadraticTrackingObjective(Q,R,c,
     [xT for t=1:T],[u_ref for t=1:T-1])
 
@@ -189,9 +198,9 @@ K = TVLQR_gains(model,X_nom,U_nom,[H_nom[1] for t = 1:T-1],Q_lqr,R_lqr)
 N = 2*model.nx
 models = [model for i = 1:N]
 β = 1.0
-w = 1.0e-3*ones(model.nx)
+w = 1.0e-4*ones(model.nx)
 γ = 1.0
-x1_sample = resample([x1 for i = 1:N],β=1.0,w=1.0e-3*ones(model.nx))
+x1_sample = resample([x1 for i = 1:N],β=1.0,w=1.0e-4*ones(model.nx))
 
 xl_traj_sample = [[copy(xl) for t = 1:T] for i = 1:N]
 xu_traj_sample = [[copy(xu) for t = 1:T] for i = 1:N]
@@ -232,14 +241,18 @@ Z0_sample = pack(X_nom,U_nom,H_nom[1],K,prob_sample,r=0.001)
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
-    time_limit=60,tol=1.0e-2,c_tol=1.0e-2)
+    time_limit=1.5*60*60,tol=1.0e-2,c_tol=1.0e-2)
 
 using JLD
 @save joinpath(pwd(),"res.jld") Z_sample_sol
 
+Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),nlp=:SNOPT7,
+    time_limit=60*60,tol=1.0e-2,c_tol=1.0e-2)
+
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
+K_sample = [reshape(Z_sample_sol[prob_sample.idx_K[t]],model.nu,model.nx) for t = 1:T-1]
 # Time trajectories
 t_nominal = zeros(T)
 t_sample = zeros(T)
@@ -252,10 +265,10 @@ display("time (nominal): $(sum(H_nom))s")
 display("time (sample): $(sum(H_nom_sample))s")
 
 # # Plots results
-#
+using Plots
 # # Position trajectory
-# x_nom_pos = [X_nom[t][1] for t = 1:T]
-# y_nom_pos = [X_nom[t][2] for t = 1:T]
+x_nom_pos = [X_nom[t][1] for t = 1:T]
+y_nom_pos = [X_nom[t][2] for t = 1:T]
 # pts = Plots.partialcircle(0,2π,100,r)
 # cx,cy = Plots.unzip(pts)
 # cx1 = [_cx + xc1 for _cx in cx]
@@ -282,36 +295,36 @@ display("time (sample): $(sum(H_nom_sample))s")
 #         color=:cyan,label= i != 1 ? "" : "sample")
 # end
 # display(plt)
-#
-# plt = scatter!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="TO",color=:purple,legend=:topleft)
-# x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
-# y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
-# plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=4.0,label="DPO",color=:orange,legend=:bottomright)
+plt = plot()
+plt = scatter!(x_nom_pos,y_nom_pos,aspect_ratio=:equal,xlabel="x",ylabel="y",width=4.0,label="TO",color=:purple,legend=:topleft)
+x_sample_pos = [X_nom_sample[t][1] for t = 1:T]
+y_sample_pos = [X_nom_sample[t][2] for t = 1:T]
+plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=4.0,label="DPO",color=:orange,legend=:bottomright)
 #
 # savefig(plt,joinpath(@__DIR__,"results/quadrotor_trajectory.png"))
 #
-# # Control
-# plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',color=:purple,width=2.0,
-#     title="car",xlabel="time (s)",ylabel="control",label=["v (nominal)" "ω (nominal)"],
-#     legend=:bottom,linetype=:steppost)
-# plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',color=:orange,
-#     width=2.0,label=["v (sample)" "ω (sample)"],linetype=:steppost)
-# savefig(plt,joinpath(@__DIR__,"results/quadrotor_control.png"))
-#
+# Control
+plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',color=:purple,width=2.0,
+    title="car",xlabel="time (s)",ylabel="control",
+    legend=:bottom,linetype=:steppost)
+plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',color=:orange,
+    width=2.0,linetype=:steppost)
+savefig(plt,joinpath(@__DIR__,"results/quadrotor_control.png"))
+
 # # Samples
-#
-# # State samples
-# plt1 = plot(title="Sample states",legend=:bottom,xlabel="time (s)");
-# for i = 1:N
-#     t_sample = zeros(T)
-#     for t = 2:T
-#         t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
-#     end
-#     plt1 = plot!(t_sample,hcat(X_sample[i]...)',label="");
-# end
-# plt1 = plot!(t_sample,hcat(X_nom_sample...)',color=:red,width=2.0,
-#     label=["nominal" "" ""])
-# display(plt1)
+
+# State samples
+plt1 = plot(title="Sample states",legend=:bottom,xlabel="time (s)");
+for i = 1:N
+    t_sample = zeros(T)
+    for t = 2:T
+        t_sample[t] = t_sample[t-1] + H_nom_sample[t-1]
+    end
+    plt1 = plot!(t_sample,hcat(X_sample[i]...)',label="");
+end
+plt1 = plot!(t_sample,hcat(X_nom_sample...)',color=:red,width=2.0,
+    label=["nominal" "" ""])
+display(plt1)
 # savefig(plt1,joinpath(@__DIR__,"results/quadrotor_sample_states.png"))
 #
 # # Control samples
@@ -328,7 +341,82 @@ display("time (sample): $(sum(H_nom_sample))s")
 #     label=["nominal" ""],linetype=:steppost)
 # display(plt2)
 # savefig(plt2,joinpath(@__DIR__,"results/quadrotor_sample_controls.png"))
-#
+
+
+using Distributions
+
+model_sim = model
+x1_sim = copy(x1)
+T_sim = 10*T
+
+W = Distributions.MvNormal(zeros(model_sim.nx),
+	Diagonal(1.0e-32*ones(model_sim.nx)))
+w = rand(W,T_sim)
+
+W0 = Distributions.MvNormal(zeros(model_sim.nx),
+	Diagonal(1.0e-32*ones(model_sim.nx)))
+w0 = rand(W0,1)
+
+z0_sim = vec(copy(x1_sim) + w0)
+
+t_nom = range(0,stop=sum(H_nom),length=T)
+t_sim_nom = range(0,stop=sum(H_nom),length=T_sim)
+
+t_nom_sample = range(0,stop=sum(H_nom_sample),length=T)
+t_sim_nom_sample = range(0,stop=sum(H_nom_sample),length=T_sim)
+
+# simulate
+z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
+    X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,H_nom[1],z0_sim,w,_norm=2,
+	ul=ul_nom,uu=uu1)
+
+z_sample, u_sample, J_sample, Jx_sample, Ju_sample = simulate_linear_controller(K_sample,
+    X_nom_sample,U_nom_sample,model_sim,Q_lqr,R_lqr,T_sim,H_nom_sample[1],z0_sim,w,_norm=2,
+	ul=ul_nom,uu=uu1)
+
+# plot states
+plt_x = plot(t_nom,hcat(X_nom...)[1:model.nx,:]',
+	legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Quadrotor",ylabel="state")
+plt_x = plot!(t_sim_nom,hcat(z_tvlqr...)[1:model.nx,:]',color=:black,label="",
+    width=1.0)
+
+plt_x = plot(t_nom_sample,hcat(X_nom_sample...)[1:model.nx,:]',
+	legend=:topright,color=:red,
+    label="",width=2.0,xlabel="time (s)",
+    title="Quadrotor",ylabel="state")
+plt_x = plot!(t_sim_nom_sample,hcat(z_sample...)[1:model.nx,:]',color=:black,label="",
+    width=1.0)
+
+# plot COM
+plot_traj = plot(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],
+	legend=:topright,color=:red,
+    label="",width=2.0,xlabel="y",ylabel="z",
+    title="Quadrotor")
+plot_traj = plot!(hcat(z_tvlqr...)[1,:],hcat(z_tvlqr...)[2,:],
+	color=:black,
+    label="",width=1.0)
+
+plot_traj = plot(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],
+	legend=:topright,color=:red,
+    label="",width=2.0,xlabel="y",ylabel="z",
+    title="Quadrotor")
+plot_traj = plot!(hcat(z_sample...)[1,:],hcat(z_sample...)[2,:],
+	color=:black,
+    label="",width=1.0)
+
+plot(t_nom[1:end-1],hcat(U_nom...)',
+	linetype=:steppost,color=:red,width=2.0)
+plot!(t_sim_nom[1:end-1],hcat(u_tvlqr...)',
+	linetype=:steppost,color=:black,width=1.0)
+
+plot(t_nom[1:end-1],hcat(U_nom_sample...)',
+	linetype=:steppost,color=:red,width=2.0)
+plot!(t_sim_nom[1:end-1],hcat(u_sample...)',
+	linetype=:steppost,color=:black,width=1.0)
+
+
 # # using PGFPlots
 # # const PGF = PGFPlots
 # #

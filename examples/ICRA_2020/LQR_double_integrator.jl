@@ -98,7 +98,7 @@ X_sample[1]
 U_sample[1]
 Θ = [reshape(Z_sample_sol[prob_sample.idx_K[t]],nu,nx) for t = 1:T-1]
 policy_error = [norm(vec(Θ[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
-println("Policy solution error (avg.): $(sum(policy_error)/T)")
+println("Policy solution error (Inf norm): $(norm(policy_error,Inf))")
 
 using Plots
 plt = plot(policy_error,xlabel="time step",ylims=(1.0e-16,1.0),yaxis=:log,

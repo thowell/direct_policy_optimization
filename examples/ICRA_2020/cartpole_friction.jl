@@ -1,6 +1,8 @@
 include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
 include(joinpath(pwd(),"dynamics/cartpole.jl"))
 using Plots
+using Random
+Random.seed!(1)
 
 μ0 = 0.1
 
