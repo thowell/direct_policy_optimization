@@ -53,24 +53,22 @@ model = Quadrotor(0.5,
                   0.0245,
                   nx,nu)
 
-# dynamics(model,rand(nx),rand(nu))
 function visualize!(vis,p::Quadrotor,q; Δt=0.1)
 
-    # obj_path = joinpath(pwd(),"/home/taylor/Research/contact_implicit_trajectory_optimization/models/cybertruck/cybertruck.obj")
-    # mtl_path = joinpath(pwd(),"/home/taylor/Research/contact_implicit_trajectory_optimization/models/cybertruck/cybertruck.mtl")
-    #
-    # ctm = ModifiedMeshFileObject(obj_path,mtl_path,scale=0.05)
-    # setobject!(vis["cybertruck"],ctm,MeshPhongMaterial(color=RGBA(1,0,0,1.0)))
-    # settransform!(vis["cybertruck"], LinearMap(RotZ(pi)*RotX(pi/2.0)))
-    r = model.L
-    setobject!(vis["quad"], HyperRectangle(Vec(0,0,0),Vec(2r,2r,2r)))
+    obj_path = joinpath(pwd(),"/home/taylor/Research/direct_policy_optimization/dynamics/quadrotor/drone.obj")
+    mtl_path = joinpath(pwd(),"/home/taylor/Research/direct_policy_optimization/dynamics/quadrotor/drone.mtl")
+
+    ctm = ModifiedMeshFileObject(obj_path,mtl_path,scale=1.0)
+    setobject!(vis["drone"],ctm)
+    settransform!(vis["drone"], LinearMap(RotZ(pi)*RotX(pi/2.0)))
+
 
     anim = MeshCat.Animation(convert(Int,floor(1/Δt)))
 
     for t = 1:length(q)
 
         MeshCat.atframe(anim,t) do
-            settransform!(vis["quad"], compose(Translation(q[t][1:3]),LinearMap(MRP(q[t][4:6]...))))
+            settransform!(vis["drone"], compose(Translation(q[t][1:3]),LinearMap(MRP(q[t][4:6]...)*RotX(pi/2.0))))
         end
     end
     # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))

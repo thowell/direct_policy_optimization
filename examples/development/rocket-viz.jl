@@ -63,7 +63,7 @@ for t = 1:T
 	setobject!(vis["traj_to$t"], HyperSphere(Point3f0(0),
 		convert(Float32,0.25)),
 		MeshPhongMaterial(color=RGBA(0.0,255.0/255.0,255.0/255.0,1.0)))
-	settransform!(vis["traj_to$t"], Translation((q_to[t][1],-2.35-1.0,q_to[t][2]+3.0)))
+	settransform!(vis["traj_to$t"], Translation((q_to[t][1],-2.35-0.5,q_to[t][2]+3.0)))
 	setvisible!(vis["traj_to$t"],true)
 end
 

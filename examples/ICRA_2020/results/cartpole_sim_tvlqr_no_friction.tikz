@@ -1,5 +1,5 @@
 \begin{tikzpicture}[]
-\begin{axis}[legend style = {{at={(0.01,0.99)},anchor=north west}}, ylabel = {state}, xmin = {0.0}, xmax = {5.000000000000001}, axis equal image = {false}, ymax = {3.5}, xlabel = {time}, hide axis = {false}, ymin = {-1}]\addplot+ [mark = {}, color=purple, line width=3pt]coordinates {
+\begin{axis}[legend style = {{at={(0.01,0.99)},anchor=north west}}, ylabel = {state}, xmin = {0.0}, xmax = {5.000000000000001}, axis equal image = {false}, ymax = {3.5}, xlabel = {time}, hide axis = {false}, ymin = {-1}]\addplot+ [mark = {}, color=cyan, line width=3pt]coordinates {
 (0.0, 0.0)
 (0.1, -0.012532334416032354)
 (0.2, -0.04254366188099693)
@@ -52,7 +52,7 @@
 (4.899999999999999, -0.00032306313465253376)
 (4.999999999999998, 0.0)
 };
-\addplot+ [mark = {}, color=purple, line width=3pt, densely dashed]coordinates {
+\addplot+ [mark = {}, color=cyan, line width=3pt, densely dashed]coordinates {
 (0.0, 0.0)
 (0.1, 0.023891052298413405)
 (0.2, 0.07662571014115507)
@@ -617,7 +617,6 @@
 (4.990176817288802, 38.90766793062868)
 (5.0, 39.162871330967604)
 };
-\addlegendentry{pos.}
 \addplot+ [mark = {}, color=black, line width=2pt, densely dashed]coordinates {
 (0.0, 0.0)
 (0.009823182711198428, 0.00034778870451533564)
@@ -1130,7 +1129,6 @@
 (4.990176817288802, -3.6790059814066747)
 (5.0, -3.700000423960229)
 };
-\addlegendentry{ang.}
 \end{axis}
 
 \end{tikzpicture}

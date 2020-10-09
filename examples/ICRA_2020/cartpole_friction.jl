@@ -439,14 +439,14 @@ const PGF = PGFPlots
 
 # nominal trajectory
 psx_nom = PGF.Plots.Linear(t_nominal,hcat(X_nominal...)[1,:],mark="",
-	style="color=purple, line width=3pt")
+	style="color=cyan, line width=3pt")
 psθ_nom = PGF.Plots.Linear(t_nominal,hcat(X_nominal...)[2,:],mark="",
-	style="color=purple, line width=3pt, densely dashed")
+	style="color=cyan, line width=3pt, densely dashed")
 
 psx_nom_sim_tvlqr = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr...)[1,:],mark="",
-	style="color=black, line width=2pt",legendentry="pos.")
+	style="color=black, line width=2pt")
 psθ_nom_sim_tvlqr = PGF.Plots.Linear(t_sim_nominal,hcat(z_tvlqr...)[2,:],mark="",
-	style="color=black, line width=2pt, densely dashed",legendentry="ang.")
+	style="color=black, line width=2pt, densely dashed")
 
 a = Axis([psx_nom;psθ_nom;psx_nom_sim_tvlqr;psθ_nom_sim_tvlqr],
     xmin=0., ymin=-1, xmax=sum(H_nominal), ymax=3.5,

@@ -1,7 +1,9 @@
 include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
 include(joinpath(pwd(),"dynamics/rocket.jl"))
 include(joinpath(pwd(),"dynamics/visualize.jl"))
+
 using Plots, Random
+Random.seed!(1)
 
 vis = Visualizer()
 open(vis)
@@ -81,18 +83,17 @@ prob_nom_moi = init_MOI_Problem(prob_nom)
 
 # Trajectory initialization
 X0 = linear_interp(x1,xT,T) # linear interpolation on state
-U0 = [rand(model_nom.nu) for t = 1:T-1] # random controls
+U0 = [ones(model_nom.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0 = pack(X0,U0,h0,prob_nom)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nom = solve(prob_nom_moi,copy(Z0),nlp=:SNOPT7,time_limit=20)
+@time Z_nom = solve(prob_nom_moi,copy(Z0),nlp=:SNOPT7,time_limit=120)
 X_nom, U_nom, H_nom = unpack(Z_nom,prob_nom)
 
-visualize!(vis,model_nom,X_nom,Δt=H_nom[1],
-	r_pad=r_pad)
+visualize!(vis,model_nom,X_nom,Δt=H_nom[1])
 
 plot(hcat(U_nom...)',linetype=:steppost)
 sum(H_nom) # works when 2.72
@@ -221,20 +222,19 @@ prob_moi_slosh = init_MOI_Problem(prob_slosh)
 
 # Trajectory initialization
 X0_slosh = linear_interp(x1_slosh,xT_slosh,T) # linear interpolation on state
-U0_slosh = [rand(model_slosh.nu) for t = 1:T-1] # random controls
+U0_slosh = [ones(model_slosh.nu) for t = 1:T-1] # random controls
 
 # Pack trajectories into vector
 Z0_slosh = pack(X0_slosh,U0_slosh,h0,prob_slosh)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal_slosh = solve(prob_moi_slosh,copy(Z0_slosh),nlp=:SNOPT7,time_limit=20)
+@time Z_nominal_slosh = solve(prob_moi_slosh,copy(Z0_slosh),nlp=:SNOPT7,time_limit=120)
 X_nom_slosh, U_nom_slosh, H_nom_slosh = unpack(Z_nominal_slosh,prob_slosh)
 
 plot(hcat(U_nom_slosh...)',linetype=:steppost)
 sum(H_nom_slosh) # should be 2.76
 sum(H_nom) # should be 2.72
-X_nom_slosh[T][2]
 
 # simulate slosh with TVLQR controller from nominal model
 model_sim = model_slosh
@@ -253,7 +253,7 @@ dt_sim_nom = sum(H_nom)/(T_sim-1)
 
 z_tvlqr, u_tvlqr, J_tvlqr, Jx_tvlqr, Ju_tvlqr = simulate_linear_controller(K,
     X_nom,U_nom,model_sim,Q_lqr,R_lqr,T_sim,H_nom[1],z0_sim,w,_norm=2,
-	controller=:policy)#,ul=ul,uu=uu)
+	controller=:policy,ul=ul,uu=uu)
 
 plt_x = plot(t_nom,hcat(X_nom...)[1:model_nom.nx,:]',
 	legend=:topright,color=:red,
@@ -280,8 +280,7 @@ Jx_tvlqr
 # control tracking
 Ju_tvlqr
 
-visualize!(vis,model_slosh,z_tvlqr,Δt=dt_sim_nom,
-	r_pad=r_pad)
+visualize!(vis,model_slosh,z_tvlqr,Δt=dt_sim_nom)
 
 # DPO
 N = 2*model_slosh.nx
@@ -325,13 +324,11 @@ end
 ul_traj_sample = [[-Inf*ones(model_slosh.nu) for t = 1:T-1] for i = 1:N]
 uu_traj_sample = [[Inf*ones(model_slosh.nu) for t = 1:T-1] for i = 1:N]
 
-prob_sample = init_sample_problem(prob_nom,models,Q_lqr,R_lqr,H_lqr,β=β,w=w,γ=γ,
+prob_sample = init_sample_problem(prob_nom,models,Q_lqr,R_lqr,H_lqr,
+	β=β,w=w,γ=γ,
     xl=xl_traj_sample,
     xu=xu_traj_sample,
-	# ul=ul_traj_sample,
-    # uu=uu_traj_sample,
     n_features=model_slosh.nx-2,
-	policy_constraint=true
     )
 
 prob_sample_moi = init_MOI_Problem(prob_sample)
@@ -355,12 +352,13 @@ for t = 1:T-1
 end
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),max_iter=500,nlp=:SNOPT7,time_limit=60*20,tol=1.0e-2,c_tol=1.0e-2)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
+	time_limit=60*20,tol=1.0e-2,c_tol=1.0e-2)
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 sum(H_nom_sample) # should be 2.9
 sum(H_nom)
-
+7330
 # get policy
 Θ = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-1]
 
@@ -451,12 +449,8 @@ plt_x = plot!(t_sim_nom_sample,hcat(z_sample...)[3,:],color=:black,label="",
 sum(H_nom_sample)
 sum(H_nom)
 
-visualize!(vis,model_nom,z_tvlqr,Δt=dt_sim_nom,
-	r_pad=r_pad)
-
-visualize!(vis,model_nom,z_sample,Δt=dt_sim_sample,
-	r_pad=r_pad)
-
+visualize!(vis,model_nom,z_tvlqr,Δt=dt_sim_nom)
+visualize!(vis,model_nom,z_sample,Δt=dt_sim_sample)
 using PGFPlots
 const PGF = PGFPlots
 

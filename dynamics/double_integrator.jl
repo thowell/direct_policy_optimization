@@ -76,13 +76,15 @@ function get_dynamics(model::DoubleIntegratorAnalytical)
     nx = model.nx
     nu = model.nu
 
-    Ac = [0.0 1.0; 0.0 0.0]
-    Bc = [0.0; 1.0]
+    # Ac = [0.0 1.0; 0.0 0.0]
+    # Bc = [0.0; 1.0]
+    #
+    # D = exp(model.Δt*[Ac Bc; zeros(1,nx+nu)])
+    # A = D[1:nx,1:nx]
+    # B = D[1:nx,nx .+ (1:nu)]
 
-    D = exp(model.Δt*[Ac Bc; zeros(1,nx+nu)])
-    A = D[1:nx,1:nx]
-    B = D[1:nx,nx .+ (1:nu)]
-
+    A = @SMatrix [1.0 1.0; 0.0 1.0]
+    B = @SMatrix [0.0; 1.0]
     A, B
 end
 
