@@ -89,7 +89,8 @@ prob_sample_moi = init_MOI_Problem(prob_sample)
 Z0_sample = ones(prob_sample_moi.n)
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=60,tol=1.0e-6,c_tol=1.0e-6)
+Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
+	time_limit=60,tol=1.0e-7,c_tol=1.0e-7)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)

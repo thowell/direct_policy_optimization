@@ -149,14 +149,12 @@ end
 
 # Solve
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
-	time_limit=60*10,tol=1.0e-6,c_tol=1.0e-6)
+	time_limit=60*10,tol=1.0e-7,c_tol=1.0e-7)
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,
 	prob_sample)
 
-X_sample[1]
-U_sample[1]
 Θ_linear = [reshape(Z_sample_sol[prob_sample.idx_K[t]],nu,nx) for t = 1:T-1]
 policy_error_linear = [norm(vec(Θ_linear[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("Policy solution error (Inf norm) [linear dynamics]:
