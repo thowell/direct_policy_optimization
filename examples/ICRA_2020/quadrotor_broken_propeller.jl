@@ -3,6 +3,7 @@ include(joinpath(pwd(),"dynamics/quadrotor.jl"))
 # include(joinpath(pwd(),"dynamics/obstacles.jl"))
 include(joinpath(pwd(),"dynamics/visualize.jl"))
 using Plots
+
 vis = Visualizer()
 open(vis)
 
@@ -303,7 +304,7 @@ plt = plot!(x_sample_pos,y_sample_pos,aspect_ratio=:equal,width=4.0,label="DPO",
 #
 # Control
 plt = plot(t_nominal[1:T-1],Array(hcat(U_nom...))',color=:purple,width=2.0,
-    title="car",xlabel="time (s)",ylabel="control",
+    title="quad",xlabel="time (s)",ylabel="control",
     legend=:bottom,linetype=:steppost)
 plt = plot!(t_sample[1:T-1],Array(hcat(U_nom_sample...))',color=:orange,
     width=2.0,linetype=:steppost)
@@ -456,13 +457,13 @@ plot_traj = plot!(hcat(z_sample4...)[1,:],hcat(z_sample4...)[2,:],
     label="",width=1.0)
 
 plot(t_nom[1:end-1],hcat(U_nom...)',
-	linetype=:steppost,color=:red,width=2.0)
-plot!(t_sim_nom[1:end-1],hcat(u_tvlqr...)',
+	linetype=:steppost,width=2.0)
+plot!(t_sim_nom[1:end-1],hcat(u_tvlqr1...)',
 	linetype=:steppost,color=:black,width=1.0)
 
 plot(t_nom[1:end-1],hcat(U_nom_sample...)',
-	linetype=:steppost,color=:red,width=2.0)
-plot!(t_sim_nom[1:end-1],hcat(u_sample...)',
+	linetype=:steppost,width=2.0)
+plot!(t_sim_nom[1:end-1],hcat(u_sample1...)',
 	linetype=:steppost,color=:black,width=1.0)
 
 
@@ -478,72 +479,109 @@ plot!(t_sim_nom[1:end-1],hcat(u_sample...)',
 (J_tvlqr1 + J_tvlqr2 + J_tvlqr3 + J_tvlqr4)/4.0
 (J_sample1 + J_sample2 + J_sample3 + J_sample4)/4.0
 
-# # using PGFPlots
-# # const PGF = PGFPlots
-# #
-# # # TO trajectory
-# # p_nom = PGF.Plots.Linear(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],
-# #     mark="",style="color=purple, line width=3pt, solid",legendentry="TO")
-# #
-# # # DPO trajectory
-# # p_dpo = PGF.Plots.Linear(hcat(X_nom_sample...)[1,:],hcat(X_nom_sample...)[2,:],
-# #     mark="",style="color=orange, line width=3pt, solid",legendentry="DPO")
-# #
-# # # DPO trajectory
-# # p_sample = [PGF.Plots.Linear(hcat(X_sample[i]...)[1,:],hcat(X_sample[i]...)[2,:],
-# #     mark="",style="color=gray, line width=1pt, solid") for i = 1:N]
-# # p_sample[6].legendentry="sample"
-# #
-# # # obstacles
-# # p_circle = [PGF.Plots.Circle(circle..., style="color=black,fill=black") for circle in circles]
-# #
-# # a = Axis([p_circle;
-# #     p_sample[1];
-# #     p_sample[2];
-# #     p_sample[3];
-# #     p_sample[4];
-# #     p_sample[5];
-# #     p_sample[6];
-# #     p_nom;
-# #     p_dpo
-# #     ],
-# #     xmin=-0.4, ymin=-0.1, xmax=1.4, ymax=1.1,
-# #     axisEqualImage=true,
-# #     hideAxis=false,
-# # 	ylabel="y",
-# # 	xlabel="x",
-# # 	legendStyle="{at={(0.01,0.99)},anchor=north west}",
-# # 	)
-# #
-# # # Save to tikz format
-# # dir = joinpath(@__DIR__,"results")
-# # PGF.save(joinpath(dir,"car_obstacles.tikz"), a, include_preamble=false)
-# #
-# #
-# visualize
-visualize!(vis,model,z_tvlqr,Δt=dt_sim_nom)
-visualize!(vis,model,z_sample,Δt=dt_sim_sample)
+using PGFPlots
+const PGF = PGFPlots
 
-for (i,z) in enumerate([z_tvlqr1,z_tvlqr2,z_tvlqr3,z_tvlqr4])
+# TO trajectory
+p_u1_nom = PGF.Plots.Linear(t_nom[1:end-1],hcat(U_nom...)[1,:],
+    mark="",style="const plot, color=cyan, line width=2pt, solid")
+p_u2_nom = PGF.Plots.Linear(t_nom[1:end-1],hcat(U_nom...)[2,:],
+    mark="",style="const plot, color=cyan, line width=2pt, solid")
+p_u3_nom = PGF.Plots.Linear(t_nom[1:end-1],hcat(U_nom...)[3,:],
+    mark="",style="const plot, color=cyan, line width=2pt, solid")
+p_u4_nom = PGF.Plots.Linear(t_nom[1:end-1],hcat(U_nom...)[4,:],
+    mark="",style="const plot, color=cyan, line width=2pt, solid")
+
+p_u1_dpo = PGF.Plots.Linear(t_nom_sample[1:end-1],hcat(U_nom_sample...)[1,:],
+    mark="",style="const plot, color=orange, line width=2pt, solid")
+p_u2_dpo = PGF.Plots.Linear(t_nom_sample[1:end-1],hcat(U_nom_sample...)[2,:],
+    mark="",style="const plot, color=orange, line width=2pt, solid")
+p_u3_dpo = PGF.Plots.Linear(t_nom_sample[1:end-1],hcat(U_nom_sample...)[3,:],
+    mark="",style="const plot, color=orange, line width=2pt, solid")
+p_u4_dpo = PGF.Plots.Linear(t_nom_sample[1:end-1],hcat(U_nom_sample...)[4,:],
+    mark="",style="const plot, color=orange, line width=2pt, solid")
+
+
+a1 = Axis([p_u1_nom;p_u1_dpo
+    ],
+    xmin=0, ymin=0,
+    hideAxis=false,
+	ylabel="u1",
+	xlabel="time",
+	)
+a2 = Axis([p_u2_nom;p_u2_dpo
+    ],
+    xmin=0, ymin=0,
+    hideAxis=false,
+	ylabel="u2",
+	xlabel="time",
+	)
+a3 = Axis([p_u3_nom;p_u3_dpo
+    ],
+    xmin=0, ymin=0,
+    hideAxis=false,
+	ylabel="u3",
+	xlabel="time",
+	)
+a4 = Axis([p_u4_nom;p_u4_dpo
+    ],
+    xmin=0, ymin=0,
+    hideAxis=false,
+	ylabel="u4",
+	xlabel="time",
+	)
+
+# Save to tikz format
+dir = joinpath(@__DIR__,"results")
+PGF.save(joinpath(dir,"quad_prop_u1.tikz"), a1, include_preamble=false)
+PGF.save(joinpath(dir,"quad_prop_u2.tikz"), a2, include_preamble=false)
+PGF.save(joinpath(dir,"quad_prop_u3.tikz"), a3, include_preamble=false)
+PGF.save(joinpath(dir,"quad_prop_u4.tikz"), a4, include_preamble=false)
+
+# #
+# # visualize
+visualize!(vis,model,z_tvlqr,Δt=dt_sim_nom)
+visualize!(vis,model,z_sample4,Δt=dt_sim_sample)
+#
+for (k,z) in enumerate([z_tvlqr1,z_tvlqr2,z_tvlqr3,z_tvlqr4])
+	i = k
 	q_to = z
 	for t = 1:3:T_sim
 		setobject!(vis["traj_to$t$i"], HyperSphere(Point3f0(0),
 			convert(Float32,0.025)),
-			MeshPhongMaterial(color=RGBA(0.0,255.0/255.0,255.0/255.0,1.0)))
+			MeshPhongMaterial(color=RGBA(128.0/255.0,128.0/255.0,128.0/255.0,1.0)))
 		settransform!(vis["traj_to$t$i"], Translation((q_to[t][1],q_to[t][2],q_to[t][3])))
-		setvisible!(vis["traj_to$t$i"],true)
+		setvisible!(vis["traj_to$t$i"],false)
 	end
 end
+q_to_nom = X_nom
+for t = 1:T
+	setobject!(vis["traj_to_nom$t"], HyperSphere(Point3f0(0),
+		convert(Float32,0.05)),
+		MeshPhongMaterial(color=RGBA(0.0,255.0/255.0,255.0/255.0,1.0)))
+	settransform!(vis["traj_to_nom$t"], Translation((q_to_nom[t][1],q_to_nom[t][2],q_to_nom[t][3])))
+	setvisible!(vis["traj_to_nom$t"],false)
+end
 
-for (i,z) in enumerate([z_sample1,z_sample2,z_sample3,z_sample4])
+for (k,z) in enumerate([z_sample1,z_sample2,z_sample3,z_sample4])
+	i = k
 	q_dpo = z
 	for t = 1:3:T_sim
 		setobject!(vis["traj_dpo$t$i"], HyperSphere(Point3f0(0),
 			convert(Float32,0.025)),
-			MeshPhongMaterial(color=RGBA(255.0/255.0,127.0/255.0,0.0,1.0)))
+			MeshPhongMaterial(color=RGBA(128.0/255.0,128.0/255.0,128.0/255.0,1.0)))
 		settransform!(vis["traj_dpo$t$i"], Translation((q_dpo[t][1],q_dpo[t][2],q_dpo[t][3])))
 		setvisible!(vis["traj_dpo$t$i"],true)
 	end
+end
+
+q_dpo_nom = X_nom_sample
+for t = 1:T
+	setobject!(vis["traj_dpo_nom$t"], HyperSphere(Point3f0(0),
+		convert(Float32,0.05)),
+		MeshPhongMaterial(color=RGBA(255.0/255.0,127.0/255.0,0.0,1.0)))
+	settransform!(vis["traj_dpo_nom$t"], Translation((q_dpo_nom[t][1],q_dpo_nom[t][2],q_dpo_nom[t][3])))
+	setvisible!(vis["traj_dpo_nom$t"],true)
 end
 
 obj_path = joinpath(pwd(),"/home/taylor/Research/direct_policy_optimization/dynamics/quadrotor/drone.obj")
@@ -551,4 +589,4 @@ mtl_path = joinpath(pwd(),"/home/taylor/Research/direct_policy_optimization/dyna
 
 ctm = ModifiedMeshFileObject(obj_path,mtl_path,scale=1.0)
 setobject!(vis["drone2"],ctm)
-settransform!(vis["drone2"], compose(Translation(z_sample1[1][1:3]),LinearMap(MRP(z_sample1[1][4:6]...)*RotX(pi/2.0))))
+settransform!(vis["drone2"], compose(Translation(X_nom[1][1:3]),LinearMap(MRP(X_nom[1][4:6]...)*RotX(pi/2.0))))

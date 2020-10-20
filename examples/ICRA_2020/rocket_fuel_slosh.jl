@@ -2,8 +2,7 @@ include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
 include(joinpath(pwd(),"dynamics/rocket.jl"))
 include(joinpath(pwd(),"dynamics/visualize.jl"))
 
-using Plots, Random
-Random.seed!(1)
+using Plots
 
 vis = Visualizer()
 open(vis)
@@ -90,7 +89,7 @@ Z0 = pack(X0,U0,h0,prob_nom)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nom = solve(prob_nom_moi,copy(Z0),nlp=:SNOPT7,time_limit=120)
+@time Z_nom = solve(prob_nom_moi,copy(Z0),nlp=:SNOPT7,time_limit=300)
 X_nom, U_nom, H_nom = unpack(Z_nom,prob_nom)
 
 visualize!(vis,model_nom,X_nom,Δt=H_nom[1])
@@ -229,11 +228,11 @@ Z0_slosh = pack(X0_slosh,U0_slosh,h0,prob_slosh)
 
 #NOTE: may need to run examples multiple times to get good trajectories
 # Solve nominal problem
-@time Z_nominal_slosh = solve(prob_moi_slosh,copy(Z0_slosh),nlp=:SNOPT7,time_limit=120)
+@time Z_nominal_slosh = solve(prob_moi_slosh,copy(Z0_slosh),nlp=:SNOPT7,time_limit=300)
 X_nom_slosh, U_nom_slosh, H_nom_slosh = unpack(Z_nominal_slosh,prob_slosh)
 
 plot(hcat(U_nom_slosh...)',linetype=:steppost)
-sum(H_nom_slosh) # should be 2.76
+sum(H_nom_slosh) # should be 2.73/2.76
 sum(H_nom) # should be 2.72
 
 # simulate slosh with TVLQR controller from nominal model
@@ -352,16 +351,20 @@ for t = 1:T-1
 end
 
 # Solve
-Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
-	time_limit=60*20,tol=1.0e-2,c_tol=1.0e-2)
+# Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
+# 	time_limit=60*60,tol=1.0e-2,c_tol=1.0e-2)
+#
+using JLD
+# @save joinpath(pwd(),"examples/trajectories/","rocket_fuel_slosh.jld") Z_sample_sol
+@load joinpath(pwd(),"examples/trajectories/","rocket_fuel_slosh.jld") Z_sample_sol
 
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
-sum(H_nom_sample) # should be 2.9
+sum(H_nom_sample) # should be 2.89/2.9
 sum(H_nom)
-7330
+
 # get policy
 Θ = [Z_sample_sol[prob_sample.idx_K[t]] for t = 1:T-1]
-
+Θ_mat = [reshape(Θ[t],model_nom.nu,model_nom.nx) for t = 1:T-1]
 t_nom_sample = range(0,stop=sum(H_nom_sample),length=T)
 t_sim_nom_sample = range(0,stop=sum(H_nom_sample),length=T_sim)
 
@@ -420,7 +423,7 @@ Jx_tvlqr
 Ju_sample
 Ju_tvlqr
 
-plot_traj = plot(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],legend=:topright,color=:purple,
+plot_traj = plot(hcat(X_nom...)[1,:],hcat(X_nom...)[2,:],legend=:topright,color=:cyan,
     label="",width=2.0,xlabel="y",ylabel="z",
     title="Rocket")
 
@@ -518,3 +521,47 @@ a = Axis([p_sample_orientation;p_sample_sim_orientation],
 # Save to tikz format
 dir = joinpath(@__DIR__,"results")
 PGF.save(joinpath(dir,"rocket_dpo_orientation.tikz"), a, include_preamble=false)
+
+
+# eigen value analysis
+C = Diagonal(ones(model_slosh.nx))[1:model_nom.nx,:]
+# nominal
+A_nom, B_nom = nominal_jacobians(model_nom,X_nom,U_nom,H_nom)
+A_nom_cl = [(A_nom[t] - B_nom[t]*K[t]) for t = 1:T-1]
+sv_nom = [norm.(eigen(A_nom_cl[t]).values) for t = 1:T-1]
+plt_nom = plot(hcat(sv_nom...)',xlabel="time step t",ylabel="eigen value norm",
+	title="TVLQR nominal model",linetype=:steppost,
+	ylims=(-3,3),labels="")
+
+# slosh nominal
+X_nom_slosh = [[copy(X_nom[t]);0.0;0.0] for t = 1:T]
+A_nom_slosh, B_nom_slosh = nominal_jacobians(model_slosh,X_nom_slosh,U_nom,H_nom)
+A_nom_slosh_cl = [(A_nom_slosh[t] - B_nom_slosh[t]*K[t]*C) for t = 1:T-1]
+sv_nom_slosh = [norm.(eigen(A_nom_slosh_cl[t]).values) for t = 1:T-1]
+plt_nom_slosh = plot(hcat(sv_nom_slosh...)',xlabel="time step t",ylabel="eigen value norm",
+	title="TVLQR slosh model",linetype=:steppost,
+	ylims=(-3,3),labels="")
+
+# slosh
+A_dpo, B_dpo = nominal_jacobians(model_nom,X_nom_sample,U_nom_sample,H_nom_sample)
+A_dpo_cl = [(A_dpo[t] - B_dpo[t]*Θ_mat[t]) for t = 1:T-1]
+sv_dpo = [norm.(eigen(A_dpo_cl[t]).values) for t = 1:T-1]
+plt_dpo_nom = plot(hcat(sv_dpo...)',xlabel="time step t",ylabel="singular value",
+	title="DPO nominal model",linetype=:steppost,
+	ylims=(-1,3),labels="")
+
+X_dpo_slosh = [[copy(X_nom_sample[t]);0.0;0.0] for t = 1:T]
+A_dpo_slosh, B_dpo_slosh = nominal_jacobians(model_slosh,X_dpo_slosh,U_nom_sample,H_nom_sample)
+A_dpo_slosh_cl = [(A_dpo_slosh[t] - B_dpo_slosh[t]*Θ_mat[t]*C) for t = 1:T-1]
+sv_dpo_slosh = [norm.(eigen(A_dpo_slosh_cl[t]).values) for t = 1:T-1]
+plt_dpo_slosh = plot(hcat(sv_dpo_slosh...)',xlabel="time step t",ylabel="eigen value norm",
+	title="DPO slosh model",linetype=:steppost,
+	ylims=(-1.0,3.0),labels="")
+
+plot(plt_nom,plt_dpo_nom,layout=(2,1))
+
+plot(plt_nom_slosh,plt_dpo_slosh,layout=(2,1))
+
+
+plot(t_nom,hcat(X_nom...)[1:6,:]',color=:cyan,label=["y" "z" "ϕ"])
+plot!(t_nom_sample, hcat(X_nom_sample...)[1:6,:]',color=:orange,label=["y" "z" "ϕ"])

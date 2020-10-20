@@ -1,8 +1,7 @@
 include(joinpath(pwd(),"src/direct_policy_optimization.jl"))
 include(joinpath(pwd(),"dynamics/cartpole.jl"))
 using Plots
-using Random
-Random.seed!(1)
+
 
 μ0 = 0.1
 
@@ -12,7 +11,7 @@ model_friction = CartpoleFriction(1.0,0.2,0.5,9.81,μ0,
     nx_friction,nu_friction,nu_policy_friction)
 
 # Horizon
-T = 51
+T = 201
 
 # Bounds
 # h = h0 (fixed timestep)
@@ -131,6 +130,10 @@ plt = plot!(t_nominal,hcat(X_friction_nominal...)[1:4,:]',
     label=["x (nominal friction)" "θ (nominal friction)"
         "dx (nominal friction)" "dθ (nominal friction)"])
 
+plt = plot(t_nominal,hcat(X_friction_nominal...)[1:4,:]',
+    color=:yellowgreen,width=4.0,
+    label="",grid=false)
+
 b_nom = [U_nominal[t][2:3] for t = 1:T-1]
 b_friction_nominal = [U_friction_nominal[t][2:3] for t = 1:T-1]
 
@@ -196,8 +199,9 @@ Z0_sample = pack(X_friction_nominal,Ū_friction_nominal,H_friction_nominal[1],
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,time_limit=60*10)
 # Z_sample_sol = solve(prob_sample_moi,copy(Z_sample_sol),nlp=:SNOPT7)
 
-# Z_sample_sol_coefficients = solve(prob_sample_moi_coefficients,copy(Z0_sample),nlp=:SNOPT7)
-# Z_sample_sol_coefficients = solve(prob_sample_moi_coefficients,copy(Z_sample_sol),nlp=:SNOPT7)
+using JLD
+@save joinpath(pwd(),"examples/trajectories/","cartpole_friction.jld") Z_sample_sol
+# @load joinpath(pwd(),"examples/trajectories/","cartpole_friction.jld") Z_sample_sol
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,

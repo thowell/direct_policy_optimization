@@ -92,11 +92,19 @@ Z0_sample = ones(prob_sample_moi.n)
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
 	time_limit=60,tol=1.0e-7,c_tol=1.0e-7)
 
+using JLD
+@save joinpath(pwd(),"examples/trajectories/","double_integrator_LQR.jld") Z_sample_sol
+# @load joinpath(pwd(),"examples/trajectories/","double_integrator_LQR.jld") Z_sample_sol
+
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
-X_sample[1]
-U_sample[1]
+μ_sample = [sample_mean([X_sample[i][t] for i = 1:N]) for t = 1:T]
+
+μ_sample[1]'Q_lqr
+sep_pr = maximum([μ_sample[t]'*Q_lqr[t]*μ_sample[t] for t = 1:T])
+plot(hcat(μ_sample...)')
+
 Θ = [reshape(Z_sample_sol[prob_sample.idx_K[t]],nu,nx) for t = 1:T-1]
 policy_error = [norm(vec(Θ[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("Policy solution error (Inf norm): $(norm(policy_error,Inf))")

@@ -1,0 +1,80 @@
+Direct Polict Optimization using Deterministic Sampling and Collocation ICRA/RAL 2021 video script
+
+(1)
+
+We present Direct Policy Optimization using Deterministic Sampling and Collocation.
+
+(2)
+
+In this work, we aim to directly optimize robust policies by combining three tools
+
+- direct trajectory optimization
+
+- the unscented transform
+
+- and, policy optimization
+
+(3)
+
+We make extensive use of collocation and dynamics models and their derivatives, in order to optimize trajectories using large-scale quasi-Newton solvers.
+
+(4)
+
+The unscented transform is used to capture uncertainty. 
+
+For efficiency, we deterministically sample a minimal number of trajectories to be optimized
+
+(5)
+
+A parameterized policy is optimized by introducing policy constraints on each sample trajectory. 
+
+These are general and could be linear state feedback, nonlinear feature feedback, or neural networks. 
+
+(6)
+
+We combine these tools to solve stochastic optimal control problems in an algorithm called Direct Policy Optimization, or DPO.
+
+(7)
+
+The approximations made in DPO are exact in the case of linear dynamics, quadratic cost, and Gaussian noise. Therefore, DPO is able to exactly recover LQR solutions in these cases.
+
+(8)
+
+Here, we plan a collision-free path for an autonomous car. 
+
+Trajectory optimization finds a solution that is in close proximity to the obstacles. 
+
+DPO finds a path that safely avoids the obstacles; This margin of safety can be explicitly controlled
+
+(9)
+
+In this example, we plan a soft landing for a rocket that experiences fuel slosh. 
+
+These dynamics are difficult to model and observe. As a result, LQR fails to land the rocket. 
+
+Using DPO with samples that model fuel slosh, we find an output feedback policy that is able to successfully land the rocket.
+
+(10)
+
+In this scenario, during flight, one of the quadrotor's propeller will break, but we don't know which one beforehand.
+
+Here, LQR tracking is degraded, and highly dependent on which propeller breaks.
+
+The DPO policy is robust to any of the propellers breaking.
+
+(11)
+
+There exist many exciting future directions for this work:
+
+optimizing neural network policies
+
+modeling more general input disturbances in order to capture non-Gaussian noise and parameter uncertainty
+
+and finding policies for hybrid or contact-implicit systems by directly optimizing through switching or contact events.
+
+(12)
+
+This work was performed by the Robotic Exploration Lab at Stanford and Carnegie Mellon Universities, and was supported by Honda Research.
+
+
+

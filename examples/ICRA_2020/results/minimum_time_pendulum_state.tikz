@@ -1,5 +1,5 @@
 \begin{tikzpicture}[]
-\begin{axis}[legend style = {{at={(0.01,0.99)},anchor=north west}}, ylabel = {state}, xmin = {0.0}, xmax = {1.9887944631557783}, axis equal image = {false}, ymax = {7.0}, xlabel = {time}, hide axis = {false}, ymin = {-3}]\addplot+ [mark = {}, color=purple, line width=3pt]coordinates {
+\begin{axis}[legend style = {{at={(0.01,0.99)},anchor=north west}}, ylabel = {state}, xmin = {0.0}, xmax = {1.9887944631557783}, axis equal image = {false}, ymax = {7.0}, xlabel = {time}, hide axis = {false}, ymin = {-3}]\addplot+ [mark = {}, color=cyan, line width=3pt]coordinates {
 (0.0, 0.0)
 (0.032285885055188174, -0.006182735773955152)
 (0.06457177011037635, -0.024527016618735596)
@@ -53,7 +53,7 @@
 (1.6142942527594075, 3.141592653589793)
 };
 \addlegendentry{pos. (TO)}
-\addplot+ [mark = {}, color=purple, line width=3pt, densely dashed]coordinates {
+\addplot+ [mark = {}, color=cyan, line width=3pt, densely dashed]coordinates {
 (0.0, 0.0)
 (0.032285885055188174, -0.3829993053752766)
 (0.06457177011037635, -0.7533660639389708)

@@ -322,7 +322,7 @@
 (1.0052808721366675, 0.9870498965254249)
 };
 \addlegendentry{sample}
-\addplot+ [mark = {}, color=purple, line width=3pt, solid]coordinates {
+\addplot+ [mark = {}, color=cyan, line width=3pt, solid]coordinates {
 (0.0, 0.0)
 (-0.059976428703697446, -0.001681693770060151)
 (-0.11975435961751092, -0.006839149693981325)

@@ -57,6 +57,7 @@ function kinematics_mid(model::Acrobot,q)
     @SVector [model.l1*sin(q[1]),
               -model.l1*cos(q[1])]
 end
+
 function kinematics_ee(model::Acrobot,q)
     @SVector [model.l1*sin(q[1]) + model.l2*sin(q[1]+q[2]),
               -model.l1*cos(q[1]) - model.l2*cos(q[1]+q[2])]
