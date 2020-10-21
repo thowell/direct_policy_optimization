@@ -18,7 +18,7 @@ using MeshIO
 using Rotations
 using RigidBodyDynamics
 
-urdf = "/home/taylor/Research/sample_motion_planning/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
+urdf = "/home/taylor/Research/direct_policy_optimization/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
 mechanism = parse_urdf(urdf,floating=false)
 
 vis = Visualizer()
@@ -33,7 +33,7 @@ stride = sin(θ)*model.l1 + sin(ψ)*(model.l1+model.l2)
 x1 = [π-θ,π+ψ,θ,0,0,0,0,0,0,0]
 xT = [π+ψ,π-θ-ϵ,0,θ,0,0,0,0,0,0]
 kinematics(model,x1)[1]
-kinematics(model,xT)[1]
+kinematics(model,xT)[1]*2
 
 kinematics(model,x1)[2]
 kinematics(model,xT)[2]
@@ -55,6 +55,7 @@ x1_foot_des = kinematics(model,x1)[1]
 xT_foot_des = kinematics(model,xT)[1]
 xc = 0.5*(x1_foot_des + xT_foot_des)
 
+x1_foot_des*-1.0 + xT_foot_des
 # r1 = x1_foot_des - xc
 r1 = xT_foot_des - xc
 r2 = 0.1
@@ -407,3 +408,61 @@ Jx_sample
 # control tracking
 Ju_tvlqr
 Ju_sample
+
+
+vis = Visualizer()
+open(vis)
+urdf1 = "/home/taylor/Research/direct_policy_optimization/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
+mechanism1 = parse_urdf(urdf1,floating=false)
+mvis1 = MechanismVisualizer(mechanism1, URDFVisuals(urdf1,package_path=[dirname(dirname(urdf1))]), vis)
+set_configuration!(mvis1,transformation_to_urdf_left_pinned(X_nom_sample[T][1:5],X_nom_sample[T][6:10]))
+urdf2 = "/home/taylor/Research/direct_policy_optimization/dynamics/biped/urdf/flip_5link_fromrightfoot.urdf"
+mechanism2 = parse_urdf(urdf2,floating=false)
+mvis2 = MechanismVisualizer(mechanism2, URDFVisuals(urdf2,package_path=[dirname(dirname(urdf2))]), vis)
+set_configuration!(mvis2,transformation_to_urdf_right_pinned(X_nom_sample[T][1:5],X_nom_sample[T][6:10]))
+
+
+setvisible!(vis["world"]["left_shank"],true)
+
+setvisible!(vis["world"]["right_shank"],false)
+
+visualize!(vis,model,X_nom_sample,Δt=H_nom_sample[1])
+
+function visualize!(vis,model::Biped,q;
+       Δt=0.1)
+    T = length(q)
+    traj = [q...,q...]
+    urdf1 = "/home/taylor/Research/direct_policy_optimization/dynamics/biped/urdf/flip_5link_fromleftfoot.urdf"
+    mechanism1 = parse_urdf(urdf1,floating=false)
+    mvis1 = MechanismVisualizer(mechanism1, URDFVisuals(urdf1,package_path=[dirname(dirname(urdf1))]), vis)
+    # set_configuration!(mvis1,transformation_to_urdf_left_pinned(X_nom_sample[T][1:5],X_nom_sample[T][6:10]))
+    urdf2 = "/home/taylor/Research/direct_policy_optimization/dynamics/biped/urdf/flip_5link_fromrightfoot.urdf"
+    mechanism2 = parse_urdf(urdf2,floating=false)
+    mvis2 = MechanismVisualizer(mechanism2, URDFVisuals(urdf2,package_path=[dirname(dirname(urdf2))]), vis)
+    # set_configuration!(mvis2,transformation_to_urdf_right_pinned(X_nom_sample[T][1:5],X_nom_sample[T][6:10]))
+    setvisible!(vis["world"]["left_shank"],true)
+    setvisible!(vis["world"]["right_shank"],false)
+
+   	anim = MeshCat.Animation(convert(Int,floor(1/Δt)))
+
+    for (t,qq) in enumerate(traj)
+        MeshCat.atframe(anim,t) do
+
+            if t < T
+                setvisible!(vis["world"]["left_shank"],true)
+                set_configuration!(mvis1,transformation_to_urdf_left_pinned(qq[1:5],qq[6:10]))
+            else
+                setvisible!(vis["world"]["left_shank"],false)
+            end
+
+            if t > T
+                setvisible!(vis["world"]["right_shank"],true)
+                set_configuration!(mvis2,transformation_to_urdf_right_pinned(qq[1:5],qq[6:10]))
+            else
+                setvisible!(vis["world"]["right_shank"],false)
+            end
+        end
+    end
+    # settransform!(vis["/Cameras/default"], compose(Translation(-1, -1, 0),LinearMap(RotZ(pi/2))))
+    MeshCat.setanimation!(vis,anim)
+end

@@ -15,7 +15,7 @@
   <joint name="world_joint" type="revolute">
     <parent link="world"/>
     <child link="right_shank"/>
-    <origin rpy="0.0 0.0 0.0" xyz="0.21949 -.44 0.0"/>
+    <origin rpy="0.0 0.0 0.0" xyz="0.1163 -.44 0.0"/>
     <limit lower="-1" upper="1" velocity="2.5" effort="0.0"/>
 		<axis xyz = "0 1 0" />
   </joint>
