@@ -92,42 +92,39 @@ Z0_sample = ones(prob_sample_moi.n)
 Z_sample_sol = solve(prob_sample_moi,copy(Z0_sample),nlp=:SNOPT7,
 	time_limit=60,tol=1.0e-7,c_tol=1.0e-7)
 
-using JLD
-@save joinpath(pwd(),"examples/trajectories/","double_integrator_LQR.jld") Z_sample_sol
-# @load joinpath(pwd(),"examples/trajectories/","double_integrator_LQR.jld") Z_sample_sol
+# using JLD
+# @save joinpath(pwd(),"examples/trajectories/","double_integrator_LQR.jld") Z_sample_sol
+# # @load joinpath(pwd(),"examples/trajectories/","double_integrator_LQR.jld") Z_sample_sol
 
 # Unpack solutions
 X_nom_sample, U_nom_sample, H_nom_sample, X_sample, U_sample, H_sample = unpack(Z_sample_sol,prob_sample)
 
 μ_sample = [sample_mean([X_sample[i][t] for i = 1:N]) for t = 1:T]
-
-μ_sample[1]'Q_lqr
-sep_pr = maximum([μ_sample[t]'*Q_lqr[t]*μ_sample[t] for t = 1:T])
-plot(hcat(μ_sample...)')
+P_sample = [sample_covariance([X_sample[i][t] for i = 1:N], β = β, w = w) for t = 1:T]
 
 Θ = [reshape(Z_sample_sol[prob_sample.idx_K[t]],nu,nx) for t = 1:T-1]
 policy_error = [norm(vec(Θ[t]-K[t]))/norm(vec(K[t])) for t = 1:T-1]
 println("Policy solution error (Inf norm): $(norm(policy_error,Inf))")
-
-using Plots
-plt = plot(policy_error,xlabel="time step",ylims=(1.0e-16,1.0),yaxis=:log,
-    width=2.0,legend=:bottom,ylabel="matrix-norm error",label="")
-savefig(plt,joinpath(@__DIR__,"results/LQR_double_integrator.png"))
-
-using PGFPlots
-const PGF = PGFPlots
-
-p = PGF.Plots.Linear(range(1,stop=T-1,length=T-1),policy_error,mark="",style="color=black, very thick")
-
-a = Axis(p,
-    xmin=1., ymin=1.0e-16, xmax=T-1, ymax=1.0,
-    axisEqualImage=false,
-    hideAxis=false,
-	ylabel="matrix-norm error",
-	xlabel="time step",
-	ymode="log",
-	)
-
-# Save to tikz format
-dir = joinpath(@__DIR__,"results")
-PGF.save(joinpath(dir,"LQR_double_integrator.tikz"), a, include_preamble=false)
+#
+# using Plots
+# plt = plot(policy_error,xlabel="time step",ylims=(1.0e-16,1.0),yaxis=:log,
+#     width=2.0,legend=:bottom,ylabel="matrix-norm error",label="")
+# savefig(plt,joinpath(@__DIR__,"results/LQR_double_integrator.png"))
+#
+# using PGFPlots
+# const PGF = PGFPlots
+#
+# p = PGF.Plots.Linear(range(1,stop=T-1,length=T-1),policy_error,mark="",style="color=black, very thick")
+#
+# a = Axis(p,
+#     xmin=1., ymin=1.0e-16, xmax=T-1, ymax=1.0,
+#     axisEqualImage=false,
+#     hideAxis=false,
+# 	ylabel="matrix-norm error",
+# 	xlabel="time step",
+# 	ymode="log",
+# 	)
+#
+# # Save to tikz format
+# dir = joinpath(@__DIR__,"results")
+# PGF.save(joinpath(dir,"LQR_double_integrator.tikz"), a, include_preamble=false)
