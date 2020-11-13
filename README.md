@@ -1,3 +1,5 @@
+# This repository is out of date. Examples can now be found [here](https://github.com/thowell/DirectMotionPlanning/tree/main/examples/direct_policy_optimization).
+
 # Direct Policy Optimization
 
 ## Examples
